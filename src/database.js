@@ -20,6 +20,9 @@ export function createDatabase(config) {
       display_name TEXT NOT NULL,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'USER' CHECK (role IN ('ADMIN', 'USER')),
+      totp_enabled INTEGER NOT NULL DEFAULT 0 CHECK (totp_enabled IN (0, 1)),
+      totp_secret_encrypted TEXT,
+      totp_last_used_step INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -91,8 +94,52 @@ export function createDatabase(config) {
       setting_value TEXT NOT NULL,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS webauthn_credentials (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      credential_id TEXT NOT NULL UNIQUE,
+      public_key BLOB NOT NULL,
+      counter INTEGER NOT NULL DEFAULT 0,
+      transports TEXT NOT NULL DEFAULT '[]',
+      device_type TEXT NOT NULL DEFAULT '',
+      backed_up INTEGER NOT NULL DEFAULT 0 CHECK (backed_up IN (0, 1)),
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_used_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user_id
+      ON webauthn_credentials(user_id);
+
+    CREATE TABLE IF NOT EXISTS recovery_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      code_hash TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      used_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_recovery_codes_user_id
+      ON recovery_codes(user_id, used_at);
+  
   `);
 
+
+  const userColumns = new Set(
+    db.prepare('PRAGMA table_info(users)').all().map((column) => column.name)
+  );
+  if (!userColumns.has('totp_enabled')) {
+    db.exec("ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0 CHECK (totp_enabled IN (0, 1));");
+  }
+  if (!userColumns.has('totp_secret_encrypted')) {
+    db.exec('ALTER TABLE users ADD COLUMN totp_secret_encrypted TEXT;');
+  }
+  if (!userColumns.has('totp_last_used_step')) {
+    db.exec('ALTER TABLE users ADD COLUMN totp_last_used_step INTEGER;');
+  }
 
   const admin = db.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('ADMIN');
   if (!admin) {

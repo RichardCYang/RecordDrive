@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="<%= language %>">
+<head><%- include('partials/head') %></head>
+<body class="login-page">
+  <div class="sky-orb sky-orb-one"></div>
+  <div class="sky-orb sky-orb-two"></div>
+  <main class="login-shell login-shell-centered">
+    <section class="login-panel login-panel-wide">
+      <div class="login-card">
+        <div class="mobile-brand"><%- include('partials/logo') %></div>
+        <div class="login-heading">
+          <span class="eyebrow"><%= t('ACCOUNT SECURITY') %></span>
+          <h2><%= t('Two-step verification') %></h2>
+          <p><%= t('Complete one more verification step for {{username}}.', { username: user.username }) %></p>
+        </div>
+
+        <% if (error) { %>
+          <div class="form-alert" role="alert"><%= error %></div>
+        <% } %>
+
+        <div class="mfa-login-options">
+          <% if (mfaState.totpEnabled) { %>
+            <section class="mfa-login-card">
+              <div>
+                <span class="security-method-icon" aria-hidden="true">123</span>
+                <h3><%= t('Authenticator app') %></h3>
+                <p><%= t('Enter the current six-digit code from your authenticator app.') %></p>
+              </div>
+              <form action="/login/mfa/totp" method="post" class="stack-form compact-form">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <label class="field">
+                  <span><%= t('Authentication code') %></span>
+                  <input class="otp-input" type="text" name="token" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" required autofocus>
+                </label>
+                <button class="button button-primary button-block" type="submit"><%= t('Verify code') %></button>
+              </form>
+            </section>
+          <% } %>
+
+          <% if (mfaState.passkeyEnabled) { %>
+            <section class="mfa-login-card">
+              <div>
+                <span class="security-method-icon" aria-hidden="true">⌁</span>
+                <h3><%= t('Passkey') %></h3>
+                <p><%= t('Use a registered device, security key, fingerprint, or face recognition.') %></p>
+              </div>
+              <button
+                class="button button-secondary button-block"
+                type="button"
+                data-passkey-authenticate
+                data-options-url="/login/mfa/passkey/options"
+                data-verify-url="/login/mfa/passkey/verify"
+              ><%= t('Verify with passkey') %></button>
+              <p
+                class="form-status"
+                role="status"
+                data-passkey-auth-status
+                data-working="<%= t('Waiting for your passkey…') %>"
+                data-not-supported="<%= t('This browser does not support WebAuthn passkeys.') %>"
+              ></p>
+            </section>
+          <% } %>
+
+          <% if (mfaState.recoveryCodeCount > 0) { %>
+            <details class="mfa-recovery-details">
+              <summary><%= t('Use a recovery key') %></summary>
+              <form action="/login/mfa/recovery" method="post" class="stack-form compact-form">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <label class="field">
+                  <span><%= t('Recovery key') %></span>
+                  <input type="text" name="recoveryCode" autocomplete="one-time-code" placeholder="XXXX-XXXX-XXXX" maxlength="20" required>
+                </label>
+                <button class="button button-secondary button-block" type="submit"><%= t('Use recovery key') %></button>
+              </form>
+            </details>
+          <% } %>
+        </div>
+
+        <form action="/logout" method="post" class="mfa-cancel-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="text-button" type="submit"><%= t('Cancel and return to sign in') %></button>
+        </form>
+      </div>
+    </section>
+  </main>
+  <%- include('partials/client-i18n') %>
+</body>
+</html>

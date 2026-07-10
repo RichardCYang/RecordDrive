@@ -54,6 +54,7 @@ export function createApplication(options = {}) {
     etag: true
   }));
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+  app.use(express.json({ limit: '256kb' }));
   app.use(languageMiddleware);
 
   app.use(session({
@@ -101,8 +102,8 @@ export function createApplication(options = {}) {
     });
   });
 
-  app.use(createAuthRouter(db));
-  app.use(createSettingsRouter());
+  app.use(createAuthRouter(db, config));
+  app.use(createSettingsRouter(db, config));
   app.use(createDashboardRouter(db));
   app.use('/admin', createAdminRouter(db, { config, runtimeControl }));
   app.use('/repositories', createRepositoriesRouter(db, config));
@@ -133,12 +134,16 @@ export function createApplication(options = {}) {
     }
 
     console.error(error);
+    const message = config.isProduction
+      ? req.t('An error occurred while processing the request.')
+      : error.message;
+    if (req.is('application/json') || req.path.includes('/passkeys/')) {
+      return res.status(500).json({ error: message });
+    }
     return res.status(500).render('error', {
       title: req.t('Server error'),
       statusCode: 500,
-      message: config.isProduction
-        ? req.t('An error occurred while processing the request.')
-        : error.message
+      message
     });
   });
 

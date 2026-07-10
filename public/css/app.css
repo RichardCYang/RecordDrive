@@ -1541,3 +1541,379 @@ input:focus, textarea:focus, select:focus { border-color: var(--sky-400); backgr
   .language-source-card { align-items: flex-start; flex-direction: column; gap: 4px; }
   .language-settings-form .button { width: 100%; }
 }
+
+.login-shell-centered {
+  grid-template-columns: minmax(320px, 720px);
+  justify-content: center;
+}
+
+.login-panel-wide {
+  width: 100%;
+}
+
+.mfa-login-options {
+  display: grid;
+  gap: 1rem;
+}
+
+.mfa-login-card,
+.security-verification-card,
+.passkey-item,
+.empty-inline-state {
+  border: 1px solid var(--line, #dbeafe);
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+.mfa-login-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1.15rem;
+}
+
+.mfa-login-card h3,
+.security-verification-card h3,
+.security-method-heading h2 {
+  margin: 0;
+}
+
+.mfa-login-card p,
+.security-verification-card p,
+.security-method-heading p,
+.passkey-item span,
+.passkey-item small {
+  color: var(--muted, #64748b);
+}
+
+.compact-form {
+  gap: .8rem;
+}
+
+.otp-input {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .28em;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.mfa-recovery-details {
+  border-top: 1px solid var(--line, #dbeafe);
+  padding-top: 1rem;
+}
+
+.mfa-recovery-details summary {
+  cursor: pointer;
+  color: var(--primary, #0284c7);
+  font-weight: 700;
+}
+
+.mfa-recovery-details form {
+  margin-top: 1rem;
+}
+
+.mfa-cancel-form {
+  margin-top: 1.25rem;
+  text-align: center;
+}
+
+.text-button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--primary, #0284c7);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: .35rem;
+}
+
+.settings-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+}
+
+.settings-section-nav a {
+  border: 1px solid var(--line, #dbeafe);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink, #0f172a);
+  font-weight: 700;
+  padding: .55rem .9rem;
+  text-decoration: none;
+}
+
+.security-summary-card {
+  min-width: 190px;
+  border: 1px solid rgba(255, 255, 255, .55);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .72);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  padding: 1rem 1.15rem;
+}
+
+.security-summary-card span {
+  color: var(--muted, #64748b);
+  font-size: .86rem;
+  font-weight: 700;
+}
+
+.security-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .85rem;
+  margin-bottom: 1.25rem;
+}
+
+.security-overview-item {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  border: 1px solid var(--line, #dbeafe);
+  border-radius: 16px;
+  background: #f8fbff;
+  padding: 1rem;
+}
+
+.security-overview-item span {
+  color: var(--muted, #64748b);
+  font-size: .85rem;
+}
+
+.security-overview-item strong {
+  font-size: 1.15rem;
+}
+
+.security-verification-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 1fr);
+  gap: 1.25rem;
+  align-items: end;
+  padding: 1.15rem;
+}
+
+.inline-security-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .8rem;
+  align-items: end;
+}
+
+.inline-security-form .field {
+  flex: 1 1 210px;
+}
+
+.security-unlocked-notice {
+  border: 1px solid #bbf7d0;
+  border-radius: 14px;
+  background: #f0fdf4;
+  color: #166534;
+  font-weight: 700;
+  padding: .85rem 1rem;
+}
+
+.security-method-panel {
+  display: grid;
+  gap: 1.25rem;
+  scroll-margin-top: 90px;
+}
+
+.security-method-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: start;
+}
+
+.security-method-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: .9rem;
+  font-weight: 900;
+  letter-spacing: -.04em;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  font-size: .78rem;
+  font-weight: 800;
+  padding: .4rem .7rem;
+  white-space: nowrap;
+}
+
+.status-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-neutral {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.totp-enrollment-grid {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.totp-qr-card {
+  border: 1px solid var(--line, #dbeafe);
+  border-radius: 20px;
+  background: #fff;
+  padding: .65rem;
+  text-align: center;
+}
+
+.totp-qr-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.totp-enrollment-instructions {
+  display: grid;
+  gap: 1rem;
+}
+
+.totp-enrollment-instructions ol {
+  display: grid;
+  gap: .7rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.manual-secret,
+.recovery-code {
+  border: 1px solid #bae6fd;
+  border-radius: 9px;
+  background: #f0f9ff;
+  color: #0c4a6e;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 800;
+  letter-spacing: .06em;
+}
+
+.manual-secret {
+  display: inline-block;
+  overflow-wrap: anywhere;
+  padding: .25rem .45rem;
+}
+
+.passkey-list {
+  display: grid;
+  gap: .75rem;
+}
+
+.passkey-item {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+}
+
+.passkey-item > div {
+  display: grid;
+  gap: .2rem;
+}
+
+.passkey-item span,
+.passkey-item small {
+  font-size: .82rem;
+}
+
+.empty-inline-state {
+  color: var(--muted, #64748b);
+  padding: 1rem;
+  text-align: center;
+}
+
+.passkey-registration-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: .85rem;
+  align-items: end;
+}
+
+.passkey-registration-form .form-status {
+  grid-column: 1 / -1;
+}
+
+.form-status {
+  min-height: 1.25em;
+  margin: 0;
+  color: var(--muted, #64748b);
+  font-size: .85rem;
+}
+
+.recovery-codes-reveal {
+  border-color: #facc15;
+  background: #fffbeb;
+}
+
+.recovery-code-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .65rem;
+  margin-bottom: 1rem;
+}
+
+.recovery-code {
+  display: block;
+  padding: .65rem .8rem;
+  text-align: center;
+}
+
+.recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+
+.button:disabled,
+button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+@media (max-width: 760px) {
+  .security-overview-grid,
+  .security-verification-card,
+  .totp-enrollment-grid,
+  .passkey-registration-form {
+    grid-template-columns: 1fr;
+  }
+
+  .security-method-heading {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .security-method-heading .status-pill {
+    grid-column: 2;
+  }
+
+  .recovery-code-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .passkey-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

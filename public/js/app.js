@@ -380,4 +380,162 @@
     updateTlsFields();
   }
 
+
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+  const base64urlToUint8Array = (value) => {
+    const padding = '='.repeat((4 - (value.length % 4)) % 4);
+    const base64 = value.replace(/-/g, '+').replace(/_/g, '/') + padding;
+    const binary = window.atob(base64);
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  };
+
+  const arrayBufferToBase64url = (value) => {
+    const bytes = new Uint8Array(value || new ArrayBuffer(0));
+    let binary = '';
+    bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+    return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  };
+
+  const creationOptionsFromJSON = (options) => ({
+    ...options,
+    challenge: base64urlToUint8Array(options.challenge),
+    user: {
+      ...options.user,
+      id: base64urlToUint8Array(options.user.id)
+    },
+    excludeCredentials: (options.excludeCredentials || []).map((credential) => ({
+      ...credential,
+      id: base64urlToUint8Array(credential.id)
+    }))
+  });
+
+  const requestOptionsFromJSON = (options) => ({
+    ...options,
+    challenge: base64urlToUint8Array(options.challenge),
+    allowCredentials: (options.allowCredentials || []).map((credential) => ({
+      ...credential,
+      id: base64urlToUint8Array(credential.id)
+    }))
+  });
+
+  const registrationCredentialToJSON = (credential) => ({
+    id: credential.id,
+    rawId: arrayBufferToBase64url(credential.rawId),
+    type: credential.type,
+    authenticatorAttachment: credential.authenticatorAttachment || undefined,
+    clientExtensionResults: credential.getClientExtensionResults(),
+    response: {
+      clientDataJSON: arrayBufferToBase64url(credential.response.clientDataJSON),
+      attestationObject: arrayBufferToBase64url(credential.response.attestationObject),
+      transports: typeof credential.response.getTransports === 'function'
+        ? credential.response.getTransports()
+        : []
+    }
+  });
+
+  const authenticationCredentialToJSON = (credential) => ({
+    id: credential.id,
+    rawId: arrayBufferToBase64url(credential.rawId),
+    type: credential.type,
+    authenticatorAttachment: credential.authenticatorAttachment || undefined,
+    clientExtensionResults: credential.getClientExtensionResults(),
+    response: {
+      clientDataJSON: arrayBufferToBase64url(credential.response.clientDataJSON),
+      authenticatorData: arrayBufferToBase64url(credential.response.authenticatorData),
+      signature: arrayBufferToBase64url(credential.response.signature),
+      userHandle: credential.response.userHandle
+        ? arrayBufferToBase64url(credential.response.userHandle)
+        : undefined
+    }
+  });
+
+  const fetchJSON = async (url, body = {}) => {
+    const response = await fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken
+      },
+      body: JSON.stringify(body)
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `Request failed with status ${response.status}.`);
+    return payload;
+  };
+
+  const passkeyRegisterButton = document.querySelector('[data-passkey-register]');
+  if (passkeyRegisterButton) {
+    const nameInput = document.querySelector('[data-passkey-name]');
+    const status = document.querySelector('[data-passkey-register-status]');
+    passkeyRegisterButton.addEventListener('click', async () => {
+      if (!window.PublicKeyCredential || !navigator.credentials) {
+        if (status) status.textContent = status.dataset.notSupported || 'This browser does not support WebAuthn passkeys.';
+        return;
+      }
+      passkeyRegisterButton.disabled = true;
+      if (status) status.textContent = status.dataset.working || 'Waiting for your authenticator…';
+      try {
+        const options = await fetchJSON(passkeyRegisterButton.dataset.optionsUrl, {
+          name: nameInput?.value || ''
+        });
+        const credential = await navigator.credentials.create({
+          publicKey: creationOptionsFromJSON(options)
+        });
+        if (!credential) throw new Error('The authenticator did not return a credential.');
+        const result = await fetchJSON(passkeyRegisterButton.dataset.verifyUrl, {
+          credential: registrationCredentialToJSON(credential)
+        });
+        window.location.assign(result.redirect || '/settings#security');
+      } catch (error) {
+        if (status) status.textContent = error.message;
+        passkeyRegisterButton.disabled = false;
+      }
+    });
+  }
+
+  const passkeyAuthenticateButton = document.querySelector('[data-passkey-authenticate]');
+  if (passkeyAuthenticateButton) {
+    const status = document.querySelector('[data-passkey-auth-status]');
+    passkeyAuthenticateButton.addEventListener('click', async () => {
+      if (!window.PublicKeyCredential || !navigator.credentials) {
+        if (status) status.textContent = status.dataset.notSupported || 'This browser does not support WebAuthn passkeys.';
+        return;
+      }
+      passkeyAuthenticateButton.disabled = true;
+      if (status) status.textContent = status.dataset.working || 'Waiting for your passkey…';
+      try {
+        const options = await fetchJSON(passkeyAuthenticateButton.dataset.optionsUrl);
+        const credential = await navigator.credentials.get({
+          publicKey: requestOptionsFromJSON(options)
+        });
+        if (!credential) throw new Error('The authenticator did not return a credential.');
+        const result = await fetchJSON(passkeyAuthenticateButton.dataset.verifyUrl, {
+          credential: authenticationCredentialToJSON(credential)
+        });
+        window.location.assign(result.redirect || '/');
+      } catch (error) {
+        if (status) status.textContent = error.message;
+        passkeyAuthenticateButton.disabled = false;
+      }
+    });
+  }
+
+  const copyRecoveryButton = document.querySelector('[data-copy-recovery-codes]');
+  if (copyRecoveryButton) {
+    const status = document.querySelector('[data-copy-recovery-status]');
+    copyRecoveryButton.addEventListener('click', async () => {
+      const codes = Array.from(document.querySelectorAll('[data-recovery-code-list] .recovery-code'))
+        .map((element) => element.textContent.trim())
+        .filter(Boolean);
+      try {
+        await navigator.clipboard.writeText(codes.join('\n'));
+        if (status) status.textContent = status.dataset.copied || 'Recovery keys copied.';
+      } catch {
+        if (status) status.textContent = codes.join('  ');
+      }
+    });
+  }
+
 })();

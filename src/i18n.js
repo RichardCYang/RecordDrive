@@ -1,4 +1,5 @@
 import { extendedTranslations } from './i18n-extended.js';
+import { securityTranslations } from './i18n-security.js';
 
 const LANGUAGE_COOKIE = 'recorddrive.lang';
 const LANGUAGE_COOKIE_MAX_AGE = 1000 * 60 * 60 * 24 * 365;
@@ -400,8 +401,10 @@ const translations = {
   }
 };
 
-for (const [language, entries] of Object.entries(extendedTranslations)) {
-  Object.assign(translations[language], entries);
+for (const source of [extendedTranslations, securityTranslations]) {
+  for (const [language, entries] of Object.entries(source)) {
+    Object.assign(translations[language], entries);
+  }
 }
 
 export function normalizeLanguage(value) {
