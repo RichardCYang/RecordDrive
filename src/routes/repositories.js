@@ -13,7 +13,8 @@ import {
   permissionPayload
 } from '../repository-access.js';
 import { deleteRepository } from '../repository-service.js';
-import { safeOriginalName, setFlash } from '../utils.js';
+import { filePreviewKind, safeOriginalName, setFlash } from '../utils.js';
+import { createXlsxPreview, createZipPreview, FilePreviewError } from '../file-preview.js';
 
 function safeStoredPath(config, repositoryId, storedName) {
   const repositoryRoot = path.resolve(config.uploadRoot, String(repositoryId));
@@ -22,6 +23,27 @@ function safeStoredPath(config, repositoryId, storedName) {
     throw new Error('The requested file path is not allowed.');
   }
   return candidate;
+}
+
+function inlineContentDisposition(filename) {
+  const originalName = String(filename || 'preview.pdf');
+  const fallback = originalName
+    .replace(/[^\x20-\x7e]/g, '_')
+    .replace(/["\\]/g, '_');
+  const encodedName = encodeURIComponent(originalName).replace(/['()*]/g, (character) => {
+    return `%${character.charCodeAt(0).toString(16).toUpperCase()}`;
+  });
+  return `inline; filename="${fallback}"; filename*=UTF-8''${encodedName}`;
+}
+
+function previewErrorMessage(req, error) {
+  const messages = {
+    XLSX_TOO_LARGE: req.t('This spreadsheet is too large to preview.'),
+    INVALID_XLSX: req.t('The spreadsheet preview could not be generated.'),
+    EMPTY_XLSX: req.t('The spreadsheet does not contain any worksheets.'),
+    INVALID_ZIP: req.t('The ZIP archive preview could not be generated.')
+  };
+  return messages[error.code] || req.t('The file preview could not be generated.');
 }
 
 function cleanupUploadedFiles(files = []) {
@@ -369,6 +391,54 @@ export function createRepositoriesRouter(db, config) {
       }
     }
   );
+
+  router.get('/:repositoryId/files/:fileId/preview', requireDownload, async (req, res, next) => {
+    const file = db.prepare(`
+      SELECT * FROM files WHERE id = ? AND repository_id = ?
+    `).get(req.params.fileId, req.repository.id);
+
+    if (!file) {
+      return res.status(404).json({ error: req.t('The requested file does not exist.') });
+    }
+
+    try {
+      const absolutePath = safeStoredPath(config, req.repository.id, file.stored_name);
+      if (!fs.existsSync(absolutePath)) {
+        return res.status(410).json({
+          error: req.t('The file record exists, but its data could not be found on disk.')
+        });
+      }
+
+      const previewKind = filePreviewKind(file.mime_type, file.original_name);
+      res.set('Cache-Control', 'private, no-store');
+
+      if (previewKind === 'pdf') {
+        res.type('application/pdf');
+        res.set('Content-Disposition', inlineContentDisposition(file.original_name));
+        return res.sendFile(absolutePath, (error) => {
+          if (error && !res.headersSent) next(error);
+        });
+      }
+
+      if (previewKind === 'xlsx') {
+        const stats = fs.statSync(absolutePath);
+        const preview = await createXlsxPreview(absolutePath, stats, req.query.sheet);
+        return res.json(preview);
+      }
+
+      if (previewKind === 'zip') {
+        return res.json(await createZipPreview(absolutePath));
+      }
+
+      return res.status(415).json({ error: req.t('Preview is not available for this file type.') });
+    } catch (error) {
+      if (error instanceof FilePreviewError) {
+        const status = error.code === 'XLSX_TOO_LARGE' ? 413 : 422;
+        return res.status(status).json({ error: previewErrorMessage(req, error), code: error.code });
+      }
+      return next(error);
+    }
+  });
 
   router.get('/:repositoryId/files/:fileId/download', requireDownload, (req, res, next) => {
     const file = db.prepare(`

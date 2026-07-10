@@ -126,6 +126,10 @@
     const detailsClose = explorer.querySelector('[data-details-close]');
     const detailDownload = explorer.querySelector('[data-detail-download]');
     const detailDeleteForm = explorer.querySelector('[data-detail-delete-form]');
+    const detailTabs = Array.from(explorer.querySelectorAll('[data-details-tab]'));
+    const detailPanels = Array.from(explorer.querySelectorAll('[data-details-panel]'));
+    const previewMessage = explorer.querySelector('[data-preview-message]');
+    const previewContent = explorer.querySelector('[data-preview-content]');
     const explorerSearch = explorer.querySelector('[data-explorer-search]');
     const kindCodes = {
       image: 'IMG',
@@ -139,6 +143,8 @@
       file: 'FILE'
     };
     let selectedItem = null;
+    let previewController = null;
+    let loadedPreviewKey = '';
 
     const openUploadDrawer = () => {
       if (!uploadDrawer) return;
@@ -188,8 +194,432 @@
       if (target) target.textContent = value || '—';
     };
 
+
+    const formatPreviewBytes = (bytes) => {
+      const value = Number(bytes || 0);
+      if (!Number.isFinite(value) || value <= 0) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const exponent = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+      const amount = value / (1024 ** exponent);
+      return `${amount >= 10 || exponent === 0 ? amount.toFixed(0) : amount.toFixed(1)} ${units[exponent]}`;
+    };
+
+    const columnLabel = (columnNumber) => {
+      let value = Number(columnNumber);
+      let label = '';
+      while (value > 0) {
+        value -= 1;
+        label = String.fromCharCode(65 + (value % 26)) + label;
+        value = Math.floor(value / 26);
+      }
+      return label || 'A';
+    };
+
+    const setDetailsTab = (tabName) => {
+      const selectedTab = tabName === 'preview' ? 'preview' : 'details';
+      detailTabs.forEach((button) => {
+        const active = button.dataset.detailsTab === selectedTab;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-selected', String(active));
+        button.tabIndex = active ? 0 : -1;
+      });
+      detailPanels.forEach((panel) => {
+        panel.hidden = panel.dataset.detailsPanel !== selectedTab;
+      });
+    };
+
+    const showPreviewMessage = (text, detail = '', state = 'info') => {
+      if (previewController) {
+        previewController.abort();
+        previewController = null;
+      }
+      if (previewContent) {
+        previewContent.hidden = true;
+        previewContent.replaceChildren();
+      }
+      if (!previewMessage) return;
+      previewMessage.hidden = false;
+      previewMessage.className = `explorer-preview-message is-${state}`;
+      const badge = document.createElement('span');
+      badge.className = 'explorer-preview-message-icon';
+      badge.setAttribute('aria-hidden', 'true');
+      badge.textContent = state === 'loading' ? '...' : 'PREVIEW';
+      const title = document.createElement('strong');
+      title.textContent = text;
+      previewMessage.replaceChildren(badge, title);
+      if (detail) {
+        const description = document.createElement('small');
+        description.textContent = detail;
+        previewMessage.append(description);
+      }
+    };
+
+    const showPreviewContent = (content) => {
+      if (!previewContent) return;
+      if (previewMessage) previewMessage.hidden = true;
+      previewContent.replaceChildren(content);
+      previewContent.hidden = false;
+    };
+
+    const resetPreview = () => {
+      loadedPreviewKey = '';
+      showPreviewMessage(message('openPreview', 'Select the Preview tab to open this file.'));
+    };
+
+    const fetchPreviewJson = async (url, signal) => {
+      const response = await window.fetch(url, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+        signal
+      });
+      let payload = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+      if (!response.ok) {
+        throw new Error(payload?.error || message('previewFailed', 'The file preview could not be loaded.'));
+      }
+      return payload;
+    };
+
+    const safeColor = (value) => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : '';
+    const borderStyle = (style) => {
+      if (style === 'dashed' || style === 'dashDot' || style === 'dashDotDot') return 'dashed';
+      if (style === 'dotted' || style === 'hair') return 'dotted';
+      if (style === 'double') return 'double';
+      return 'solid';
+    };
+    const borderWidth = (style) => {
+      if (style === 'medium' || style === 'mediumDashed' || style === 'mediumDashDot' || style === 'mediumDashDotDot') return '2px';
+      if (style === 'thick' || style === 'double') return '3px';
+      return '1px';
+    };
+
+    const applySpreadsheetCellStyle = (element, style = {}) => {
+      if (style.bold) element.style.fontWeight = '700';
+      if (style.italic) element.style.fontStyle = 'italic';
+      if (style.underline) element.style.textDecoration = 'underline';
+      if (Number.isFinite(style.fontSize)) element.style.fontSize = `${Math.max(8, Math.min(style.fontSize, 24))}px`;
+      const fontColor = safeColor(style.fontColor);
+      const fillColor = safeColor(style.fillColor);
+      if (fontColor) element.style.color = fontColor;
+      if (fillColor) element.style.backgroundColor = fillColor;
+      if (['left', 'center', 'right', 'justify'].includes(style.horizontal)) element.style.textAlign = style.horizontal;
+      if (['top', 'middle', 'bottom'].includes(style.vertical)) element.style.verticalAlign = style.vertical;
+      if (style.wrapText) element.style.whiteSpace = 'normal';
+      for (const side of ['top', 'right', 'bottom', 'left']) {
+        const definition = style.border?.[side];
+        if (!definition?.style) continue;
+        const color = safeColor(definition.color) || '#cbd5e1';
+        element.style[`border${side[0].toUpperCase()}${side.slice(1)}`] = `${borderWidth(definition.style)} ${borderStyle(definition.style)} ${color}`;
+      }
+    };
+
+    const spreadsheetMergeMap = (sheet) => {
+      const starts = new Map();
+      const covered = new Set();
+      for (const merge of sheet.merges || []) {
+        const startRow = Math.max(1, Number(merge.startRow || 1));
+        const startColumn = Math.max(1, Number(merge.startColumn || 1));
+        const endRow = Math.min(sheet.visibleRowCount, Number(merge.endRow || startRow));
+        const endColumn = Math.min(sheet.visibleColumnCount, Number(merge.endColumn || startColumn));
+        if (startRow > sheet.visibleRowCount || startColumn > sheet.visibleColumnCount) continue;
+        starts.set(`${startRow}:${startColumn}`, {
+          rowSpan: Math.max(1, endRow - startRow + 1),
+          columnSpan: Math.max(1, endColumn - startColumn + 1)
+        });
+        for (let row = startRow; row <= endRow; row += 1) {
+          for (let column = startColumn; column <= endColumn; column += 1) {
+            if (row !== startRow || column !== startColumn) covered.add(`${row}:${column}`);
+          }
+        }
+      }
+      return { starts, covered };
+    };
+
+    const renderSpreadsheetPreview = (item, payload) => {
+      const sheet = payload.sheet;
+      const shell = document.createElement('div');
+      shell.className = 'xlsx-preview-shell';
+
+      const heading = document.createElement('div');
+      heading.className = 'xlsx-preview-heading';
+      const title = document.createElement('strong');
+      title.textContent = sheet.name;
+      const dimensions = document.createElement('span');
+      dimensions.textContent = `${sheet.rowCount} × ${sheet.columnCount}`;
+      heading.append(title, dimensions);
+      shell.append(heading);
+
+      const grid = document.createElement('div');
+      grid.className = 'xlsx-preview-grid';
+      const table = document.createElement('table');
+      table.className = 'xlsx-preview-table';
+      const columnGroup = document.createElement('colgroup');
+      const rowHeaderColumn = document.createElement('col');
+      rowHeaderColumn.style.width = '42px';
+      columnGroup.append(rowHeaderColumn);
+      for (let column = 1; column <= sheet.visibleColumnCount; column += 1) {
+        const definition = document.createElement('col');
+        const workbookWidth = Number(sheet.columnWidths?.[column - 1]);
+        definition.style.width = Number.isFinite(workbookWidth)
+          ? `${Math.max(72, Math.min(workbookWidth * 8, 360))}px`
+          : '110px';
+        columnGroup.append(definition);
+      }
+      table.append(columnGroup);
+
+      const header = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      const corner = document.createElement('th');
+      corner.className = 'xlsx-corner-cell';
+      headerRow.append(corner);
+      for (let column = 1; column <= sheet.visibleColumnCount; column += 1) {
+        const cell = document.createElement('th');
+        cell.scope = 'col';
+        cell.textContent = columnLabel(column);
+        headerRow.append(cell);
+      }
+      header.append(headerRow);
+      table.append(header);
+
+      const body = document.createElement('tbody');
+      const merges = spreadsheetMergeMap(sheet);
+      for (let rowNumber = 1; rowNumber <= sheet.visibleRowCount; rowNumber += 1) {
+        const row = document.createElement('tr');
+        const rowHeader = document.createElement('th');
+        rowHeader.scope = 'row';
+        rowHeader.textContent = String(rowNumber);
+        row.append(rowHeader);
+        const rowData = sheet.rows?.[rowNumber - 1] || [];
+        for (let columnNumber = 1; columnNumber <= sheet.visibleColumnCount; columnNumber += 1) {
+          const key = `${rowNumber}:${columnNumber}`;
+          if (merges.covered.has(key)) continue;
+          const cellData = rowData[columnNumber - 1] || { value: '', style: {} };
+          const cell = document.createElement('td');
+          cell.textContent = cellData.value || '';
+          const merge = merges.starts.get(key);
+          if (merge) {
+            if (merge.rowSpan > 1) cell.rowSpan = merge.rowSpan;
+            if (merge.columnSpan > 1) cell.colSpan = merge.columnSpan;
+          }
+          if (cellData.type === 2) cell.classList.add('is-number');
+          applySpreadsheetCellStyle(cell, cellData.style);
+          row.append(cell);
+        }
+        body.append(row);
+      }
+      table.append(body);
+      grid.append(table);
+      shell.append(grid);
+
+      if (sheet.truncatedRows || sheet.truncatedColumns) {
+        const notice = document.createElement('p');
+        notice.className = 'xlsx-preview-notice';
+        notice.textContent = message(
+          'spreadsheetTruncated',
+          'Previewing the first {{rows}} rows and {{columns}} columns.',
+          { rows: sheet.visibleRowCount, columns: sheet.visibleColumnCount }
+        );
+        shell.append(notice);
+      }
+
+      const tabs = document.createElement('div');
+      tabs.className = 'xlsx-sheet-tabs';
+      tabs.setAttribute('role', 'tablist');
+      for (const sheetEntry of payload.sheets || []) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = sheetEntry.name;
+        const active = sheetEntry.index === sheet.index;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-selected', String(active));
+        button.addEventListener('click', () => loadFilePreview(item, sheetEntry.index));
+        tabs.append(button);
+      }
+      shell.append(tabs);
+      return shell;
+    };
+
+    const buildArchiveTree = (entries) => {
+      const root = { name: '', directory: true, children: new Map() };
+      for (const entry of entries || []) {
+        const parts = String(entry.name || '').split('/').filter(Boolean);
+        if (!parts.length) continue;
+        let parent = root;
+        parts.forEach((part, index) => {
+          const last = index === parts.length - 1;
+          const directory = !last || Boolean(entry.directory);
+          let node = parent.children.get(part);
+          if (!node) {
+            node = { name: part, directory, children: new Map() };
+            parent.children.set(part, node);
+          }
+          if (directory) node.directory = true;
+          if (last) Object.assign(node, entry, { name: part, directory, children: node.children || new Map() });
+          parent = node;
+        });
+      }
+      return root;
+    };
+
+    const renderArchiveNodes = (parentElement, parentNode, depth = 0) => {
+      const collator = new Intl.Collator(document.documentElement.lang || undefined, { numeric: true, sensitivity: 'base' });
+      const children = Array.from(parentNode.children.values()).sort((left, right) => {
+        if (left.directory !== right.directory) return left.directory ? -1 : 1;
+        return collator.compare(left.name, right.name);
+      });
+      for (const node of children) {
+        if (node.directory) {
+          const folder = document.createElement('details');
+          folder.className = 'zip-preview-folder';
+          folder.open = depth === 0;
+          const summary = document.createElement('summary');
+          const icon = document.createElement('span');
+          icon.textContent = 'DIR';
+          const name = document.createElement('strong');
+          name.textContent = node.name;
+          const count = document.createElement('small');
+          count.textContent = String(node.children.size);
+          summary.append(icon, name, count);
+          const contents = document.createElement('div');
+          contents.className = 'zip-preview-children';
+          renderArchiveNodes(contents, node, depth + 1);
+          folder.append(summary, contents);
+          parentElement.append(folder);
+        } else {
+          const file = document.createElement('div');
+          file.className = 'zip-preview-file';
+          const icon = document.createElement('span');
+          icon.textContent = 'FILE';
+          const name = document.createElement('strong');
+          name.textContent = node.name;
+          const size = document.createElement('small');
+          size.textContent = formatPreviewBytes(node.uncompressedSize);
+          file.append(icon, name, size);
+          parentElement.append(file);
+        }
+      }
+    };
+
+    const renderArchivePreview = (payload) => {
+      if (payload.encrypted) {
+        showPreviewMessage(
+          message('encryptedArchive', 'This ZIP archive is password-protected.'),
+          message('encryptedArchiveDetail', 'Archive contents are not shown for encrypted ZIP files.'),
+          'warning'
+        );
+        return null;
+      }
+      if (!payload.entries?.length) {
+        showPreviewMessage(message('emptyArchive', 'This ZIP archive is empty.'));
+        return null;
+      }
+
+      const shell = document.createElement('div');
+      shell.className = 'zip-preview-shell';
+      const summary = document.createElement('div');
+      summary.className = 'zip-preview-summary';
+      const title = document.createElement('strong');
+      title.textContent = message('archiveContents', 'Archive contents');
+      const metadata = document.createElement('span');
+      metadata.textContent = `${payload.totalEntries} ${payload.totalEntries === 1 ? message('item', 'item') : message('items', 'items')} · ${formatPreviewBytes(payload.totalUncompressedSize)}`;
+      summary.append(title, metadata);
+      shell.append(summary);
+
+      const tree = document.createElement('div');
+      tree.className = 'zip-preview-tree';
+      renderArchiveNodes(tree, buildArchiveTree(payload.entries));
+      shell.append(tree);
+
+      if (payload.truncated) {
+        const notice = document.createElement('p');
+        notice.className = 'zip-preview-notice';
+        notice.textContent = message('archiveTruncated', 'Only the first {{count}} archive entries are shown.', { count: payload.entries.length });
+        shell.append(notice);
+      }
+      return shell;
+    };
+
+    const renderPdfPreview = (item) => {
+      const shell = document.createElement('div');
+      shell.className = 'pdf-preview-shell';
+      const frame = document.createElement('iframe');
+      frame.className = 'pdf-preview-frame';
+      frame.src = item.dataset.previewUrl;
+      frame.title = message('pdfPreviewTitle', 'PDF preview for {{name}}', { name: item.dataset.fileName });
+      const fallback = document.createElement('a');
+      fallback.className = 'pdf-preview-fallback';
+      fallback.href = item.dataset.previewUrl;
+      fallback.target = '_blank';
+      fallback.rel = 'noopener';
+      fallback.textContent = message('openPdfNewTab', 'Open PDF in a new tab');
+      shell.append(frame, fallback);
+      return shell;
+    };
+
+    const loadFilePreview = async (item, sheetIndex = 0) => {
+      if (!item || item !== selectedItem) return;
+      const { previewKind, previewUrl, fileId } = item.dataset;
+      const previewKey = `${fileId}:${previewKind}:${sheetIndex}`;
+      if (loadedPreviewKey === previewKey && previewContent && !previewContent.hidden) return;
+      if (!previewKind) {
+        showPreviewMessage(message('previewUnavailable', 'Preview is not available for this file type.'));
+        return;
+      }
+      if (!previewUrl) {
+        showPreviewMessage(
+          message('previewRequiresDownload', 'Preview requires download permission.'),
+          message('previewRequiresDownloadDetail', 'Ask the repository owner for download access.'),
+          'warning'
+        );
+        return;
+      }
+
+      if (previewKind === 'pdf') {
+        loadedPreviewKey = previewKey;
+        showPreviewContent(renderPdfPreview(item));
+        return;
+      }
+
+      showPreviewMessage(message('loadingPreview', 'Loading preview…'), '', 'loading');
+      previewController = new AbortController();
+      try {
+        const separator = previewUrl.includes('?') ? '&' : '?';
+        const url = previewKind === 'xlsx' ? `${previewUrl}${separator}sheet=${sheetIndex}` : previewUrl;
+        const payload = await fetchPreviewJson(url, previewController.signal);
+        if (item !== selectedItem) return;
+        if (previewKind === 'xlsx') {
+          loadedPreviewKey = `${fileId}:${previewKind}:${payload.sheet?.index ?? sheetIndex}`;
+          showPreviewContent(renderSpreadsheetPreview(item, payload));
+        } else if (previewKind === 'zip') {
+          const content = renderArchivePreview(payload);
+          loadedPreviewKey = previewKey;
+          if (content) showPreviewContent(content);
+        }
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        loadedPreviewKey = '';
+        showPreviewMessage(error.message || message('previewFailed', 'The file preview could not be loaded.'), '', 'error');
+      } finally {
+        previewController = null;
+      }
+    };
+
+    detailTabs.forEach((button) => {
+      button.addEventListener('click', () => {
+        const tabName = button.dataset.detailsTab;
+        setDetailsTab(tabName);
+        if (tabName === 'preview' && selectedItem) loadFilePreview(selectedItem);
+      });
+    });
+
     const clearSelection = () => {
       selectedItem = null;
+      resetPreview();
+      setDetailsTab('details');
       fileItems.forEach((item) => {
         item.classList.remove('is-selected');
         const checkbox = item.querySelector('[data-file-select]');

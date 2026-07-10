@@ -280,6 +280,10 @@
                   const owner = file.uploader_name || t('Deleted account');
                   const downloadUrl = repositoryPermissions.download ? `/repositories/${repository.id}/files/${file.id}/download` : '';
                   const deleteUrl = repositoryPermissions.delete ? `/repositories/${repository.id}/files/${file.id}/delete` : '';
+                  const previewKind = filePreviewKind(file.mime_type, file.original_name);
+                  const previewUrl = repositoryPermissions.download && previewKind
+                    ? `/repositories/${repository.id}/files/${file.id}/preview`
+                    : '';
                 %>
                   <article
                     class="explorer-file-item"
@@ -295,6 +299,8 @@
                     data-file-date="<%= formatDate(file.created_at) %>"
                     data-download-url="<%= downloadUrl %>"
                     data-delete-url="<%= deleteUrl %>"
+                    data-preview-kind="<%= previewKind %>"
+                    data-preview-url="<%= previewUrl %>"
                     aria-label="<%= file.original_name %>, <%= formatBytes(file.size) %>">
                     <label class="explorer-file-check" title="<%= t('Select') %>">
                       <input type="checkbox" data-file-select aria-label="<%= t('Select {{name}}', { name: file.original_name }) %>">
@@ -386,33 +392,51 @@
 
             <div class="explorer-details-content" data-details-content hidden>
               <div class="explorer-details-heading">
-                <span><%= t('Details') %></span>
+                <span><%= t('File information') %></span>
                 <button type="button" class="explorer-square-button" data-details-close aria-label="<%= t('Clear selection') %>" title="<%= t('Clear selection') %>">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
                 </button>
               </div>
-              <div class="explorer-details-preview">
-                <span class="file-icon explorer-details-icon" data-detail-icon aria-hidden="true">FILE</span>
-                <strong data-detail-name></strong>
-                <small data-detail-mime></small>
+
+              <div class="explorer-details-tabs" role="tablist" aria-label="<%= t('File information tabs') %>">
+                <button type="button" class="is-active" role="tab" aria-selected="true" data-details-tab="details"><%= t('Details') %></button>
+                <button type="button" role="tab" aria-selected="false" data-details-tab="preview"><%= t('Preview') %></button>
               </div>
-              <dl class="explorer-details-list">
-                <div><dt><%= t('File type') %></dt><dd data-detail-type></dd></div>
-                <div><dt><%= t('Size') %></dt><dd data-detail-size></dd></div>
-                <div><dt><%= t('Uploaded') %></dt><dd data-detail-date></dd></div>
-                <div><dt><%= t('Uploader') %></dt><dd data-detail-owner></dd></div>
-              </dl>
-              <% if (repositoryPermissions.download || repositoryPermissions.delete) { %>
-                <div class="explorer-details-actions">
-                  <% if (repositoryPermissions.download) { %><a class="button button-primary button-block" href="#" data-detail-download><%= t('Download') %></a><% } %>
-                  <% if (repositoryPermissions.delete) { %>
-                    <form action="#" method="post" data-detail-delete-form data-confirm="<%= t('Permanently delete the selected file?') %>">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                      <button class="button button-danger button-block" type="submit"><%= t('Delete file') %></button>
-                    </form>
-                  <% } %>
+
+              <section class="explorer-details-panel" role="tabpanel" data-details-panel="details">
+                <div class="explorer-details-preview">
+                  <span class="file-icon explorer-details-icon" data-detail-icon aria-hidden="true">FILE</span>
+                  <strong data-detail-name></strong>
+                  <small data-detail-mime></small>
                 </div>
-              <% } %>
+                <dl class="explorer-details-list">
+                  <div><dt><%= t('File type') %></dt><dd data-detail-type></dd></div>
+                  <div><dt><%= t('Size') %></dt><dd data-detail-size></dd></div>
+                  <div><dt><%= t('Uploaded') %></dt><dd data-detail-date></dd></div>
+                  <div><dt><%= t('Uploader') %></dt><dd data-detail-owner></dd></div>
+                </dl>
+                <% if (repositoryPermissions.download || repositoryPermissions.delete) { %>
+                  <div class="explorer-details-actions">
+                    <% if (repositoryPermissions.download) { %><a class="button button-primary button-block" href="#" data-detail-download><%= t('Download') %></a><% } %>
+                    <% if (repositoryPermissions.delete) { %>
+                      <form action="#" method="post" data-detail-delete-form data-confirm="<%= t('Permanently delete the selected file?') %>">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <button class="button button-danger button-block" type="submit"><%= t('Delete file') %></button>
+                      </form>
+                    <% } %>
+                  </div>
+                <% } %>
+              </section>
+
+              <section class="explorer-details-panel explorer-preview-panel" role="tabpanel" data-details-panel="preview" hidden>
+                <div class="explorer-preview-stage" data-preview-stage>
+                  <div class="explorer-preview-message" data-preview-message>
+                    <span class="explorer-preview-message-icon" aria-hidden="true">PREVIEW</span>
+                    <strong><%= t('Select the Preview tab to open this file.') %></strong>
+                  </div>
+                  <div class="explorer-preview-content" data-preview-content hidden></div>
+                </div>
+              </section>
             </div>
           </aside>
         </div>

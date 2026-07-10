@@ -15,7 +15,7 @@ import { createAuthRouter } from './routes/auth.js';
 import { createDashboardRouter } from './routes/dashboard.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createRepositoriesRouter } from './routes/repositories.js';
-import { fileKind, formatBytes, formatDate } from './utils.js';
+import { fileKind, filePreviewKind, formatBytes, formatDate } from './utils.js';
 import { languageMiddleware } from './i18n.js';
 import { createSettingsRouter } from './routes/settings.js';
 
@@ -85,6 +85,7 @@ export function createApplication(options = {}) {
     res.locals.formatBytes = formatBytes;
     res.locals.formatDate = (value) => formatDate(value, req.language);
     res.locals.fileKind = fileKind;
+    res.locals.filePreviewKind = filePreviewKind;
     res.locals.currentPath = req.path;
     res.locals.activeAdminTab = null;
     next();

@@ -33,6 +33,15 @@ export function fileKind(mimeType = '', filename = '') {
   return 'file';
 }
 
+export function filePreviewKind(mimeType = '', filename = '') {
+  const mime = String(mimeType).toLowerCase();
+  const extension = path.extname(String(filename)).toLowerCase();
+  if (extension === '.pdf' || mime === 'application/pdf') return 'pdf';
+  if (extension === '.xlsx' || mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return 'xlsx';
+  if (extension === '.zip' || mime === 'application/zip' || mime === 'application/x-zip-compressed') return 'zip';
+  return '';
+}
+
 export function safeOriginalName(name) {
   const normalized = path.basename(String(name || 'unnamed-file')).replace(/[\u0000-\u001f\u007f]/g, '').trim();
   return normalized.slice(0, 240) || 'unnamed-file';

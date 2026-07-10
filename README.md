@@ -8,6 +8,14 @@ Metadata, sessions, permission grants, and activity history are stored in SQLite
 
 ![RecordDrive repository file explorer showing shared users, file categories, storage usage, and uploaded documents](docs/images/recorddrive-overview.png)
 
+## File previews
+
+Select a file in the repository explorer and open the **Preview** tab in the right-hand information pane. Preview access follows the repository download permission.
+
+- PDF files are displayed inline with the browser PDF viewer and include an open-in-new-tab fallback.
+- XLSX files are rendered as a spreadsheet grid with worksheet tabs, merged cells, column widths, and common cell formatting. Preview processing is limited to 25 MB, and each worksheet preview shows at most the first 200 rows and 50 columns.
+- Unencrypted ZIP files are displayed as an expandable folder and file tree. Password-protected archives show a protected-file notice instead of their entries. A maximum of 2,500 ZIP entries is displayed.
+
 ## Access model
 
 ### Administrator
@@ -86,6 +94,7 @@ The saved preference is stored in an HTTP-only browser cookie and remains availa
 - Express 5 and EJS
 - SQLite through Node's built-in `node:sqlite` module
 - Multer for multipart uploads
+- ExcelJS for XLSX preview parsing and yauzl for ZIP directory inspection
 - `express-session` with a custom SQLite session store
 - bcryptjs and Helmet
 - otplib for RFC-compatible TOTP, QRCode for enrollment images, and SimpleWebAuthn Server for FIDO2 verification
@@ -235,6 +244,8 @@ RecordDrive/
 │   ├── i18n.js
 │   ├── i18n-extended.js
 │   ├── i18n-security.js
+│   ├── i18n-preview.js
+│   ├── file-preview.js
 │   ├── security-service.js
 │   ├── network-server.js
 │   ├── tls-settings.js
@@ -255,4 +266,4 @@ RecordDrive/
 
 Use either the native HTTPS listener or a trusted HTTPS reverse proxy with `NODE_ENV=production`. Keep secrets outside source control, protect the persistent data volume and certificate files with filesystem permissions, and maintain regular backups.
 
-This build targets a single application instance with local SQLite and disk storage. Multi-instance deployments require shared sessions, a networked database, and shared object storage. Malware scanning, file previews, quotas, public links, trash recovery, and nested folders are outside the current scope.
+This build targets a single application instance with local SQLite and disk storage. Multi-instance deployments require shared sessions, a networked database, and shared object storage. Malware scanning, quotas, public links, trash recovery, and nested folders are outside the current scope.
