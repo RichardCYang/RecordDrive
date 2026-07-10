@@ -3,10 +3,13 @@ services:
     build: .
     ports:
       - "3000:3000"
+      - "3443:3443"
     env_file:
       - .env
     volumes:
       - recorddrive_data:/app/data
+      # Mount a host Posh-ACME order directory as read-only when native HTTPS is enabled.
+      # - ./certificates:/certificates:ro
     restart: unless-stopped
 
 volumes:

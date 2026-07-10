@@ -332,4 +332,44 @@
     });
   }
 
+
+
+  const tlsSettingsForm = document.querySelector('[data-tls-settings-form]');
+  if (tlsSettingsForm) {
+    const httpsEnabled = tlsSettingsForm.querySelector('[data-https-enabled]');
+    const redirectEnabled = tlsSettingsForm.querySelector('[data-https-redirect]');
+    const publicHostname = tlsSettingsForm.querySelector('[data-public-hostname]');
+    const certificateModeInputs = Array.from(tlsSettingsForm.querySelectorAll('[data-certificate-mode]'));
+    const autoReload = tlsSettingsForm.querySelector('[data-auto-reload]');
+
+    const updateTlsFields = () => {
+      const httpsActive = Boolean(httpsEnabled?.checked);
+      const redirectActive = httpsActive && Boolean(redirectEnabled?.checked);
+      const reloadActive = httpsActive && Boolean(autoReload?.checked);
+      const certificateMode = certificateModeInputs.find((input) => input.checked)?.value || 'pem';
+
+      tlsSettingsForm.querySelectorAll('[data-https-dependent]').forEach((element) => {
+        element.classList.toggle('is-disabled-section', !httpsActive);
+      });
+      tlsSettingsForm.querySelectorAll('[data-redirect-dependent]').forEach((element) => {
+        element.classList.toggle('is-disabled-section', !redirectActive);
+      });
+      tlsSettingsForm.querySelectorAll('[data-reload-dependent]').forEach((element) => {
+        element.classList.toggle('is-disabled-section', !reloadActive);
+      });
+
+      if (publicHostname) publicHostname.required = redirectActive;
+      const pemFields = tlsSettingsForm.querySelector('[data-pem-fields]');
+      const pfxFields = tlsSettingsForm.querySelector('[data-pfx-fields]');
+      if (pemFields) pemFields.hidden = certificateMode !== 'pem';
+      if (pfxFields) pfxFields.hidden = certificateMode !== 'pfx';
+    };
+
+    httpsEnabled?.addEventListener('change', updateTlsFields);
+    redirectEnabled?.addEventListener('change', updateTlsFields);
+    autoReload?.addEventListener('change', updateTlsFields);
+    certificateModeInputs.forEach((input) => input.addEventListener('change', updateTlsFields));
+    updateTlsFields();
+  }
+
 })();

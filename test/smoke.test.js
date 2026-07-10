@@ -113,6 +113,54 @@ test('supports personal repositories and independent per-user permissions', asyn
 
   await login(adminAgent, 'admin', 'TestPassword123!');
 
+  const tlsSettingsPage = await adminAgent.get('/admin/tls').expect(200);
+  assert.match(tlsSettingsPage.text, /HTTPS and TLS settings/);
+  assert.match(tlsSettingsPage.text, /Posh-ACME certificate directory/);
+  const tlsCsrf = csrfFrom(tlsSettingsPage.text);
+
+  const invalidTlsPage = await adminAgent
+    .post('/admin/tls')
+    .type('form')
+    .send({
+      _csrf: tlsCsrf,
+      httpsEnabled: '1',
+      redirectHttpToHttps: '1',
+      httpHost: '127.0.0.1',
+      httpPort: '3100',
+      httpsHost: '127.0.0.1',
+      httpsPort: '3443',
+      publicHostname: 'drive.example.com',
+      certificateMode: 'pem',
+      certificateDirectory: path.join(tempRoot, 'missing-certificate'),
+      autoReloadCertificate: '1',
+      reloadIntervalMinutes: '5'
+    })
+    .expect(400);
+  assert.match(invalidTlsPage.text, /Certificate chain file cannot be read/);
+
+  const disabledTlsCsrf = csrfFrom(invalidTlsPage.text);
+  await adminAgent
+    .post('/admin/tls')
+    .type('form')
+    .send({
+      _csrf: disabledTlsCsrf,
+      httpHost: '127.0.0.1',
+      httpPort: '3100',
+      httpsHost: '127.0.0.1',
+      httpsPort: '3443',
+      publicHostname: '',
+      certificateMode: 'pem',
+      certificateDirectory: '',
+      reloadIntervalMinutes: '5'
+    })
+    .expect(302)
+    .expect('Location', '/admin/tls');
+  const savedTlsSettings = JSON.parse(
+    db.prepare("SELECT setting_value FROM app_settings WHERE setting_key = 'network.tls'").get().setting_value
+  );
+  assert.equal(savedTlsSettings.httpsEnabled, false);
+  assert.equal(savedTlsSettings.httpPort, 3100);
+
   const adminRepositoriesPage = await adminAgent.get('/admin/repositories').expect(200);
   assert.match(adminRepositoriesPage.text, /Repository creation is intentionally unavailable to administrators/);
   assert.doesNotMatch(adminRepositoriesPage.text, /action="\/admin\/repositories"/);

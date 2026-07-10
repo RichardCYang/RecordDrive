@@ -22,7 +22,7 @@
         <div class="panel-header"><div><span class="eyebrow">RECENT ACTIVITY</span><h2>Recent activity</h2></div></div>
         <% if (recentActivity.length) { %>
           <div class="activity-list">
-            <% const labels = { LOGIN: 'Sign in', CREATE_USER: 'Account created', DELETE_USER: 'Account deleted', CREATE_REPOSITORY: 'Repository created', DELETE_REPOSITORY: 'Repository deleted', GRANT_REPOSITORY_PERMISSION: 'Permission granted', UPDATE_REPOSITORY_PERMISSION: 'Permission updated', REVOKE_REPOSITORY_PERMISSION: 'Permission revoked', UPLOAD_FILE: 'File uploaded', DELETE_FILE: 'File deleted' }; %>
+            <% const labels = { LOGIN: 'Sign in', CREATE_USER: 'Account created', DELETE_USER: 'Account deleted', CREATE_REPOSITORY: 'Repository created', DELETE_REPOSITORY: 'Repository deleted', GRANT_REPOSITORY_PERMISSION: 'Permission granted', UPDATE_REPOSITORY_PERMISSION: 'Permission updated', REVOKE_REPOSITORY_PERMISSION: 'Permission revoked', UPLOAD_FILE: 'File uploaded', DELETE_FILE: 'File deleted', UPDATE_TLS_SETTINGS: 'HTTPS settings updated' }; %>
             <% recentActivity.forEach((activity) => { %>
               <div class="activity-row">
                 <span class="activity-icon"><%= activity.action.includes('DELETE') || activity.action === 'REVOKE_REPOSITORY_PERMISSION' ? '−' : activity.action === 'LOGIN' ? '↗' : '+' %></span>

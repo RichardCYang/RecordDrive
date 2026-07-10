@@ -53,6 +53,7 @@ Permissions are checked independently on every server request. A user with no `V
 - File names shown to users are normalized and length-limited.
 - File size and per-request file count limits are configurable.
 - Session cookies, CSRF protection, Helmet headers, bcrypt password hashing, and login rate limiting are enabled.
+- Administrators can enable native HTTPS, validate Posh-ACME certificate files, redirect HTTP requests, and reload renewed certificates without interrupting existing TLS connections.
 
 ## Technology
 
@@ -96,8 +97,22 @@ Change the administrator password and `SESSION_SECRET` before exposing the servi
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `PORT` | `3000` | HTTP port |
-| `NODE_ENV` | `development` | Enables production cookie and proxy settings when set to `production` |
+| `PORT` | `3000` | Initial HTTP port; the administrator UI stores later changes in SQLite |
+| `HTTP_HOST` | `0.0.0.0` | Initial HTTP bind address |
+| `HTTPS_ENABLED` | `false` | Initial native HTTPS state before settings are saved in the administrator UI |
+| `HTTP_TO_HTTPS_REDIRECT` | `true` | Initial HTTP-to-HTTPS redirect state |
+| `HTTPS_PORT` | `3443` | Initial HTTPS port |
+| `HTTPS_HOST` | `0.0.0.0` | Initial HTTPS bind address |
+| `TLS_PUBLIC_HOSTNAME` | Empty | Public host name used for HTTP redirects |
+| `TLS_CERT_MODE` | `pem` | Certificate input mode: `pem` or `pfx` |
+| `TLS_CERT_DIRECTORY` | Empty | Posh-ACME order directory containing certificate files |
+| `TLS_CERT_PATH` | Empty | PEM certificate chain path; defaults to `fullchain.cer` in the certificate directory |
+| `TLS_KEY_PATH` | Empty | PEM private key path; defaults to `cert.key` in the certificate directory |
+| `TLS_PFX_PATH` | Empty | PFX bundle path; defaults to `fullchain.pfx` in the certificate directory |
+| `TLS_PASSPHRASE` | Empty | Initial private key or PFX passphrase |
+| `TLS_AUTO_RELOAD` | `true` | Automatically reload renewed certificate files |
+| `TLS_RELOAD_INTERVAL_MINUTES` | `5` | Certificate file change check interval |
+| `NODE_ENV` | `development` | Enables production proxy handling when set to `production` |
 | `SESSION_SECRET` | Example value | Secret used to sign session cookies |
 | `ADMIN_USERNAME` | `admin` | Username for the first administrator |
 | `ADMIN_PASSWORD` | `ChangeMe123!` | Password for the first administrator |
@@ -109,6 +124,38 @@ Change the administrator password and `SESSION_SECRET` before exposing the servi
 
 Production mode refuses to start with the sample administrator password or an unsafe session secret.
 
+## Native HTTPS with Posh-ACME
+
+Open **Admin → HTTPS / TLS** to configure the native Node.js HTTPS listener. Settings are validated and stored in the `app_settings` table inside the RecordDrive SQLite database. Environment variables provide only the initial values before the first UI save.
+
+Posh-ACME order folders normally contain files suitable for either supported mode:
+
+| Mode | Files | Recommended use |
+| --- | --- | --- |
+| PEM | `fullchain.cer` and `cert.key` | Recommended for direct Node.js use and certificate metadata display |
+| PFX | `fullchain.pfx` | Single-file deployment when a PKCS#12 bundle is preferred; Posh-ACME uses `poshacme` as the default password unless overridden |
+
+Typical certificate directory examples:
+
+```text
+C:\Users\Administrator\AppData\Local\Posh-ACME\LE_PROD\<order>\<domain>
+/home/recorddrive/.config/Posh-ACME/LE_PROD/<order>/<domain>
+```
+
+The directory field expands `~`, `$HOME`, `${VARIABLE}`, and `%VARIABLE%`. When individual file fields are blank, RecordDrive looks for the default Posh-ACME names in that directory. Relative file names are resolved from the configured certificate directory.
+
+To switch from HTTP to HTTPS:
+
+1. Generate or renew the certificate with Posh-ACME.
+2. Sign in as an administrator and open **HTTPS / TLS**.
+3. Enable HTTPS, select PEM or PFX, enter the certificate directory, and configure the HTTP and HTTPS ports.
+4. Enable HTTP redirection and enter the public host name, such as `drive.example.com`.
+5. Save the settings and restart RecordDrive.
+
+Listener, port, redirect, certificate-mode, and automatic reload schedule changes require a restart. When automatic reload is enabled, replacement certificate files at the configured paths are detected by modification time and loaded into the active TLS server without interrupting existing connections. The **Reload certificate now** action performs the same certificate-only reload on demand.
+
+The optional passphrase is stored in the local SQLite database. Protect the database and certificate files with operating-system permissions and backup encryption.
+
 ## Docker
 
 ```bash
@@ -116,7 +163,19 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-The Compose configuration stores the database and uploaded files in the `recorddrive_data` volume.
+The Compose configuration stores the database and uploaded files in the `recorddrive_data` volume and publishes the default HTTP and HTTPS ports. If the administrator selects different ports, update the Compose port mappings to match.
+
+A container cannot read a Posh-ACME directory from the host unless it is mounted. Add a read-only bind mount and use the container path in the administrator UI, for example:
+
+```yaml
+services:
+  recorddrive:
+    volumes:
+      - recorddrive_data:/app/data
+      - /host/path/to/posh-acme-order:/certificates:ro
+```
+
+Then set the certificate directory to `/certificates`.
 
 To inspect service health:
 
@@ -129,7 +188,8 @@ A healthy instance returns:
 ```json
 {
   "status": "ok",
-  "service": "RecordDrive"
+  "service": "RecordDrive",
+  "transport": "http"
 }
 ```
 
@@ -141,6 +201,8 @@ RecordDrive/
 │   ├── app.js
 │   ├── config.js
 │   ├── database.js
+│   ├── network-server.js
+│   ├── tls-settings.js
 │   ├── repository-access.js
 │   ├── repository-service.js
 │   ├── session-store.js
@@ -156,6 +218,6 @@ RecordDrive/
 
 ## Deployment notes
 
-Run the service behind an HTTPS reverse proxy with `NODE_ENV=production`. Keep secrets outside source control, protect the persistent data volume with filesystem permissions, and maintain regular backups.
+Use either the native HTTPS listener or a trusted HTTPS reverse proxy with `NODE_ENV=production`. Keep secrets outside source control, protect the persistent data volume and certificate files with filesystem permissions, and maintain regular backups.
 
 This build targets a single application instance with local SQLite and disk storage. Multi-instance deployments require shared sessions, a networked database, and shared object storage. Malware scanning, file previews, quotas, public links, trash recovery, and nested folders are outside the current scope.

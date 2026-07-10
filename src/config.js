@@ -8,6 +8,11 @@ function resolveFromCwd(value) {
   return path.isAbsolute(value) ? value : path.resolve(process.cwd(), value);
 }
 
+function booleanFromEnv(value, fallback = false) {
+  if (value === undefined || value === null || value === '') return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
 export function loadConfig(overrides = {}) {
   const env = { ...process.env, ...overrides };
   const nodeEnv = env.NODE_ENV || 'development';
@@ -25,9 +30,27 @@ export function loadConfig(overrides = {}) {
 
   const maxFileSizeMb = Number.parseInt(env.MAX_FILE_SIZE_MB || '100', 10);
   const maxFilesPerUpload = Number.parseInt(env.MAX_FILES_PER_UPLOAD || '10', 10);
+  const httpPort = Number.parseInt(env.HTTP_PORT || env.PORT || '3000', 10);
+  const httpsPort = Number.parseInt(env.HTTPS_PORT || '3443', 10);
+  const reloadIntervalMinutes = Number.parseInt(env.TLS_RELOAD_INTERVAL_MINUTES || '5', 10);
 
   return {
-    port: Number.parseInt(env.PORT || '3000', 10),
+    port: Number.isFinite(httpPort) ? httpPort : 3000,
+    httpPort: Number.isFinite(httpPort) ? httpPort : 3000,
+    httpHost: (env.HTTP_HOST || '0.0.0.0').trim(),
+    httpsEnabled: booleanFromEnv(env.HTTPS_ENABLED, false),
+    redirectHttpToHttps: booleanFromEnv(env.HTTP_TO_HTTPS_REDIRECT, true),
+    httpsPort: Number.isFinite(httpsPort) ? httpsPort : 3443,
+    httpsHost: (env.HTTPS_HOST || '0.0.0.0').trim(),
+    publicHostname: (env.TLS_PUBLIC_HOSTNAME || '').trim(),
+    certificateMode: (env.TLS_CERT_MODE || 'pem').trim().toLowerCase(),
+    certificateDirectory: (env.TLS_CERT_DIRECTORY || '').trim(),
+    certificatePath: (env.TLS_CERT_PATH || '').trim(),
+    privateKeyPath: (env.TLS_KEY_PATH || '').trim(),
+    pfxPath: (env.TLS_PFX_PATH || '').trim(),
+    passphrase: env.TLS_PASSPHRASE || '',
+    autoReloadCertificate: booleanFromEnv(env.TLS_AUTO_RELOAD, true),
+    reloadIntervalMinutes: Number.isFinite(reloadIntervalMinutes) ? reloadIntervalMinutes : 5,
     nodeEnv,
     isProduction: nodeEnv === 'production',
     sessionSecret,

@@ -7,6 +7,8 @@ import helmet from 'helmet';
 import multer from 'multer';
 import { loadConfig } from './config.js';
 import { createDatabase } from './database.js';
+import { startNetworkServers } from './network-server.js';
+import { loadTlsSettings } from './tls-settings.js';
 import { SQLiteSessionStore } from './session-store.js';
 import { csrfTokenMiddleware, verifyCsrf } from './middleware/csrf.js';
 import { createAuthRouter } from './routes/auth.js';
@@ -21,12 +23,19 @@ const projectRoot = path.resolve(__dirname, '..');
 export function createApplication(options = {}) {
   const config = options.config || loadConfig(options.env);
   const db = options.db || createDatabase(config);
+  const runtimeControl = options.runtimeControl || {};
+  const networkSettings = loadTlsSettings(db, config);
   const app = express();
 
   app.disable('x-powered-by');
   app.set('view engine', 'ejs');
   app.set('views', path.join(projectRoot, 'views'));
   if (config.isProduction) app.set('trust proxy', 1);
+
+  app.locals.db = db;
+  app.locals.config = config;
+  app.locals.runtimeControl = runtimeControl;
+  app.locals.networkSettings = networkSettings;
 
   app.use(helmet({
     contentSecurityPolicy: {
@@ -54,7 +63,7 @@ export function createApplication(options = {}) {
     cookie: {
       httpOnly: true,
       sameSite: 'strict',
-      secure: config.isProduction,
+      secure: 'auto',
       maxAge: 1000 * 60 * 60 * 12
     }
   }));
@@ -84,13 +93,14 @@ export function createApplication(options = {}) {
     const databaseOk = db.prepare('SELECT 1 AS ok').get().ok === 1;
     res.status(databaseOk ? 200 : 503).json({
       status: databaseOk ? 'ok' : 'error',
-      service: 'RecordDrive'
+      service: 'RecordDrive',
+      transport: req.secure ? 'https' : 'http'
     });
   });
 
   app.use(createAuthRouter(db));
   app.use(createDashboardRouter(db));
-  app.use('/admin', createAdminRouter(db));
+  app.use('/admin', createAdminRouter(db, { config, runtimeControl }));
   app.use('/repositories', createRepositoriesRouter(db, config));
 
   app.use((req, res) => {
@@ -128,16 +138,14 @@ export function createApplication(options = {}) {
     });
   });
 
-  app.locals.db = db;
-  app.locals.config = config;
   return app;
 }
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
   const app = createApplication();
-  const { port } = app.locals.config;
-  app.listen(port, () => {
-    console.log(`RecordDrive is running at http://localhost:${port}.`);
+  startNetworkServers(app).catch((error) => {
+    console.error(`RecordDrive failed to start: ${error.message}`);
+    process.exitCode = 1;
   });
 }

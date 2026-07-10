@@ -2,6 +2,13 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import { requireAdmin } from '../middleware/auth.js';
 import { logActivity } from '../database.js';
+import {
+  inspectTlsSettings,
+  loadTlsSettings,
+  saveTlsSettings,
+  tlsSettingsFromForm,
+  validateTlsSettings
+} from '../tls-settings.js';
 import { setFlash } from '../utils.js';
 
 const USERNAME_PATTERN = /^[a-z0-9_.-]{3,32}$/;
@@ -33,7 +40,26 @@ function listUsers(db) {
   `).all();
 }
 
-export function createAdminRouter(db) {
+function renderTlsPage(res, { settings, runtimeControl, formError = null, statusCode = 200, storedPassphrasePresent = null }) {
+  const certificateStatus = inspectTlsSettings(settings);
+  const hasStoredPassphrase = storedPassphrasePresent ?? Boolean(settings.passphrase);
+  const formSettings = { ...settings, passphrase: '' };
+  const runtimeState = typeof runtimeControl.getNetworkState === 'function'
+    ? runtimeControl.getNetworkState()
+    : null;
+  return res.status(statusCode).render('admin-tls', {
+    title: 'HTTPS and TLS Settings',
+    activeAdminTab: 'tls',
+    settings: formSettings,
+    certificateStatus,
+    runtimeState,
+    hasStoredPassphrase,
+    canReloadCertificate: typeof runtimeControl.reloadTlsCertificate === 'function',
+    formError
+  });
+}
+
+export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {}) {
   const router = express.Router();
   router.use(requireAdmin);
 
@@ -169,6 +195,64 @@ export function createAdminRouter(db) {
       activeAdminTab: 'repositories',
       repositories
     });
+  });
+
+  router.get('/tls', (req, res) => {
+    const settings = loadTlsSettings(db, config);
+    return renderTlsPage(res, { settings, runtimeControl });
+  });
+
+  router.post('/tls', (req, res, next) => {
+    try {
+      const currentSettings = loadTlsSettings(db, config);
+      const settings = tlsSettingsFromForm(req.body, currentSettings, config);
+      const validation = validateTlsSettings(settings, {
+        checkCertificateFiles: settings.httpsEnabled
+      });
+
+      if (!validation.valid) {
+        return renderTlsPage(res, {
+          settings,
+          runtimeControl,
+          formError: validation.errors.join(' '),
+          statusCode: 400,
+          storedPassphrasePresent: Boolean(currentSettings.passphrase)
+        });
+      }
+
+      saveTlsSettings(db, settings);
+      logActivity(db, {
+        actorId: req.currentUser.id,
+        action: 'UPDATE_TLS_SETTINGS',
+        targetType: 'SYSTEM',
+        targetLabel: settings.httpsEnabled
+          ? `HTTPS enabled on port ${settings.httpsPort}`
+          : `HTTP enabled on port ${settings.httpPort}`
+      });
+      setFlash(
+        req,
+        'success',
+        'HTTPS and TLS settings were saved. Restart RecordDrive to apply listener, port, redirect, or certificate mode changes.'
+      );
+      return res.redirect('/admin/tls');
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/tls/reload', async (req, res) => {
+    if (typeof runtimeControl.reloadTlsCertificate !== 'function') {
+      setFlash(req, 'error', 'Live certificate reload is unavailable until RecordDrive is started through the network server entry point.');
+      return res.redirect('/admin/tls');
+    }
+
+    try {
+      await runtimeControl.reloadTlsCertificate();
+      setFlash(req, 'success', 'The TLS certificate was reloaded without restarting RecordDrive.');
+    } catch (error) {
+      setFlash(req, 'error', `The TLS certificate could not be reloaded: ${error.message}`);
+    }
+    return res.redirect('/admin/tls');
   });
 
   return router;
