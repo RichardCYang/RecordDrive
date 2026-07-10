@@ -2,6 +2,6 @@
   <div class="flash flash-<%= flash.type %>" role="status" data-flash>
     <span class="flash-dot"></span>
     <span><%= flash.message %></span>
-    <button type="button" class="flash-close" aria-label="Dismiss notification" data-flash-close>×</button>
+    <button type="button" class="flash-close" aria-label="<%= t('Dismiss notification') %>" data-flash-close>×</button>
   </div>
 <% } %>

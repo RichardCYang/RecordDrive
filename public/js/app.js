@@ -1,4 +1,12 @@
 (() => {
+  const i18n = document.querySelector('[data-client-i18n]')?.dataset || {};
+  const message = (key, fallback, values = {}) => {
+    const template = i18n[key] || fallback;
+    return String(template).replace(/\{\{(\w+)\}\}/g, (match, name) => {
+      return Object.hasOwn(values, name) ? String(values[name]) : match;
+    });
+  };
+
   const passwordToggles = document.querySelectorAll('[data-password-toggle]');
   passwordToggles.forEach((button) => {
     button.addEventListener('click', () => {
@@ -7,15 +15,15 @@
       if (!input) return;
       const show = input.type === 'password';
       input.type = show ? 'text' : 'password';
-      button.textContent = show ? 'Hide' : 'Show';
-      button.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      button.textContent = show ? message('hide', 'Hide') : message('show', 'Show');
+      button.setAttribute('aria-label', show ? message('hidePassword', 'Hide password') : message('showPassword', 'Show password'));
     });
   });
 
   document.querySelectorAll('form[data-confirm]').forEach((form) => {
     form.addEventListener('submit', (event) => {
-      const message = form.dataset.confirm || 'Do you want to continue?';
-      if (!window.confirm(message)) event.preventDefault();
+      const confirmation = form.dataset.confirm || message('confirmContinue', 'Do you want to continue?');
+      if (!window.confirm(confirmation)) event.preventDefault();
     });
   });
 
@@ -60,7 +68,7 @@
       });
 
       const total = files.reduce((sum, file) => sum + file.size, 0);
-      summary.textContent = `${files.length} ${files.length === 1 ? 'file' : 'files'} · ${formatBytes(total)}`;
+      summary.textContent = `${files.length} ${files.length === 1 ? message('file', 'file') : message('files', 'files')} · ${formatBytes(total)}`;
       selectedFiles.hidden = false;
       submitRow.hidden = false;
     };
@@ -87,7 +95,7 @@
       const button = uploadForm.querySelector('button[type="submit"]');
       if (button) {
         button.disabled = true;
-        button.textContent = 'Uploading…';
+        button.textContent = message('uploading', 'Uploading…');
       }
     });
   }
@@ -187,7 +195,7 @@
         const checkbox = item.querySelector('[data-file-select]');
         if (checkbox) checkbox.checked = false;
       });
-      if (selectionLabel) selectionLabel.textContent = 'No item selected';
+      if (selectionLabel) selectionLabel.textContent = message('noItemSelected', 'No item selected');
       if (selectedDownload) {
         selectedDownload.href = '#';
         selectedDownload.classList.add('is-disabled');
@@ -214,7 +222,7 @@
       if (checkbox) checkbox.checked = true;
 
       const data = item.dataset;
-      if (selectionLabel) selectionLabel.textContent = `1 selected · ${data.fileName}`;
+      if (selectionLabel) selectionLabel.textContent = message('oneSelected', '1 selected · {{name}}', { name: data.fileName });
       if (selectedDownload) {
         selectedDownload.href = data.downloadUrl;
         selectedDownload.classList.remove('is-disabled');
@@ -223,7 +231,7 @@
       }
       if (selectedDeleteForm) {
         selectedDeleteForm.action = data.deleteUrl;
-        selectedDeleteForm.dataset.confirm = `Permanently delete '${data.fileName}'?`;
+        selectedDeleteForm.dataset.confirm = message('deleteFileConfirm', "Permanently delete '{{name}}'?", { name: data.fileName });
       }
       if (selectedDeleteButton) {
         selectedDeleteButton.disabled = false;
@@ -251,7 +259,7 @@
       if (detailDownload && data.downloadUrl) detailDownload.href = data.downloadUrl;
       if (detailDeleteForm) {
         detailDeleteForm.action = data.deleteUrl;
-        detailDeleteForm.dataset.confirm = `Permanently delete '${data.fileName}'?`;
+        detailDeleteForm.dataset.confirm = message('deleteFileConfirm', "Permanently delete '{{name}}'?", { name: data.fileName });
       }
     };
 
@@ -300,12 +308,12 @@
         candidate.classList.toggle('is-active', active);
         candidate.setAttribute('aria-pressed', String(active));
       });
-      const label = button.querySelector('span')?.textContent?.trim() || 'All files';
+      const label = button.querySelector('span')?.textContent?.trim() || message('allFiles', 'All files');
       if (categoryHeading) categoryHeading.textContent = label;
       if (visibleCount) visibleCount.textContent = String(count);
-      if (visibleItemLabel) visibleItemLabel.textContent = count === 1 ? 'item' : 'items';
+      if (visibleItemLabel) visibleItemLabel.textContent = count === 1 ? message('item', 'item') : message('items', 'items');
       if (statusCount) statusCount.textContent = String(count);
-      if (statusItemLabel) statusItemLabel.textContent = count === 1 ? 'item' : 'items';
+      if (statusItemLabel) statusItemLabel.textContent = count === 1 ? message('item', 'item') : message('items', 'items');
       if (filterEmpty) filterEmpty.hidden = count > 0;
       if (fileItemsContainer) fileItemsContainer.hidden = count === 0;
       if (listHeader) listHeader.hidden = count === 0 || fileItemsContainer?.dataset.view === 'grid';

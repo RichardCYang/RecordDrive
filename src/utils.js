@@ -8,11 +8,11 @@ export function formatBytes(bytes = 0) {
   return `${value >= 10 || exponent === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[exponent]}`;
 }
 
-export function formatDate(value) {
+export function formatDate(value, locale = 'en') {
   if (!value) return '-';
   const date = new Date(value.endsWith?.('Z') ? value : `${value}Z`);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
     timeZone: 'Asia/Seoul'

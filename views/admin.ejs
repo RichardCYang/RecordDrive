@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="<%= language %>">
 <head><%- include('partials/head') %></head>
 <body>
   <%- include('partials/nav') %>
@@ -7,32 +7,32 @@
     <div class="shell">
       <%- include('partials/flash') %>
       <section class="page-hero compact-hero">
-        <div><span class="eyebrow">ADMIN CONSOLE</span><h1>Admin dashboard</h1><p>Manage accounts, user-owned repositories, permission grants, and activity across RecordDrive.</p></div>
+        <div><span class="eyebrow"><%= t('ADMIN CONSOLE') %></span><h1><%= t('Admin dashboard') %></h1><p><%= t('Manage accounts, user-owned repositories, permission grants, and activity across RecordDrive.') %></p></div>
       </section>
       <%- include('partials/admin-tabs') %>
 
       <section class="metric-grid">
-        <article class="metric-card"><span class="metric-label">Member accounts</span><strong><%= metrics.users %></strong><small>Registered regular user accounts</small></article>
-        <article class="metric-card"><span class="metric-label">Repositories</span><strong><%= metrics.repositories %></strong><small>User-owned file spaces</small></article>
-        <article class="metric-card"><span class="metric-label">Files</span><strong><%= metrics.files %></strong><small>All uploaded files</small></article>
-        <article class="metric-card"><span class="metric-label">Storage used</span><strong><%= formatBytes(metrics.bytes) %></strong><small>Local disk usage</small></article>
+        <article class="metric-card"><span class="metric-label"><%= t('Member accounts') %></span><strong><%= metrics.users %></strong><small><%= t('Registered regular user accounts') %></small></article>
+        <article class="metric-card"><span class="metric-label"><%= t('Repositories') %></span><strong><%= metrics.repositories %></strong><small><%= t('User-owned file spaces') %></small></article>
+        <article class="metric-card"><span class="metric-label"><%= t('Files') %></span><strong><%= metrics.files %></strong><small><%= t('All uploaded files') %></small></article>
+        <article class="metric-card"><span class="metric-label"><%= t('Storage used') %></span><strong><%= formatBytes(metrics.bytes) %></strong><small><%= t('Local disk usage') %></small></article>
       </section>
 
       <section class="panel">
-        <div class="panel-header"><div><span class="eyebrow">RECENT ACTIVITY</span><h2>Recent activity</h2></div></div>
+        <div class="panel-header"><div><span class="eyebrow"><%= t('RECENT ACTIVITY') %></span><h2><%= t('Recent activity') %></h2></div></div>
         <% if (recentActivity.length) { %>
           <div class="activity-list">
-            <% const labels = { LOGIN: 'Sign in', CREATE_USER: 'Account created', DELETE_USER: 'Account deleted', CREATE_REPOSITORY: 'Repository created', DELETE_REPOSITORY: 'Repository deleted', GRANT_REPOSITORY_PERMISSION: 'Permission granted', UPDATE_REPOSITORY_PERMISSION: 'Permission updated', REVOKE_REPOSITORY_PERMISSION: 'Permission revoked', UPLOAD_FILE: 'File uploaded', DELETE_FILE: 'File deleted', UPDATE_TLS_SETTINGS: 'HTTPS settings updated' }; %>
+            <% const labels = { LOGIN: t('Sign in activity'), CREATE_USER: t('Account created'), DELETE_USER: t('Account deleted'), CREATE_REPOSITORY: t('Repository created'), DELETE_REPOSITORY: t('Repository deleted'), GRANT_REPOSITORY_PERMISSION: t('Permission granted'), UPDATE_REPOSITORY_PERMISSION: t('Permission updated'), REVOKE_REPOSITORY_PERMISSION: t('Permission revoked'), UPLOAD_FILE: t('File uploaded'), DELETE_FILE: t('File deleted'), UPDATE_TLS_SETTINGS: t('HTTPS settings updated') }; %>
             <% recentActivity.forEach((activity) => { %>
               <div class="activity-row">
                 <span class="activity-icon"><%= activity.action.includes('DELETE') || activity.action === 'REVOKE_REPOSITORY_PERMISSION' ? '−' : activity.action === 'LOGIN' ? '↗' : '+' %></span>
                 <div class="activity-copy"><strong><%= labels[activity.action] || activity.action %></strong><span><%= activity.target_label %></span></div>
-                <div class="activity-meta"><span><%= activity.actor_name || 'Deleted account' %></span><time><%= formatDate(activity.created_at) %></time></div>
+                <div class="activity-meta"><span><%= activity.actor_name || t('Deleted account') %></span><time><%= formatDate(activity.created_at) %></time></div>
               </div>
             <% }) %>
           </div>
         <% } else { %>
-          <div class="inline-empty">No activity has been recorded yet.</div>
+          <div class="inline-empty"><%= t('No activity has been recorded yet.') %></div>
         <% } %>
       </section>
     </div>

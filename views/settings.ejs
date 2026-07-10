@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="<%= language %>">
+<head><%- include('partials/head') %></head>
+<body>
+  <%- include('partials/nav') %>
+  <main class="page-main">
+    <div class="shell settings-shell">
+      <%- include('partials/flash') %>
+      <section class="page-hero compact-hero">
+        <div>
+          <span class="eyebrow"><%= t('LANGUAGE AND REGION') %></span>
+          <h1><%= t('Language settings') %></h1>
+          <p><%= t('Choose the language used across RecordDrive. The default follows your browser language.') %></p>
+        </div>
+      </section>
+
+      <section class="panel settings-language-panel">
+        <div class="panel-header">
+          <div><span class="eyebrow"><%= t('Settings') %></span><h2><%= t('Language preference') %></h2></div>
+          <p><%= t('Your selection is stored in this browser and remains available after signing out.') %></p>
+        </div>
+        <form action="/settings/language" method="post" class="language-settings-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="field">
+            <span><%= t('Language preference') %></span>
+            <select name="language" required>
+              <option value="auto" <%= languageMode === 'auto' ? 'selected' : '' %>><%= t('Use browser language') %></option>
+              <% supportedLanguages.forEach((option) => { %>
+                <option value="<%= option.code %>" <%= languageMode === 'saved' && language === option.code ? 'selected' : '' %>><%= option.name %></option>
+              <% }) %>
+            </select>
+          </label>
+          <div class="language-source-card">
+            <span><%= t('Current source') %></span>
+            <strong><%= languageMode === 'saved' ? t('Saved preference') : t('Browser language') %></strong>
+          </div>
+          <button class="button button-primary" type="submit"><%= t('Save language') %></button>
+        </form>
+      </section>
+    </div>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>

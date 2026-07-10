@@ -67,7 +67,7 @@ export function createDashboardRouter(db) {
     }, { files: 0, bytes: 0 });
 
     return res.render('dashboard', {
-      title: 'My Drive',
+      title: req.t('My Drive'),
       repositories,
       totals
     });

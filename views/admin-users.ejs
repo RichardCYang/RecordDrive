@@ -1,46 +1,46 @@
 <!doctype html>
-<html lang="en">
+<html lang="<%= language %>">
 <head><%- include('partials/head') %></head>
 <body>
   <%- include('partials/nav') %>
   <main class="page-main">
     <div class="shell">
       <%- include('partials/flash') %>
-      <section class="page-hero compact-hero"><div><span class="eyebrow">ACCOUNT MANAGEMENT</span><h1>Account management</h1><p>Create and manage regular user accounts that can own repositories and receive permission grants.</p></div></section>
+      <section class="page-hero compact-hero"><div><span class="eyebrow"><%= t('ACCOUNT MANAGEMENT') %></span><h1><%= t('Account management') %></h1><p><%= t('Create and manage regular user accounts that can own repositories and receive permission grants.') %></p></div></section>
       <%- include('partials/admin-tabs') %>
 
       <div class="admin-split">
         <section class="panel sticky-panel">
-          <div class="panel-header"><div><span class="eyebrow">NEW ACCOUNT</span><h2>Create account</h2></div></div>
+          <div class="panel-header"><div><span class="eyebrow"><%= t('NEW ACCOUNT') %></span><h2><%= t('Create account') %></h2></div></div>
           <% if (formError) { %><div class="form-alert"><%= formError %></div><% } %>
           <form action="/admin/users" method="post" class="stack-form">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <label class="field"><span>Display name</span><input type="text" name="displayName" value="<%= form.displayName %>" placeholder="e.g. Jordan Lee" minlength="2" maxlength="50" required></label>
-            <label class="field"><span>Username</span><input type="text" name="username" value="<%= form.username %>" placeholder="e.g. jordan.lee" pattern="[a-z0-9_.-]{3,32}" required><small>Lowercase letters, numbers, periods, underscores, and hyphens · 3–32 characters</small></label>
-            <label class="field"><span>Initial password</span><div class="input-with-icon no-leading-icon"><input type="password" name="password" minlength="8" maxlength="128" required data-password-input><button type="button" class="password-toggle" data-password-toggle>Show</button></div><small>Use at least 8 characters and share the password securely with the user.</small></label>
-            <button class="button button-primary button-block" type="submit">Create account</button>
+            <label class="field"><span><%= t('Display name') %></span><input type="text" name="displayName" value="<%= form.displayName %>" placeholder="<%= t('e.g. Jordan Lee') %>" minlength="2" maxlength="50" required></label>
+            <label class="field"><span><%= t('Username') %></span><input type="text" name="username" value="<%= form.username %>" placeholder="<%= t('e.g. jordan.lee') %>" pattern="[a-z0-9_.-]{3,32}" required><small><%= t('Lowercase letters, numbers, periods, underscores, and hyphens · 3–32 characters') %></small></label>
+            <label class="field"><span><%= t('Initial password') %></span><div class="input-with-icon no-leading-icon"><input type="password" name="password" minlength="8" maxlength="128" required data-password-input><button type="button" class="password-toggle" aria-label="<%= t('Show password') %>" data-password-toggle><%= t('Show') %></button></div><small><%= t('Use at least 8 characters and share the password securely with the user.') %></small></label>
+            <button class="button button-primary button-block" type="submit"><%= t('Create account') %></button>
           </form>
         </section>
 
         <section class="panel">
-          <div class="panel-header"><div><span class="eyebrow">USERS</span><h2>Registered accounts <span class="count-badge"><%= users.length %></span></h2></div></div>
+          <div class="panel-header"><div><span class="eyebrow"><%= t('USERS') %></span><h2><%= t('Registered accounts') %> <span class="count-badge"><%= users.length %></span></h2></div></div>
           <div class="table-wrap">
             <table class="data-table">
-              <thead><tr><th>Account</th><th>Role</th><th>Repositories</th><th>Uploads</th><th>Created</th><th class="align-right">Actions</th></tr></thead>
+              <thead><tr><th><%= t('Account') %></th><th><%= t('Role') %></th><th><%= t('Repositories') %></th><th><%= t('Uploads') %></th><th><%= t('Created') %></th><th class="align-right"><%= t('Actions') %></th></tr></thead>
               <tbody>
                 <% users.forEach((user) => { %>
                   <tr>
                     <td><div class="user-cell"><span class="avatar"><%= user.display_name.slice(0, 1).toUpperCase() %></span><div><strong><%= user.display_name %></strong><small>@<%= user.username %></small></div></div></td>
-                    <td><span class="role-badge <%= user.role === 'ADMIN' ? 'role-admin' : '' %>"><%= user.role === 'ADMIN' ? 'Administrator' : 'User' %></span></td>
+                    <td><span class="role-badge <%= user.role === 'ADMIN' ? 'role-admin' : '' %>"><%= user.role === 'ADMIN' ? t('Administrator') : t('User') %></span></td>
                     <td><%= user.repository_count %></td>
                     <td><%= user.uploaded_file_count %></td>
                     <td><%= formatDate(user.created_at) %></td>
                     <td class="align-right">
                       <% if (user.role !== 'ADMIN') { %>
-                        <form action="/admin/users/<%= user.id %>/delete" method="post" class="inline-form" data-confirm="Delete this account? Permission grants will be removed, owned repositories will become unassigned, and uploaded files will remain in place.">
-                          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="button button-danger button-small" type="submit">Delete</button>
+                        <form action="/admin/users/<%= user.id %>/delete" method="post" class="inline-form" data-confirm="<%= t('Delete this account? Permission grants will be removed, owned repositories will become unassigned, and uploaded files will remain in place.') %>">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="button button-danger button-small" type="submit"><%= t('Delete') %></button>
                         </form>
-                      <% } else { %><span class="muted">Protected</span><% } %>
+                      <% } else { %><span class="muted"><%= t('Protected') %></span><% } %>
                     </td>
                   </tr>
                 <% }) %>

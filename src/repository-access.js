@@ -51,11 +51,11 @@ export function getRepositoryAccess(db, repository, user) {
   };
 }
 
-function renderRepositoryNotFound(res) {
+function renderRepositoryNotFound(req, res) {
   return res.status(404).render('error', {
-    title: 'Repository not found',
+    title: req.t('Repository not found'),
     statusCode: 404,
-    message: 'The requested repository does not exist or is not available to your account.'
+    message: req.t('The requested repository does not exist or is not available to your account.')
   });
 }
 
@@ -66,7 +66,7 @@ export function createRepositoryPermissionMiddleware(db, permissionName) {
 
   return function requireRepositoryPermission(req, res, next) {
     const repositoryId = Number.parseInt(req.params.repositoryId || req.params.id, 10);
-    if (!Number.isInteger(repositoryId)) return renderRepositoryNotFound(res);
+    if (!Number.isInteger(repositoryId)) return renderRepositoryNotFound(req, res);
 
     const repository = db.prepare(`
       SELECT r.*, owner.username AS owner_username, owner.display_name AS owner_display_name
@@ -74,10 +74,10 @@ export function createRepositoryPermissionMiddleware(db, permissionName) {
       LEFT JOIN users owner ON owner.id = r.created_by
       WHERE r.id = ?
     `).get(repositoryId);
-    if (!repository) return renderRepositoryNotFound(res);
+    if (!repository) return renderRepositoryNotFound(req, res);
 
     const access = getRepositoryAccess(db, repository, req.currentUser);
-    if (!access[permissionName]) return renderRepositoryNotFound(res);
+    if (!access[permissionName]) return renderRepositoryNotFound(req, res);
 
     req.repository = repository;
     req.repositoryPermissions = access;
@@ -88,7 +88,7 @@ export function createRepositoryPermissionMiddleware(db, permissionName) {
 export function createRepositoryManagerMiddleware(db) {
   return function requireRepositoryManager(req, res, next) {
     const repositoryId = Number.parseInt(req.params.repositoryId || req.params.id, 10);
-    if (!Number.isInteger(repositoryId)) return renderRepositoryNotFound(res);
+    if (!Number.isInteger(repositoryId)) return renderRepositoryNotFound(req, res);
 
     const repository = db.prepare(`
       SELECT r.*, owner.username AS owner_username, owner.display_name AS owner_display_name
@@ -96,10 +96,10 @@ export function createRepositoryManagerMiddleware(db) {
       LEFT JOIN users owner ON owner.id = r.created_by
       WHERE r.id = ?
     `).get(repositoryId);
-    if (!repository) return renderRepositoryNotFound(res);
+    if (!repository) return renderRepositoryNotFound(req, res);
 
     const access = getRepositoryAccess(db, repository, req.currentUser);
-    if (!access.canManage) return renderRepositoryNotFound(res);
+    if (!access.canManage) return renderRepositoryNotFound(req, res);
 
     req.repository = repository;
     req.repositoryPermissions = access;

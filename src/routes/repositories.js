@@ -157,15 +157,15 @@ export function createRepositoriesRouter(db, config) {
     const description = String(req.body.description || '').trim();
 
     if (name.length < 2 || name.length > 60) {
-      setFlash(req, 'error', 'The repository name must be between 2 and 60 characters.');
+      setFlash(req, 'error', req.t('The repository name must be between 2 and 60 characters.'));
       return res.redirect('/');
     }
     if (description.length > 300) {
-      setFlash(req, 'error', 'The description must be 300 characters or fewer.');
+      setFlash(req, 'error', req.t('The description must be 300 characters or fewer.'));
       return res.redirect('/');
     }
     if (db.prepare('SELECT 1 FROM repositories WHERE name = ?').get(name)) {
-      setFlash(req, 'error', 'A repository with that name already exists.');
+      setFlash(req, 'error', req.t('A repository with that name already exists.'));
       return res.redirect('/');
     }
 
@@ -181,14 +181,14 @@ export function createRepositoriesRouter(db, config) {
       targetLabel: name,
       repositoryId
     });
-    setFlash(req, 'success', `Created your ${name} repository.`);
+    setFlash(req, 'success', req.t('Created your {{name}} repository.', { name }));
     return res.redirect(`/repositories/${repositoryId}`);
   });
 
   router.get('/:repositoryId/permissions', requireManager, (req, res) => {
     const { grants, availableUsers } = getPermissionPageData(db, req.repository);
     return res.render('repository-permissions', {
-      title: 'Repository Permissions',
+      title: req.t('REPOSITORY PERMISSIONS'),
       repository: req.repository,
       grants,
       availableUsers
@@ -201,12 +201,12 @@ export function createRepositoriesRouter(db, config) {
     const permissions = permissionPayload(req.body);
 
     if (!user) {
-      setFlash(req, 'error', 'The selected user account could not be granted access.');
+      setFlash(req, 'error', req.t('The selected user account could not be granted access.'));
     } else if (!hasAnyPermission(permissions)) {
-      setFlash(req, 'error', 'Select at least one permission.');
+      setFlash(req, 'error', req.t('Select at least one permission.'));
     } else {
       savePermissionGrant(db, req.repository, user, permissions, req.currentUser.id);
-      setFlash(req, 'success', `Saved repository permissions for ${user.display_name}.`);
+      setFlash(req, 'success', req.t('Saved repository permissions for {{name}}.', { name: user.display_name }));
     }
     return res.redirect(`/repositories/${req.repository.id}/permissions`);
   });
@@ -217,12 +217,12 @@ export function createRepositoriesRouter(db, config) {
     const permissions = permissionPayload(req.body);
 
     if (!user) {
-      setFlash(req, 'error', 'The selected user account could not be found.');
+      setFlash(req, 'error', req.t('The selected user account could not be found.'));
     } else if (!hasAnyPermission(permissions)) {
-      setFlash(req, 'error', 'Select at least one permission or revoke access.');
+      setFlash(req, 'error', req.t('Select at least one permission or revoke access.'));
     } else {
       savePermissionGrant(db, req.repository, user, permissions, req.currentUser.id);
-      setFlash(req, 'success', `Updated repository permissions for ${user.display_name}.`);
+      setFlash(req, 'success', req.t('Updated repository permissions for {{name}}.', { name: user.display_name }));
     }
     return res.redirect(`/repositories/${req.repository.id}/permissions`);
   });
@@ -242,9 +242,9 @@ export function createRepositoriesRouter(db, config) {
         targetLabel: `${user.username} ← ${req.repository.name}`,
         repositoryId: req.repository.id
       });
-      setFlash(req, 'success', `Revoked ${user.display_name}'s repository permissions.`);
+      setFlash(req, 'success', req.t("Revoked {{name}}'s repository permissions.", { name: user.display_name }));
     } else {
-      setFlash(req, 'info', 'No permission grant was found for that account.');
+      setFlash(req, 'info', req.t('No permission grant was found for that account.'));
     }
     return res.redirect(`/repositories/${req.repository.id}/permissions`);
   });
@@ -316,14 +316,14 @@ export function createRepositoriesRouter(db, config) {
         if (!isValidCsrf(req)) {
           cleanupUploadedFiles(req.files);
           return res.status(403).render('error', {
-            title: 'Request could not be verified',
+            title: req.t('Request could not be verified'),
             statusCode: 403,
-            message: 'The security token is invalid or has expired. Refresh the page and try again.'
+            message: req.t('The security token is invalid or has expired. Refresh the page and try again.')
           });
         }
 
         if (!req.files?.length) {
-          setFlash(req, 'error', 'Select at least one file to upload.');
+          setFlash(req, 'error', req.t('Select at least one file to upload.'));
           return res.redirect(`/repositories/${req.repository.id}`);
         }
 
@@ -362,7 +362,7 @@ export function createRepositoriesRouter(db, config) {
             : `${req.files.length} files`,
           repositoryId: req.repository.id
         });
-        setFlash(req, 'success', `${req.files.length} file(s) uploaded successfully.`);
+        setFlash(req, 'success', req.t('{{count}} file(s) uploaded successfully.', { count: req.files.length }));
         return res.redirect(`/repositories/${req.repository.id}`);
       } catch (error) {
         return next(error);
@@ -377,9 +377,9 @@ export function createRepositoriesRouter(db, config) {
 
     if (!file) {
       return res.status(404).render('error', {
-        title: 'File not found',
+        title: req.t('File not found'),
         statusCode: 404,
-        message: 'The requested file does not exist.'
+        message: req.t('The requested file does not exist.')
       });
     }
 
@@ -387,9 +387,9 @@ export function createRepositoriesRouter(db, config) {
       const absolutePath = safeStoredPath(config, req.repository.id, file.stored_name);
       if (!fs.existsSync(absolutePath)) {
         return res.status(410).render('error', {
-          title: 'File data missing',
+          title: req.t('File data missing'),
           statusCode: 410,
-          message: 'The file record exists, but its data could not be found on disk.'
+          message: req.t('The file record exists, but its data could not be found on disk.')
         });
       }
       return res.download(absolutePath, file.original_name, (error) => {
@@ -407,7 +407,7 @@ export function createRepositoriesRouter(db, config) {
       `).get(req.params.fileId, req.repository.id);
 
       if (!file) {
-        setFlash(req, 'error', 'The file to delete could not be found.');
+        setFlash(req, 'error', req.t('The file to delete could not be found.'));
         return res.redirect(`/repositories/${req.repository.id}`);
       }
 
@@ -422,7 +422,7 @@ export function createRepositoriesRouter(db, config) {
         targetLabel: file.original_name,
         repositoryId: req.repository.id
       });
-      setFlash(req, 'success', `${file.original_name} was deleted.`);
+      setFlash(req, 'success', req.t('{{name}} was deleted.', { name: file.original_name }));
       return res.redirect(`/repositories/${req.repository.id}`);
     } catch (error) {
       return next(error);
@@ -432,7 +432,7 @@ export function createRepositoriesRouter(db, config) {
   router.post('/:repositoryId/delete', requireDelete, (req, res, next) => {
     try {
       deleteRepository(db, config, req.repository, req.currentUser.id);
-      setFlash(req, 'success', `Deleted the ${req.repository.name} repository and its files.`);
+      setFlash(req, 'success', req.t('Deleted the {{name}} repository and its files.', { name: req.repository.name }));
       return res.redirect(req.currentUser.role === 'ADMIN' ? '/admin/repositories' : '/');
     } catch (error) {
       return next(error);

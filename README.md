@@ -59,6 +59,12 @@ Permissions are checked independently on every server request. A user with no `V
 - Session cookies, CSRF protection, Helmet headers, bcrypt password hashing, and login rate limiting are enabled.
 - Administrators can enable native HTTPS, validate Posh-ACME certificate files, redirect HTTP requests, and reload renewed certificates without interrupting existing TLS connections.
 
+## Language settings
+
+RecordDrive supports English, Japanese, Korean, French, Spanish, and Portuguese. When no saved preference exists, the application selects the first supported language from the browser's `Accept-Language` header and falls back to English. Signed-in users can open **Settings** to choose a language or return to automatic browser-language detection.
+
+The saved preference is stored in an HTTP-only browser cookie and remains available after signing out. Application pages, validation messages, notifications, file-explorer interactions, and administrator interfaces use the selected language.
+
 ## Technology
 
 - Node.js 22.16.0 or newer with ES modules
@@ -205,6 +211,8 @@ RecordDrive/
 │   ├── app.js
 │   ├── config.js
 │   ├── database.js
+│   ├── i18n.js
+│   ├── i18n-extended.js
 │   ├── network-server.js
 │   ├── tls-settings.js
 │   ├── repository-access.js

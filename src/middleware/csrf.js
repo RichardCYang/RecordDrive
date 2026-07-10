@@ -31,9 +31,9 @@ export function verifyCsrf(req, res, next) {
 
   if (!isValidCsrf(req)) {
     return res.status(403).render('error', {
-      title: 'Request could not be verified',
+      title: req.t('Request could not be verified'),
       statusCode: 403,
-      message: 'The security token is invalid or has expired. Refresh the page and try again.'
+      message: req.t('The security token is invalid or has expired. Refresh the page and try again.')
     });
   }
 

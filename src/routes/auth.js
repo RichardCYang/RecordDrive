@@ -9,7 +9,7 @@ export function createAuthRouter(db) {
   router.get('/login', (req, res) => {
     if (req.currentUser) return res.redirect('/');
     return res.render('login', {
-      title: 'Sign in',
+      title: req.t('Sign in'),
       error: null,
       username: ''
     });
@@ -24,8 +24,8 @@ export function createAuthRouter(db) {
 
       if (!user || !passwordMatches) {
         return res.status(401).render('login', {
-          title: 'Sign in',
-          error: 'The username or password is incorrect.',
+          title: req.t('Sign in'),
+          error: req.t('The username or password is incorrect.'),
           username
         });
       }

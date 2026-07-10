@@ -17,8 +17,8 @@ export function loginRateLimit(req, res, next) {
     const retrySeconds = Math.max(1, Math.ceil((WINDOW_MS - (now - record.startedAt)) / 1000));
     res.set('Retry-After', String(retrySeconds));
     return res.status(429).render('login', {
-      title: 'Sign in',
-      error: `Too many sign-in attempts. Try again in about ${Math.ceil(retrySeconds / 60)} minute(s).`,
+      title: req.t('Sign in'),
+      error: req.t('Too many sign-in attempts. Try again in about {{minutes}} minute(s).', { minutes: Math.ceil(retrySeconds / 60) }),
       username: req.body?.username || ''
     });
   }

@@ -16,6 +16,8 @@ import { createDashboardRouter } from './routes/dashboard.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createRepositoriesRouter } from './routes/repositories.js';
 import { fileKind, formatBytes, formatDate } from './utils.js';
+import { languageMiddleware } from './i18n.js';
+import { createSettingsRouter } from './routes/settings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -52,6 +54,7 @@ export function createApplication(options = {}) {
     etag: true
   }));
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+  app.use(languageMiddleware);
 
   app.use(session({
     name: 'recorddrive.sid',
@@ -79,7 +82,7 @@ export function createApplication(options = {}) {
     res.locals.flash = req.session.flash || null;
     delete req.session.flash;
     res.locals.formatBytes = formatBytes;
-    res.locals.formatDate = formatDate;
+    res.locals.formatDate = (value) => formatDate(value, req.language);
     res.locals.fileKind = fileKind;
     res.locals.currentPath = req.path;
     res.locals.activeAdminTab = null;
@@ -99,15 +102,16 @@ export function createApplication(options = {}) {
   });
 
   app.use(createAuthRouter(db));
+  app.use(createSettingsRouter());
   app.use(createDashboardRouter(db));
   app.use('/admin', createAdminRouter(db, { config, runtimeControl }));
   app.use('/repositories', createRepositoriesRouter(db, config));
 
   app.use((req, res) => {
     res.status(404).render('error', {
-      title: 'Page not found',
+      title: req.t('Page not found'),
       statusCode: 404,
-      message: 'The requested page does not exist or has been moved.'
+      message: req.t('The requested page does not exist or has been moved.')
     });
   });
 
@@ -115,14 +119,14 @@ export function createApplication(options = {}) {
     if (res.headersSent) return next(error);
 
     if (error instanceof multer.MulterError) {
-      let message = 'An error occurred while uploading the file.';
+      let message = req.t('An error occurred while uploading the file.');
       if (error.code === 'LIMIT_FILE_SIZE') {
-        message = `Each file can be up to ${config.maxFileSizeMb} MB.`;
+        message = req.t('Each file can be up to {{size}} MB.', { size: config.maxFileSizeMb });
       } else if (error.code === 'LIMIT_FILE_COUNT') {
-        message = `You can upload up to ${config.maxFilesPerUpload} files at a time.`;
+        message = req.t('You can upload up to {{count}} files at a time.', { count: config.maxFilesPerUpload });
       }
       return res.status(400).render('error', {
-        title: 'Upload failed',
+        title: req.t('Upload failed'),
         statusCode: 400,
         message
       });
@@ -130,10 +134,10 @@ export function createApplication(options = {}) {
 
     console.error(error);
     return res.status(500).render('error', {
-      title: 'Server error',
+      title: req.t('Server error'),
       statusCode: 500,
       message: config.isProduction
-        ? 'An error occurred while processing the request.'
+        ? req.t('An error occurred while processing the request.')
         : error.message
     });
   });

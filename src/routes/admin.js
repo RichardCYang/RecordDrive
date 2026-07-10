@@ -40,7 +40,7 @@ function listUsers(db) {
   `).all();
 }
 
-function renderTlsPage(res, { settings, runtimeControl, formError = null, statusCode = 200, storedPassphrasePresent = null }) {
+function renderTlsPage(req, res, { settings, runtimeControl, formError = null, statusCode = 200, storedPassphrasePresent = null }) {
   const certificateStatus = inspectTlsSettings(settings);
   const hasStoredPassphrase = storedPassphrasePresent ?? Boolean(settings.passphrase);
   const formSettings = { ...settings, passphrase: '' };
@@ -48,7 +48,7 @@ function renderTlsPage(res, { settings, runtimeControl, formError = null, status
     ? runtimeControl.getNetworkState()
     : null;
   return res.status(statusCode).render('admin-tls', {
-    title: 'HTTPS and TLS Settings',
+    title: req.t('HTTPS and TLS Settings'),
     activeAdminTab: 'tls',
     settings: formSettings,
     certificateStatus,
@@ -79,7 +79,7 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
     `).all();
 
     return res.render('admin', {
-      title: 'Admin Dashboard',
+      title: req.t('Admin dashboard'),
       activeAdminTab: 'overview',
       metrics,
       recentActivity
@@ -88,7 +88,7 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
 
   router.get('/users', (req, res) => {
     return res.render('admin-users', {
-      title: 'Account Management',
+      title: req.t('Account management'),
       activeAdminTab: 'users',
       users: listUsers(db),
       formError: null,
@@ -104,18 +104,18 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
 
       let formError = null;
       if (!USERNAME_PATTERN.test(username)) {
-        formError = 'Use 3-32 lowercase letters, numbers, periods, underscores, or hyphens for the username.';
+        formError = req.t('Use 3-32 lowercase letters, numbers, periods, underscores, or hyphens for the username.');
       } else if (displayName.length < 2 || displayName.length > 50) {
-        formError = 'The display name must be between 2 and 50 characters.';
+        formError = req.t('The display name must be between 2 and 50 characters.');
       } else if (password.length < 8 || password.length > 128) {
-        formError = 'The password must be between 8 and 128 characters.';
+        formError = req.t('The password must be between 8 and 128 characters.');
       } else if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(username)) {
-        formError = 'That username is already in use.';
+        formError = req.t('That username is already in use.');
       }
 
       if (formError) {
         return res.status(400).render('admin-users', {
-          title: 'Account Management',
+          title: req.t('Account management'),
           activeAdminTab: 'users',
           users: listUsers(db),
           formError,
@@ -135,7 +135,7 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
         targetType: 'USER',
         targetLabel: username
       });
-      setFlash(req, 'success', `Created the account for ${displayName}.`);
+      setFlash(req, 'success', req.t('Created the account for {{name}}.', { name: displayName }));
       return res.redirect('/admin/users');
     } catch (error) {
       return next(error);
@@ -147,9 +147,9 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
       const userId = Number.parseInt(req.params.userId, 10);
       const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
       if (!user) {
-        setFlash(req, 'error', 'The account to delete could not be found.');
+        setFlash(req, 'error', req.t('The account to delete could not be found.'));
       } else if (user.role === 'ADMIN') {
-        setFlash(req, 'error', 'Administrator accounts cannot be deleted.');
+        setFlash(req, 'error', req.t('Administrator accounts cannot be deleted.'));
       } else {
         db.prepare('DELETE FROM users WHERE id = ?').run(userId);
         logActivity(db, {
@@ -158,7 +158,7 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
           targetType: 'USER',
           targetLabel: user.username
         });
-        setFlash(req, 'success', `Deleted the account for ${user.display_name}.`);
+        setFlash(req, 'success', req.t('Deleted the account for {{name}}.', { name: user.display_name }));
       }
       return res.redirect('/admin/users');
     } catch (error) {
@@ -191,7 +191,7 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
     `).all();
 
     return res.render('admin-repositories', {
-      title: 'Repository Management',
+      title: req.t('Repository management'),
       activeAdminTab: 'repositories',
       repositories
     });
@@ -199,7 +199,7 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
 
   router.get('/tls', (req, res) => {
     const settings = loadTlsSettings(db, config);
-    return renderTlsPage(res, { settings, runtimeControl });
+    return renderTlsPage(req, res, { settings, runtimeControl });
   });
 
   router.post('/tls', (req, res, next) => {
@@ -211,7 +211,7 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
       });
 
       if (!validation.valid) {
-        return renderTlsPage(res, {
+        return renderTlsPage(req, res, {
           settings,
           runtimeControl,
           formError: validation.errors.join(' '),
@@ -232,7 +232,7 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
       setFlash(
         req,
         'success',
-        'HTTPS and TLS settings were saved. Restart RecordDrive to apply listener, port, redirect, or certificate mode changes.'
+        req.t('HTTPS and TLS settings were saved. Restart RecordDrive to apply listener, port, redirect, or certificate mode changes.')
       );
       return res.redirect('/admin/tls');
     } catch (error) {
@@ -242,15 +242,15 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
 
   router.post('/tls/reload', async (req, res) => {
     if (typeof runtimeControl.reloadTlsCertificate !== 'function') {
-      setFlash(req, 'error', 'Live certificate reload is unavailable until RecordDrive is started through the network server entry point.');
+      setFlash(req, 'error', req.t('Live certificate reload is unavailable until RecordDrive is started through the network server entry point.'));
       return res.redirect('/admin/tls');
     }
 
     try {
       await runtimeControl.reloadTlsCertificate();
-      setFlash(req, 'success', 'The TLS certificate was reloaded without restarting RecordDrive.');
+      setFlash(req, 'success', req.t('The TLS certificate was reloaded without restarting RecordDrive.'));
     } catch (error) {
-      setFlash(req, 'error', `The TLS certificate could not be reloaded: ${error.message}`);
+      setFlash(req, 'error', req.t('The TLS certificate could not be reloaded: {{message}}', { message: error.message }));
     }
     return res.redirect('/admin/tls');
   });

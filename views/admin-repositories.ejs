@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="<%= language %>">
 <head><%- include('partials/head') %></head>
 <body>
   <%- include('partials/nav') %>
@@ -8,17 +8,17 @@
       <%- include('partials/flash') %>
       <section class="page-hero compact-hero">
         <div>
-          <span class="eyebrow">REPOSITORY MANAGEMENT</span>
-          <h1>Repository management</h1>
-          <p>Repositories are created by regular users. Administrators can inspect, manage permissions, and permanently remove any repository.</p>
+          <span class="eyebrow"><%= t('REPOSITORY MANAGEMENT') %></span>
+          <h1><%= t('Repository management') %></h1>
+          <p><%= t('Repositories are created by regular users. Administrators can inspect, manage permissions, and permanently remove any repository.') %></p>
         </div>
       </section>
       <%- include('partials/admin-tabs') %>
 
       <section class="panel">
         <div class="panel-header">
-          <div><span class="eyebrow">REPOSITORIES</span><h2>All user repositories <span class="count-badge"><%= repositories.length %></span></h2></div>
-          <p>Repository creation is intentionally unavailable to administrators.</p>
+          <div><span class="eyebrow"><%= t('REPOSITORIES') %></span><h2><%= t('All user repositories') %> <span class="count-badge"><%= repositories.length %></span></h2></div>
+          <p><%= t('Repository creation is intentionally unavailable to administrators.') %></p>
         </div>
         <% if (repositories.length) { %>
           <div class="admin-repo-list">
@@ -27,25 +27,25 @@
                 <a class="repo-icon tone-<%= (index % 4) + 1 %>" href="/repositories/<%= repository.id %>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3z"/><path d="M3 7V5h7l2 2"/></svg></a>
                 <div class="admin-repo-copy">
                   <a href="/repositories/<%= repository.id %>"><strong><%= repository.name %></strong></a>
-                  <p><%= repository.description || 'No description provided.' %></p>
+                  <p><%= repository.description || t('No description provided.') %></p>
                   <div class="mini-meta">
-                    <span>Owner: <%= repository.owner_display_name || 'Deleted account' %><% if (repository.owner_username) { %> (@<%= repository.owner_username %>)<% } %></span>
-                    <span><%= repository.file_count %> <%= repository.file_count === 1 ? 'file' : 'files' %></span>
-                    <span><%= repository.participant_count %> shared <%= repository.participant_count === 1 ? 'user' : 'users' %></span>
+                    <span><%= t('Owner: {{name}}', { name: repository.owner_display_name || t('Deleted account') }) %><% if (repository.owner_username) { %> (@<%= repository.owner_username %>)<% } %></span>
+                    <span><%= repository.file_count %> <%= repository.file_count === 1 ? t('file') : t('files') %></span>
+                    <span><%= repository.participant_count %> <%= repository.participant_count === 1 ? t('shared user') : t('shared users') %></span>
                     <span><%= formatBytes(repository.total_size) %></span>
                   </div>
                 </div>
                 <div class="row-actions">
-                  <a class="button button-secondary button-small" href="/repositories/<%= repository.id %>/permissions">Permissions</a>
-                  <form action="/repositories/<%= repository.id %>/delete" method="post" data-confirm="Permanently delete the '<%= repository.name %>' repository and all of its files? This action cannot be undone.">
+                  <a class="button button-secondary button-small" href="/repositories/<%= repository.id %>/permissions"><%= t('Permissions') %></a>
+                  <form action="/repositories/<%= repository.id %>/delete" method="post" data-confirm="<%= t("Permanently delete the '{{name}}' repository and all of its files? This action cannot be undone.", { name: repository.name }) %>">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                    <button class="button button-danger button-small" type="submit">Delete</button>
+                    <button class="button button-danger button-small" type="submit"><%= t('Delete') %></button>
                   </form>
                 </div>
               </article>
             <% }) %>
           </div>
-        <% } else { %><div class="inline-empty">No user repositories have been created yet.</div><% } %>
+        <% } else { %><div class="inline-empty"><%= t('No user repositories have been created yet.') %></div><% } %>
       </section>
     </div>
   </main>

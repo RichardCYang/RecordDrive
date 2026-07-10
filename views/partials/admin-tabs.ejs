@@ -1,6 +1,6 @@
-<nav class="admin-tabs" aria-label="Admin navigation">
-  <a class="admin-tab <%= activeAdminTab === 'overview' ? 'is-active' : '' %>" href="/admin">Dashboard</a>
-  <a class="admin-tab <%= activeAdminTab === 'repositories' ? 'is-active' : '' %>" href="/admin/repositories">Repositories</a>
-  <a class="admin-tab <%= activeAdminTab === 'users' ? 'is-active' : '' %>" href="/admin/users">Accounts</a>
+<nav class="admin-tabs" aria-label="<%= t('Admin navigation') %>">
+  <a class="admin-tab <%= activeAdminTab === 'overview' ? 'is-active' : '' %>" href="/admin"><%= t('Dashboard') %></a>
+  <a class="admin-tab <%= activeAdminTab === 'repositories' ? 'is-active' : '' %>" href="/admin/repositories"><%= t('Repositories') %></a>
+  <a class="admin-tab <%= activeAdminTab === 'users' ? 'is-active' : '' %>" href="/admin/users"><%= t('Accounts') %></a>
   <a class="admin-tab <%= activeAdminTab === 'tls' ? 'is-active' : '' %>" href="/admin/tls">HTTPS / TLS</a>
 </nav>

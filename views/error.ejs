@@ -1,16 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="<%= language %>">
 <head><%- include('partials/head') %></head>
 <body class="error-page">
   <% if (currentUser) { %><%- include('partials/nav') %><% } %>
   <main class="error-main">
     <section class="error-card">
       <div class="error-cloud"><span><%= statusCode %></span></div>
-      <span class="eyebrow">RECORDDRIVE ERROR</span>
+      <span class="eyebrow"><%= t('RECORDDRIVE ERROR') %></span>
       <h1><%= title %></h1>
       <p><%= message %></p>
-      <a class="button button-primary" href="<%= currentUser ? '/' : '/login' %>"><%= currentUser ? 'Go to My Drive' : 'Go to sign in' %></a>
+      <a class="button button-primary" href="<%= currentUser ? '/' : '/login' %>"><%= currentUser ? t('Go to My Drive') : t('Go to sign in') %></a>
     </section>
   </main>
+  <%- include('partials/client-i18n') %>
 </body>
 </html>
