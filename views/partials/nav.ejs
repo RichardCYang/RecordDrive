@@ -1,0 +1,30 @@
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <a class="brand" href="/" aria-label="RecordDrive home">
+      <%- include('logo') %>
+    </a>
+
+    <nav class="main-nav" aria-label="Primary navigation">
+      <a class="nav-link <%= currentPath === '/' ? 'is-active' : '' %>" href="/">My Drive</a>
+      <% if (currentUser?.role === 'ADMIN') { %>
+        <a class="nav-link <%= currentPath.startsWith('/admin') ? 'is-active' : '' %>" href="/admin">Admin</a>
+      <% } %>
+    </nav>
+
+    <div class="account-area">
+      <div class="account-badge">
+        <span class="avatar"><%= currentUser.display_name.slice(0, 1).toUpperCase() %></span>
+        <span class="account-text">
+          <strong><%= currentUser.display_name %></strong>
+          <small><%= currentUser.role === 'ADMIN' ? 'Administrator' : `@${currentUser.username}` %></small>
+        </span>
+      </div>
+      <form action="/logout" method="post">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="icon-button" type="submit" title="Sign out" aria-label="Sign out">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M14 8l4 4-4 4M18 12H8"/></svg>
+        </button>
+      </form>
+    </div>
+  </div>
+</header>

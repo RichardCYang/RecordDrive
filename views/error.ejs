@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('partials/head') %></head>
+<body class="error-page">
+  <% if (currentUser) { %><%- include('partials/nav') %><% } %>
+  <main class="error-main">
+    <section class="error-card">
+      <div class="error-cloud"><span><%= statusCode %></span></div>
+      <span class="eyebrow">RECORDDRIVE ERROR</span>
+      <h1><%= title %></h1>
+      <p><%= message %></p>
+      <a class="button button-primary" href="<%= currentUser ? '/' : '/login' %>"><%= currentUser ? 'Go to My Drive' : 'Go to sign in' %></a>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('partials/head') %></head>
+<body>
+  <%- include('partials/nav') %>
+  <main class="page-main">
+    <div class="shell">
+      <%- include('partials/flash') %>
+      <section class="page-hero compact-hero">
+        <div><a class="back-link" href="/admin/repositories">← Repository management</a><span class="eyebrow">PARTICIPANTS</span><h1><%= repository.name %> participants</h1><p>Choose which user accounts can access this repository.</p></div>
+        <a class="button button-secondary" href="/repositories/<%= repository.id %>">Open repository</a>
+      </section>
+      <%- include('partials/admin-tabs') %>
+
+      <div class="admin-split">
+        <section class="panel sticky-panel">
+          <div class="panel-header"><div><span class="eyebrow">ADD MEMBER</span><h2>Add participant</h2></div></div>
+          <% if (availableUsers.length) { %>
+            <form action="/admin/repositories/<%= repository.id %>/participants" method="post" class="stack-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <label class="field"><span>Select account</span><select name="userId" required><option value="">Select a participant</option><% availableUsers.forEach((user) => { %><option value="<%= user.id %>"><%= user.display_name %> (@<%= user.username %>)</option><% }) %></select></label>
+              <button class="button button-primary button-block" type="submit">Add participant</button>
+            </form>
+          <% } else { %><div class="inline-empty compact">No accounts are available to add.<br><a href="/admin/users">Create an account</a></div><% } %>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header"><div><span class="eyebrow">CURRENT MEMBERS</span><h2>Current participants <span class="count-badge"><%= members.length %></span></h2></div></div>
+          <% if (members.length) { %>
+            <div class="member-list">
+              <% members.forEach((member) => { %>
+                <div class="member-row"><div class="user-cell"><span class="avatar"><%= member.display_name.slice(0, 1).toUpperCase() %></span><div><strong><%= member.display_name %></strong><small>@<%= member.username %> · Added <%= formatDate(member.created_at) %></small></div></div><form action="/admin/repositories/<%= repository.id %>/participants/<%= member.id %>/delete" method="post" data-confirm="Remove this user's access to the repository?"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="button button-danger button-small" type="submit">Remove access</button></form></div>
+              <% }) %>
+            </div>
+          <% } else { %><div class="inline-empty">No participants are registered.</div><% } %>
+        </section>
+      </div>
+    </div>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>

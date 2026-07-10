@@ -1,0 +1,28 @@
+{
+  "name": "recorddrive",
+  "version": "1.1.0",
+  "description": "A sky-blue team file drive built with Node.js",
+  "type": "module",
+  "main": "src/app.js",
+  "scripts": {
+    "dev": "node --watch src/app.js",
+    "start": "node src/app.js",
+    "test": "node --test",
+    "check": "node --check src/app.js"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "dependencies": {
+    "bcryptjs": "3.0.3",
+    "dotenv": "17.4.2",
+    "ejs": "6.0.1",
+    "express": "5.2.1",
+    "express-session": "1.19.0",
+    "helmet": "8.2.0",
+    "multer": "2.2.0"
+  },
+  "devDependencies": {
+    "supertest": "7.2.2"
+  }
+}

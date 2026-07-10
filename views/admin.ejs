@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('partials/head') %></head>
+<body>
+  <%- include('partials/nav') %>
+  <main class="page-main">
+    <div class="shell">
+      <%- include('partials/flash') %>
+      <section class="page-hero compact-hero">
+        <div><span class="eyebrow">ADMIN CONSOLE</span><h1>Admin dashboard</h1><p>Manage accounts, repositories, and activity across RecordDrive.</p></div>
+      </section>
+      <%- include('partials/admin-tabs') %>
+
+      <section class="metric-grid">
+        <article class="metric-card"><span class="metric-label">Member accounts</span><strong><%= metrics.users %></strong><small>Registered participant accounts</small></article>
+        <article class="metric-card"><span class="metric-label">Repositories</span><strong><%= metrics.repositories %></strong><small>Active team spaces</small></article>
+        <article class="metric-card"><span class="metric-label">Files</span><strong><%= metrics.files %></strong><small>All uploaded files</small></article>
+        <article class="metric-card"><span class="metric-label">Storage used</span><strong><%= formatBytes(metrics.bytes) %></strong><small>Local disk usage</small></article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header"><div><span class="eyebrow">RECENT ACTIVITY</span><h2>Recent activity</h2></div></div>
+        <% if (recentActivity.length) { %>
+          <div class="activity-list">
+            <% const labels = { LOGIN: 'Sign in', CREATE_USER: 'Account created', DELETE_USER: 'Account deleted', CREATE_REPOSITORY: 'Repository created', DELETE_REPOSITORY: 'Repository deleted', ADD_MEMBER: 'Participant added', REMOVE_MEMBER: 'Participant removed', UPLOAD_FILE: 'File uploaded', DELETE_FILE: 'File deleted' }; %>
+            <% recentActivity.forEach((activity) => { %>
+              <div class="activity-row">
+                <span class="activity-icon"><%= activity.action.includes('DELETE') || activity.action === 'REMOVE_MEMBER' ? '−' : activity.action === 'LOGIN' ? '↗' : '+' %></span>
+                <div class="activity-copy"><strong><%= labels[activity.action] || activity.action %></strong><span><%= activity.target_label %></span></div>
+                <div class="activity-meta"><span><%= activity.actor_name || 'Deleted account' %></span><time><%= formatDate(activity.created_at) %></time></div>
+              </div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <div class="inline-empty">No activity has been recorded yet.</div>
+        <% } %>
+      </section>
+    </div>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>

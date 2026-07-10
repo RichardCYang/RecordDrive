@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('partials/head') %></head>
+<body>
+  <%- include('partials/nav') %>
+  <main class="page-main">
+    <div class="shell">
+      <%- include('partials/flash') %>
+
+      <section class="page-hero">
+        <div>
+          <span class="eyebrow">MY RECORDDRIVE</span>
+          <h1><%= currentUser.display_name %>'s Drive</h1>
+          <p><%= currentUser.role === 'ADMIN' ? 'You can view and manage every repository.' : 'Only repositories you have been added to are shown.' %></p>
+        </div>
+        <% if (currentUser.role === 'ADMIN') { %>
+          <a class="button button-primary" href="/admin/repositories">+ New repository</a>
+        <% } %>
+      </section>
+
+      <section class="summary-strip">
+        <div><span>Accessible repositories</span><strong><%= repositories.length %></strong></div>
+        <div><span>Total files</span><strong><%= totals.files %></strong></div>
+        <div><span>Storage used</span><strong><%= formatBytes(totals.bytes) %></strong></div>
+      </section>
+
+      <% if (repositories.length) { %>
+        <section class="repository-grid" aria-label="Repository list">
+          <% repositories.forEach((repository, index) => { %>
+            <a class="repository-card" href="/repositories/<%= repository.id %>">
+              <div class="repo-card-top">
+                <span class="repo-icon tone-<%= (index % 4) + 1 %>">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3z"/><path d="M3 7V5h7l2 2"/></svg>
+                </span>
+                <span class="card-arrow">↗</span>
+              </div>
+              <h2><%= repository.name %></h2>
+              <p><%= repository.description || 'No description has been provided.' %></p>
+              <div class="repo-card-meta">
+                <span><strong><%= repository.file_count %></strong> <%= repository.file_count === 1 ? 'file' : 'files' %></span>
+                <span><strong><%= repository.participant_count %></strong> <%= repository.participant_count === 1 ? 'participant' : 'participants' %></span>
+                <span><strong><%= formatBytes(repository.total_size) %></strong></span>
+              </div>
+              <div class="repo-card-footer">
+                <span><%= repository.last_file_at ? `Last updated ${formatDate(repository.last_file_at)}` : 'No files have been uploaded yet.' %></span>
+              </div>
+            </a>
+          <% }) %>
+        </section>
+      <% } else { %>
+        <section class="empty-state">
+          <div class="empty-icon">☁</div>
+          <h2>No repositories to display</h2>
+          <p><%= currentUser.role === 'ADMIN' ? 'Create the first repository to start organizing files.' : 'Repositories will appear here after an administrator adds you as a participant.' %></p>
+          <% if (currentUser.role === 'ADMIN') { %><a class="button button-primary" href="/admin/repositories">Create repository</a><% } %>
+        </section>
+      <% } %>
+    </div>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('partials/head') %></head>
+<body class="login-page">
+  <div class="sky-orb sky-orb-one"></div>
+  <div class="sky-orb sky-orb-two"></div>
+  <main class="login-shell">
+    <section class="login-visual">
+      <a class="brand brand-large" href="/login">
+        <%- include('partials/logo') %>
+      </a>
+      <div class="hero-copy">
+        <span class="eyebrow">TEAM CLOUD STORAGE</span>
+        <h1>Keep every record organized,<br><em>securely together.</em></h1>
+        <p>Organize files in team repositories and give access only to the people who need it.</p>
+      </div>
+      <div class="cloud-scene" aria-hidden="true">
+        <div class="cloud cloud-a"></div>
+        <div class="cloud cloud-b"></div>
+        <div class="floating-folder">
+          <svg viewBox="0 0 100 82"><path d="M8 23h31l9 10h44v39H8z"/><path d="M8 23V12h31l9 11"/></svg>
+          <span class="folder-check">✓</span>
+        </div>
+      </div>
+      <div class="login-feature-row">
+        <span>Role-based access</span><span>File uploads</span><span>Activity history</span>
+      </div>
+    </section>
+
+    <section class="login-panel">
+      <div class="login-card">
+        <div class="mobile-brand"><%- include('partials/logo') %></div>
+        <div class="login-heading">
+          <span class="eyebrow">WELCOME BACK</span>
+          <h2>Sign in to RecordDrive</h2>
+          <p>Use the account provided by your administrator.</p>
+        </div>
+
+        <% if (error) { %>
+          <div class="form-alert" role="alert"><%= error %></div>
+        <% } %>
+
+        <form action="/login" method="post" class="stack-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="field">
+            <span>Username</span>
+            <div class="input-with-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"/></svg>
+              <input type="text" name="username" value="<%= username %>" placeholder="Enter your username" autocomplete="username" required autofocus>
+            </div>
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <div class="input-with-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10V7a6 6 0 0 1 12 0v3M5 10h14v11H5z"/></svg>
+              <input type="password" name="password" placeholder="Enter your password" autocomplete="current-password" required data-password-input>
+              <button type="button" class="password-toggle" aria-label="Show password" data-password-toggle>Show</button>
+            </div>
+          </label>
+          <button class="button button-primary button-block button-large" type="submit">Sign in</button>
+        </form>
+
+        <div class="login-help">Contact your RecordDrive administrator if you need an account or repository access.</div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

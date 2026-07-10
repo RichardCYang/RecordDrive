@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('partials/head') %></head>
+<body>
+  <%- include('partials/nav') %>
+  <main class="page-main">
+    <div class="shell">
+      <%- include('partials/flash') %>
+      <section class="page-hero compact-hero"><div><span class="eyebrow">REPOSITORY MANAGEMENT</span><h1>Repository management</h1><p>Create team repositories and manage their participants and file space.</p></div></section>
+      <%- include('partials/admin-tabs') %>
+
+      <div class="admin-split">
+        <section class="panel sticky-panel">
+          <div class="panel-header"><div><span class="eyebrow">NEW REPOSITORY</span><h2>Create repository</h2></div></div>
+          <% if (formError) { %><div class="form-alert"><%= formError %></div><% } %>
+          <form action="/admin/repositories" method="post" class="stack-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <label class="field"><span>Repository name</span><input type="text" name="name" value="<%= form.name %>" placeholder="e.g. Design Archive" minlength="2" maxlength="60" required></label>
+            <label class="field"><span>Description</span><textarea name="description" rows="4" maxlength="300" placeholder="Describe the purpose and guidelines for this repository."><%= form.description %></textarea><small>Up to 300 characters</small></label>
+            <button class="button button-primary button-block" type="submit">Create repository</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header"><div><span class="eyebrow">REPOSITORIES</span><h2>All repositories <span class="count-badge"><%= repositories.length %></span></h2></div></div>
+          <% if (repositories.length) { %>
+            <div class="admin-repo-list">
+              <% repositories.forEach((repository, index) => { %>
+                <article class="admin-repo-row">
+                  <a class="repo-icon tone-<%= (index % 4) + 1 %>" href="/repositories/<%= repository.id %>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3z"/><path d="M3 7V5h7l2 2"/></svg></a>
+                  <div class="admin-repo-copy"><a href="/repositories/<%= repository.id %>"><strong><%= repository.name %></strong></a><p><%= repository.description || 'No description provided.' %></p><div class="mini-meta"><span><%= repository.file_count %> <%= repository.file_count === 1 ? 'file' : 'files' %></span><span><%= repository.participant_count %> <%= repository.participant_count === 1 ? 'participant' : 'participants' %></span><span><%= formatBytes(repository.total_size) %></span></div></div>
+                  <div class="row-actions">
+                    <a class="button button-secondary button-small" href="/admin/repositories/<%= repository.id %>/participants">Participants</a>
+                    <form action="/admin/repositories/<%= repository.id %>/delete" method="post" data-confirm="Permanently delete the '<%= repository.name %>' repository and all of its files? This action cannot be undone."><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="button button-danger button-small" type="submit">Delete</button></form>
+                  </div>
+                </article>
+              <% }) %>
+            </div>
+          <% } else { %><div class="inline-empty">No repositories have been created yet.</div><% } %>
+        </section>
+      </div>
+    </div>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>
