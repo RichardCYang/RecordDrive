@@ -4,6 +4,10 @@ RecordDrive is a self-hosted Node.js file workspace with personal repositories a
 
 Metadata, sessions, permission grants, and activity history are stored in SQLite. Uploaded file contents are stored on the local filesystem.
 
+## Preview
+
+![RecordDrive repository file explorer showing shared users, file categories, storage usage, and uploaded documents](docs/images/recorddrive-overview.png)
+
 ## Access model
 
 ### Administrator
