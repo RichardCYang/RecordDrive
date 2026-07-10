@@ -3,15 +3,22 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
-import { requireAuth, createRepositoryAccessMiddleware } from '../middleware/auth.js';
+import { requireAuth, requireRegularUser } from '../middleware/auth.js';
 import { isValidCsrf } from '../middleware/csrf.js';
 import { logActivity } from '../database.js';
+import {
+  createRepositoryManagerMiddleware,
+  createRepositoryPermissionMiddleware,
+  hasAnyPermission,
+  permissionPayload
+} from '../repository-access.js';
+import { deleteRepository } from '../repository-service.js';
 import { safeOriginalName, setFlash } from '../utils.js';
 
 function safeStoredPath(config, repositoryId, storedName) {
-  const root = path.resolve(config.uploadRoot);
-  const candidate = path.resolve(root, String(repositoryId), storedName);
-  if (!candidate.startsWith(`${root}${path.sep}`)) {
+  const repositoryRoot = path.resolve(config.uploadRoot, String(repositoryId));
+  const candidate = path.resolve(repositoryRoot, storedName);
+  if (!candidate.startsWith(`${repositoryRoot}${path.sep}`)) {
     throw new Error('The requested file path is not allowed.');
   }
   return candidate;
@@ -27,9 +34,101 @@ function cleanupUploadedFiles(files = []) {
   }
 }
 
+function permissionNames(permissions) {
+  return Object.entries(permissions)
+    .filter(([, enabled]) => enabled)
+    .map(([name]) => name)
+    .join(', ');
+}
+
+function getPermissionPageData(db, repository) {
+  const grants = db.prepare(`
+    SELECT
+      rp.user_id,
+      rp.can_view,
+      rp.can_upload,
+      rp.can_download,
+      rp.can_delete,
+      rp.created_at,
+      rp.updated_at,
+      u.username,
+      u.display_name
+    FROM repository_permissions rp
+    INNER JOIN users u ON u.id = rp.user_id
+    WHERE rp.repository_id = ?
+    ORDER BY u.display_name COLLATE NOCASE
+  `).all(repository.id);
+
+  const availableUsers = db.prepare(`
+    SELECT id, username, display_name
+    FROM users
+    WHERE role = 'USER'
+      AND id != ?
+      AND id NOT IN (
+        SELECT user_id FROM repository_permissions WHERE repository_id = ?
+      )
+    ORDER BY display_name COLLATE NOCASE
+  `).all(repository.created_by ?? -1, repository.id);
+
+  return { grants, availableUsers };
+}
+
+function validatePermissionTarget(db, repository, userId) {
+  if (!Number.isInteger(userId)) return null;
+  const user = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'USER'").get(userId);
+  if (!user || Number(user.id) === Number(repository.created_by)) return null;
+  return user;
+}
+
+function savePermissionGrant(db, repository, user, permissions, actorId) {
+  const existing = db.prepare(`
+    SELECT 1 FROM repository_permissions WHERE repository_id = ? AND user_id = ?
+  `).get(repository.id, user.id);
+
+  db.prepare(`
+    INSERT INTO repository_permissions (
+      repository_id,
+      user_id,
+      can_view,
+      can_upload,
+      can_download,
+      can_delete,
+      added_by,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(repository_id, user_id) DO UPDATE SET
+      can_view = excluded.can_view,
+      can_upload = excluded.can_upload,
+      can_download = excluded.can_download,
+      can_delete = excluded.can_delete,
+      added_by = excluded.added_by,
+      updated_at = CURRENT_TIMESTAMP
+  `).run(
+    repository.id,
+    user.id,
+    Number(permissions.view),
+    Number(permissions.upload),
+    Number(permissions.download),
+    Number(permissions.delete),
+    actorId
+  );
+
+  logActivity(db, {
+    actorId,
+    action: existing ? 'UPDATE_REPOSITORY_PERMISSION' : 'GRANT_REPOSITORY_PERMISSION',
+    targetType: 'USER',
+    targetLabel: `${user.username} → ${repository.name} [${permissionNames(permissions)}]`,
+    repositoryId: repository.id
+  });
+}
+
 export function createRepositoriesRouter(db, config) {
   const router = express.Router();
-  const requireRepositoryAccess = createRepositoryAccessMiddleware(db);
+  const requireView = createRepositoryPermissionMiddleware(db, 'view');
+  const requireUpload = createRepositoryPermissionMiddleware(db, 'upload');
+  const requireDownload = createRepositoryPermissionMiddleware(db, 'download');
+  const requireDelete = createRepositoryPermissionMiddleware(db, 'delete');
+  const requireManager = createRepositoryManagerMiddleware(db);
 
   const storage = multer.diskStorage({
     destination(req, file, callback) {
@@ -53,7 +152,104 @@ export function createRepositoriesRouter(db, config) {
 
   router.use(requireAuth);
 
-  router.get('/:repositoryId', requireRepositoryAccess, (req, res) => {
+  router.post('/', requireRegularUser, (req, res) => {
+    const name = String(req.body.name || '').trim();
+    const description = String(req.body.description || '').trim();
+
+    if (name.length < 2 || name.length > 60) {
+      setFlash(req, 'error', 'The repository name must be between 2 and 60 characters.');
+      return res.redirect('/');
+    }
+    if (description.length > 300) {
+      setFlash(req, 'error', 'The description must be 300 characters or fewer.');
+      return res.redirect('/');
+    }
+    if (db.prepare('SELECT 1 FROM repositories WHERE name = ?').get(name)) {
+      setFlash(req, 'error', 'A repository with that name already exists.');
+      return res.redirect('/');
+    }
+
+    const result = db.prepare(`
+      INSERT INTO repositories (name, description, created_by) VALUES (?, ?, ?)
+    `).run(name, description, req.currentUser.id);
+    const repositoryId = Number(result.lastInsertRowid);
+
+    logActivity(db, {
+      actorId: req.currentUser.id,
+      action: 'CREATE_REPOSITORY',
+      targetType: 'REPOSITORY',
+      targetLabel: name,
+      repositoryId
+    });
+    setFlash(req, 'success', `Created your ${name} repository.`);
+    return res.redirect(`/repositories/${repositoryId}`);
+  });
+
+  router.get('/:repositoryId/permissions', requireManager, (req, res) => {
+    const { grants, availableUsers } = getPermissionPageData(db, req.repository);
+    return res.render('repository-permissions', {
+      title: 'Repository Permissions',
+      repository: req.repository,
+      grants,
+      availableUsers
+    });
+  });
+
+  router.post('/:repositoryId/permissions', requireManager, (req, res) => {
+    const userId = Number.parseInt(req.body.userId, 10);
+    const user = validatePermissionTarget(db, req.repository, userId);
+    const permissions = permissionPayload(req.body);
+
+    if (!user) {
+      setFlash(req, 'error', 'The selected user account could not be granted access.');
+    } else if (!hasAnyPermission(permissions)) {
+      setFlash(req, 'error', 'Select at least one permission.');
+    } else {
+      savePermissionGrant(db, req.repository, user, permissions, req.currentUser.id);
+      setFlash(req, 'success', `Saved repository permissions for ${user.display_name}.`);
+    }
+    return res.redirect(`/repositories/${req.repository.id}/permissions`);
+  });
+
+  router.post('/:repositoryId/permissions/:userId', requireManager, (req, res) => {
+    const userId = Number.parseInt(req.params.userId, 10);
+    const user = validatePermissionTarget(db, req.repository, userId);
+    const permissions = permissionPayload(req.body);
+
+    if (!user) {
+      setFlash(req, 'error', 'The selected user account could not be found.');
+    } else if (!hasAnyPermission(permissions)) {
+      setFlash(req, 'error', 'Select at least one permission or revoke access.');
+    } else {
+      savePermissionGrant(db, req.repository, user, permissions, req.currentUser.id);
+      setFlash(req, 'success', `Updated repository permissions for ${user.display_name}.`);
+    }
+    return res.redirect(`/repositories/${req.repository.id}/permissions`);
+  });
+
+  router.post('/:repositoryId/permissions/:userId/delete', requireManager, (req, res) => {
+    const userId = Number.parseInt(req.params.userId, 10);
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    const result = db.prepare(`
+      DELETE FROM repository_permissions WHERE repository_id = ? AND user_id = ?
+    `).run(req.repository.id, userId);
+
+    if (result.changes > 0 && user) {
+      logActivity(db, {
+        actorId: req.currentUser.id,
+        action: 'REVOKE_REPOSITORY_PERMISSION',
+        targetType: 'USER',
+        targetLabel: `${user.username} ← ${req.repository.name}`,
+        repositoryId: req.repository.id
+      });
+      setFlash(req, 'success', `Revoked ${user.display_name}'s repository permissions.`);
+    } else {
+      setFlash(req, 'info', 'No permission grant was found for that account.');
+    }
+    return res.redirect(`/repositories/${req.repository.id}/permissions`);
+  });
+
+  router.get('/:repositoryId', requireView, (req, res) => {
     const search = String(req.query.q || '').trim();
     const sort = String(req.query.sort || 'newest');
     const sortOptions = {
@@ -77,12 +273,19 @@ export function createRepositoriesRouter(db, config) {
       ORDER BY ${sortOptions[selectedSort]}
     `).all(...params);
 
-    const members = db.prepare(`
-      SELECT u.id, u.username, u.display_name
-      FROM repository_members rm
-      INNER JOIN users u ON u.id = rm.user_id
-      WHERE rm.repository_id = ?
-      ORDER BY u.display_name
+    const grants = db.prepare(`
+      SELECT
+        u.id,
+        u.username,
+        u.display_name,
+        rp.can_view,
+        rp.can_upload,
+        rp.can_download,
+        rp.can_delete
+      FROM repository_permissions rp
+      INNER JOIN users u ON u.id = rp.user_id
+      WHERE rp.repository_id = ?
+      ORDER BY u.display_name COLLATE NOCASE
     `).all(req.repository.id);
 
     const stats = db.prepare(`
@@ -93,8 +296,9 @@ export function createRepositoriesRouter(db, config) {
     return res.render('repository', {
       title: req.repository.name,
       repository: req.repository,
+      repositoryPermissions: req.repositoryPermissions,
       files,
-      members,
+      grants,
       stats,
       search,
       sort: selectedSort,
@@ -105,7 +309,7 @@ export function createRepositoriesRouter(db, config) {
 
   router.post(
     '/:repositoryId/upload',
-    requireRepositoryAccess,
+    requireUpload,
     upload.array('files', config.maxFilesPerUpload),
     (req, res, next) => {
       try {
@@ -166,7 +370,7 @@ export function createRepositoriesRouter(db, config) {
     }
   );
 
-  router.get('/:repositoryId/files/:fileId/download', requireRepositoryAccess, (req, res, next) => {
+  router.get('/:repositoryId/files/:fileId/download', requireDownload, (req, res, next) => {
     const file = db.prepare(`
       SELECT * FROM files WHERE id = ? AND repository_id = ?
     `).get(req.params.fileId, req.repository.id);
@@ -196,7 +400,7 @@ export function createRepositoriesRouter(db, config) {
     }
   });
 
-  router.post('/:repositoryId/files/:fileId/delete', requireRepositoryAccess, (req, res, next) => {
+  router.post('/:repositoryId/files/:fileId/delete', requireDelete, (req, res, next) => {
     try {
       const file = db.prepare(`
         SELECT * FROM files WHERE id = ? AND repository_id = ?
@@ -220,6 +424,16 @@ export function createRepositoriesRouter(db, config) {
       });
       setFlash(req, 'success', `${file.original_name} was deleted.`);
       return res.redirect(`/repositories/${req.repository.id}`);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/:repositoryId/delete', requireDelete, (req, res, next) => {
+    try {
+      deleteRepository(db, config, req.repository, req.currentUser.id);
+      setFlash(req, 'success', `Deleted the ${req.repository.name} repository and its files.`);
+      return res.redirect(req.currentUser.role === 'ADMIN' ? '/admin/repositories' : '/');
     } catch (error) {
       return next(error);
     }

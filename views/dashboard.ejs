@@ -11,18 +11,35 @@
         <div>
           <span class="eyebrow">MY RECORDDRIVE</span>
           <h1><%= currentUser.display_name %>'s Drive</h1>
-          <p><%= currentUser.role === 'ADMIN' ? 'You can view and manage every repository.' : 'Only repositories you have been added to are shown.' %></p>
+          <p><%= currentUser.role === 'ADMIN' ? 'Administrator access includes every repository and every repository action.' : 'Create personal repositories and open only repositories shared with your account.' %></p>
         </div>
         <% if (currentUser.role === 'ADMIN') { %>
-          <a class="button button-primary" href="/admin/repositories">+ New repository</a>
+          <a class="button button-secondary" href="/admin/repositories">Review all repositories</a>
+        <% } else { %>
+          <a class="button button-primary" href="#create-repository">+ New personal repository</a>
         <% } %>
       </section>
 
       <section class="summary-strip">
-        <div><span>Accessible repositories</span><strong><%= repositories.length %></strong></div>
+        <div><span>Visible repositories</span><strong><%= repositories.length %></strong></div>
         <div><span>Total files</span><strong><%= totals.files %></strong></div>
         <div><span>Storage used</span><strong><%= formatBytes(totals.bytes) %></strong></div>
       </section>
+
+      <% if (currentUser.role === 'USER') { %>
+        <section class="panel repository-create-panel" id="create-repository">
+          <div class="panel-header">
+            <div><span class="eyebrow">PERSONAL REPOSITORY</span><h2>Create a repository</h2></div>
+            <p>You become the owner and receive every permission automatically.</p>
+          </div>
+          <form action="/repositories" method="post" class="repository-create-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <label class="field"><span>Repository name</span><input type="text" name="name" placeholder="e.g. Project Archive" minlength="2" maxlength="60" required></label>
+            <label class="field repository-description-field"><span>Description</span><input type="text" name="description" placeholder="Optional purpose or notes" maxlength="300"></label>
+            <button class="button button-primary" type="submit">Create repository</button>
+          </form>
+        </section>
+      <% } %>
 
       <% if (repositories.length) { %>
         <section class="repository-grid" aria-label="Repository list">
@@ -32,17 +49,23 @@
                 <span class="repo-icon tone-<%= (index % 4) + 1 %>">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3z"/><path d="M3 7V5h7l2 2"/></svg>
                 </span>
-                <span class="card-arrow">↗</span>
+                <span class="repository-access-label"><%= currentUser.role === 'ADMIN' ? 'Administrator' : repository.is_owner ? 'Owner' : 'Shared' %></span>
               </div>
               <h2><%= repository.name %></h2>
               <p><%= repository.description || 'No description has been provided.' %></p>
               <div class="repo-card-meta">
                 <span><strong><%= repository.file_count %></strong> <%= repository.file_count === 1 ? 'file' : 'files' %></span>
-                <span><strong><%= repository.participant_count %></strong> <%= repository.participant_count === 1 ? 'participant' : 'participants' %></span>
+                <span><strong><%= repository.participant_count %></strong> shared <%= repository.participant_count === 1 ? 'user' : 'users' %></span>
                 <span><strong><%= formatBytes(repository.total_size) %></strong></span>
               </div>
+              <div class="repository-permission-summary">
+                <% if (repository.can_upload) { %><span>Upload</span><% } %>
+                <% if (repository.can_download) { %><span>Download</span><% } %>
+                <% if (repository.can_delete) { %><span>Delete</span><% } %>
+              </div>
               <div class="repo-card-footer">
-                <span><%= repository.last_file_at ? `Last updated ${formatDate(repository.last_file_at)}` : 'No files have been uploaded yet.' %></span>
+                <span>Owner: <%= repository.owner_display_name || 'Deleted account' %></span>
+                <span><%= repository.last_file_at ? `Updated ${formatDate(repository.last_file_at)}` : 'No files yet' %></span>
               </div>
             </a>
           <% }) %>
@@ -51,8 +74,8 @@
         <section class="empty-state">
           <div class="empty-icon">☁</div>
           <h2>No repositories to display</h2>
-          <p><%= currentUser.role === 'ADMIN' ? 'Create the first repository to start organizing files.' : 'Repositories will appear here after an administrator adds you as a participant.' %></p>
-          <% if (currentUser.role === 'ADMIN') { %><a class="button button-primary" href="/admin/repositories">Create repository</a><% } %>
+          <p><%= currentUser.role === 'ADMIN' ? 'No user has created a repository yet.' : 'Create your first personal repository, or ask another owner to grant view permission.' %></p>
+          <% if (currentUser.role === 'USER') { %><a class="button button-primary" href="#create-repository">Create repository</a><% } %>
         </section>
       <% } %>
     </div>

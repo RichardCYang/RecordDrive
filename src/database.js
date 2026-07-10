@@ -32,11 +32,16 @@ export function createDatabase(config) {
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
-    CREATE TABLE IF NOT EXISTS repository_members (
+    CREATE TABLE IF NOT EXISTS repository_permissions (
       repository_id INTEGER NOT NULL,
       user_id INTEGER NOT NULL,
+      can_view INTEGER NOT NULL DEFAULT 0 CHECK (can_view IN (0, 1)),
+      can_upload INTEGER NOT NULL DEFAULT 0 CHECK (can_upload IN (0, 1)),
+      can_download INTEGER NOT NULL DEFAULT 0 CHECK (can_download IN (0, 1)),
+      can_delete INTEGER NOT NULL DEFAULT 0 CHECK (can_delete IN (0, 1)),
       added_by INTEGER,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (repository_id, user_id),
       FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -57,7 +62,7 @@ export function createDatabase(config) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_files_repository_id ON files(repository_id);
-    CREATE INDEX IF NOT EXISTS idx_repository_members_user_id ON repository_members(user_id);
+    CREATE INDEX IF NOT EXISTS idx_repository_permissions_user_id ON repository_permissions(user_id);
 
     CREATE TABLE IF NOT EXISTS activity_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,6 +86,7 @@ export function createDatabase(config) {
 
     CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires);
   `);
+
 
   const admin = db.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('ADMIN');
   if (!admin) {

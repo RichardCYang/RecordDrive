@@ -90,7 +90,7 @@ export function createApplication(options = {}) {
 
   app.use(createAuthRouter(db));
   app.use(createDashboardRouter(db));
-  app.use('/admin', createAdminRouter(db, config));
+  app.use('/admin', createAdminRouter(db));
   app.use('/repositories', createRepositoriesRouter(db, config));
 
   app.use((req, res) => {

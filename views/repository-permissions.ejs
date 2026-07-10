@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('partials/head') %></head>
+<body>
+  <%- include('partials/nav') %>
+  <main class="page-main">
+    <div class="shell">
+      <%- include('partials/flash') %>
+      <section class="page-hero compact-hero">
+        <div>
+          <a class="back-link" href="<%= currentUser.role === 'ADMIN' ? '/admin/repositories' : `/repositories/${repository.id}` %>">← Back</a>
+          <span class="eyebrow">REPOSITORY PERMISSIONS</span>
+          <h1><%= repository.name %> access</h1>
+          <p>Grant each user only the repository actions they need. The owner and administrators always retain every permission.</p>
+        </div>
+        <a class="button button-secondary" href="/repositories/<%= repository.id %>">Open repository</a>
+      </section>
+
+      <section class="permission-overview panel">
+        <div>
+          <span class="eyebrow">OWNER</span>
+          <strong><%= repository.owner_display_name || 'Deleted account' %></strong>
+          <small><%= repository.owner_username ? `@${repository.owner_username}` : 'Ownership is currently unassigned.' %></small>
+        </div>
+        <div class="permission-help-grid">
+          <span><strong>View</strong><small>Open the repository and see file metadata.</small></span>
+          <span><strong>Upload</strong><small>Add files through the upload endpoint.</small></span>
+          <span><strong>Download</strong><small>Download stored file contents.</small></span>
+          <span><strong>Delete</strong><small>Delete files and permanently delete the repository.</small></span>
+        </div>
+      </section>
+
+      <div class="permission-layout">
+        <section class="panel sticky-panel">
+          <div class="panel-header"><div><span class="eyebrow">NEW GRANT</span><h2>Share with a user</h2></div></div>
+          <% if (availableUsers.length) { %>
+            <form action="/repositories/<%= repository.id %>/permissions" method="post" class="stack-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <label class="field">
+                <span>User account</span>
+                <select name="userId" required>
+                  <option value="">Select a user</option>
+                  <% availableUsers.forEach((user) => { %>
+                    <option value="<%= user.id %>"><%= user.display_name %> (@<%= user.username %>)</option>
+                  <% }) %>
+                </select>
+              </label>
+              <fieldset class="permission-fieldset">
+                <legend>Allowed actions</legend>
+                <label><input type="checkbox" name="canView" value="1"><span><strong>View</strong><small>Open and browse</small></span></label>
+                <label><input type="checkbox" name="canUpload" value="1"><span><strong>Upload</strong><small>Add new files</small></span></label>
+                <label><input type="checkbox" name="canDownload" value="1"><span><strong>Download</strong><small>Retrieve file data</small></span></label>
+                <label class="permission-danger"><input type="checkbox" name="canDelete" value="1"><span><strong>Delete</strong><small>Files and repository</small></span></label>
+              </fieldset>
+              <button class="button button-primary button-block" type="submit">Save permission grant</button>
+            </form>
+          <% } else { %>
+            <div class="inline-empty compact">Every eligible user already has a permission grant.<br>Update or revoke an existing grant below.</div>
+          <% } %>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header"><div><span class="eyebrow">CURRENT GRANTS</span><h2>Shared users <span class="count-badge"><%= grants.length %></span></h2></div></div>
+          <% if (grants.length) { %>
+            <div class="permission-grant-list">
+              <% grants.forEach((grant) => { %>
+                <article class="permission-grant-row">
+                  <div class="user-cell permission-user-cell">
+                    <span class="avatar"><%= grant.display_name.slice(0, 1).toUpperCase() %></span>
+                    <div><strong><%= grant.display_name %></strong><small>@<%= grant.username %> · Updated <%= formatDate(grant.updated_at) %></small></div>
+                  </div>
+                  <form action="/repositories/<%= repository.id %>/permissions/<%= grant.user_id %>" method="post" class="permission-inline-form">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <label title="View"><input type="checkbox" name="canView" value="1" <%= grant.can_view ? 'checked' : '' %>><span>View</span></label>
+                    <label title="Upload"><input type="checkbox" name="canUpload" value="1" <%= grant.can_upload ? 'checked' : '' %>><span>Upload</span></label>
+                    <label title="Download"><input type="checkbox" name="canDownload" value="1" <%= grant.can_download ? 'checked' : '' %>><span>Download</span></label>
+                    <label class="permission-danger" title="Delete"><input type="checkbox" name="canDelete" value="1" <%= grant.can_delete ? 'checked' : '' %>><span>Delete</span></label>
+                    <button class="button button-secondary button-small" type="submit">Update</button>
+                  </form>
+                  <form action="/repositories/<%= repository.id %>/permissions/<%= grant.user_id %>/delete" method="post" data-confirm="Revoke every permission for <%= grant.display_name %>?">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button class="button button-danger button-small" type="submit">Revoke</button>
+                  </form>
+                </article>
+              <% }) %>
+            </div>
+          <% } else { %><div class="inline-empty">This repository has not been shared with another user.</div><% } %>
+        </section>
+      </div>
+    </div>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>

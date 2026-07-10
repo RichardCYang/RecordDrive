@@ -1,40 +1,68 @@
 # RecordDrive
 
-RecordDrive is a self-hosted file workspace for small teams. It combines account-based access control, shared repositories, and a familiar file-explorer interface in a single Node.js application.
+RecordDrive is a self-hosted Node.js file workspace with personal repositories and per-user repository permissions. Regular users create and own repositories, owners decide which actions another user may perform, and administrators retain full access to every repository.
 
-The project is deliberately simple to deploy: metadata, sessions, and activity history live in SQLite, while uploaded files stay on the local filesystem. No separate database server or cloud storage account is required.
+Metadata, sessions, permission grants, and activity history are stored in SQLite. Uploaded file contents are stored on the local filesystem.
 
-## Highlights
+## Access model
 
-- Session-based sign-in with administrator and member roles
-- Repository creation, deletion, and participant management
-- Multiple file uploads with configurable size and count limits
-- Search, sorting, file-type filters, list view, and icon view
-- Direct download and permission-aware deletion
-- SQLite-backed metadata, sessions, and activity logs
-- Password hashing with bcrypt, CSRF protection, Helmet headers, and sign-in rate limiting
-- Responsive English-language, sky-blue interface designed around common desktop file-browser patterns
-- Docker Compose setup with persistent storage
-- End-to-end smoke test covering the main administration and file workflow
+### Administrator
+
+Administrators can:
+
+- View every repository
+- Upload and download files in every repository
+- Delete files and repositories
+- Manage repository permission grants
+- Create and delete regular user accounts
+- Review activity and storage metrics
+
+Administrators cannot create repositories. Repository creation is reserved for regular users.
+
+### Repository owner
+
+A regular user becomes the owner of every repository they create. Owners automatically receive all repository permissions and can:
+
+- View the repository and file metadata
+- Upload and download files
+- Delete files and the repository
+- Grant, update, and revoke permissions for other regular users
+
+Owner permissions are implicit and cannot be removed through a permission grant.
+
+### Shared user
+
+A repository owner or administrator can grant any combination of the following permissions:
+
+| Permission | Effect |
+| --- | --- |
+| `View` | Open the repository and view file metadata |
+| `Upload` | Add files through the upload endpoint |
+| `Download` | Download stored file contents |
+| `Delete` | Delete files and permanently delete the repository |
+
+Permissions are checked independently on every server request. A user with no `View` permission cannot discover or open another user's repository through the dashboard or a direct repository URL. A permission such as `Download` or `Upload` can technically be granted without `View`, but that user will not see the repository in the dashboard.
+
+## Security behavior
+
+- Access is denied by default unless the requester is an administrator, the repository owner, or has the required explicit permission.
+- Repository access is checked on every view, upload, download, file deletion, repository deletion, and permission-management request.
+- Unauthorized repository requests return a generic not-found response to avoid exposing repository existence.
+- Uploaded files receive generated storage names and are stored outside the public web directory.
+- Stored file paths are resolved inside the repository-specific upload directory before use.
+- File names shown to users are normalized and length-limited.
+- File size and per-request file count limits are configurable.
+- Session cookies, CSRF protection, Helmet headers, bcrypt password hashing, and login rate limiting are enabled.
 
 ## Technology
 
-- [Node.js](https://nodejs.org/) with ES modules
-- [Express](https://expressjs.com/) and EJS
+- Node.js 22.16.0 or newer with ES modules
+- Express 5 and EJS
 - SQLite through Node's built-in `node:sqlite` module
 - Multer for multipart uploads
 - `express-session` with a custom SQLite session store
 - bcryptjs and Helmet
 - Node's built-in test runner with Supertest
-
-## Requirements
-
-Choose either of the following setups:
-
-- Node.js **22.16.0 or newer** and npm
-- Docker with Docker Compose
-
-The minimum Node.js version is enforced in `package.json`.
 
 ## Getting started
 
@@ -53,89 +81,50 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=ChangeMe123!
 ```
 
-Change the password and `SESSION_SECRET` before exposing the service to other users. The administrator is only bootstrapped when no admin account exists, so editing `ADMIN_PASSWORD` later does not update an account that has already been created.
+Change the administrator password and `SESSION_SECRET` before exposing the service. The bootstrap password is used only when no administrator account exists.
 
 ## Available commands
 
 | Command | Purpose |
 | --- | --- |
 | `npm start` | Start the web server |
-| `npm run dev` | Run with Node's watch mode |
-| `npm test` | Execute the integration smoke test |
+| `npm run dev` | Start with Node's watch mode |
+| `npm test` | Run integration and permission tests |
 | `npm run check` | Check the server entry file for syntax errors |
 
 ## Configuration
 
-All settings are read from environment variables. Copy `.env.example` and adjust the values for your environment.
-
 | Variable | Default | Description |
 | --- | --- | --- |
-| `PORT` | `3000` | HTTP port used by the application |
+| `PORT` | `3000` | HTTP port |
 | `NODE_ENV` | `development` | Enables production cookie and proxy settings when set to `production` |
-| `SESSION_SECRET` | Example value | Secret used to sign session cookies; use a long random value in production |
+| `SESSION_SECRET` | Example value | Secret used to sign session cookies |
 | `ADMIN_USERNAME` | `admin` | Username for the first administrator |
 | `ADMIN_PASSWORD` | `ChangeMe123!` | Password for the first administrator |
-| `ADMIN_DISPLAY_NAME` | `System Administrator` | Display name assigned to the first administrator |
-| `MAX_FILE_SIZE_MB` | `100` | Maximum size of one uploaded file, in megabytes |
-| `MAX_FILES_PER_UPLOAD` | `10` | Maximum number of files accepted in one request |
-| `DB_PATH` | `./data/recorddrive.db` | SQLite database location |
-| `UPLOAD_ROOT` | `./data/uploads` | Directory used for uploaded file contents |
+| `ADMIN_DISPLAY_NAME` | `System Administrator` | Display name for the first administrator |
+| `MAX_FILE_SIZE_MB` | `100` | Maximum size of one uploaded file in megabytes |
+| `MAX_FILES_PER_UPLOAD` | `10` | Maximum files accepted in one upload request |
+| `DB_PATH` | `./data/recorddrive.db` | SQLite database path |
+| `UPLOAD_ROOT` | `./data/uploads` | Uploaded file storage directory |
 
 Production mode refuses to start with the sample administrator password or an unsafe session secret.
 
-## Roles and access
-
-### Administrator
-
-Administrators can:
-
-- Open every repository
-- Create and remove repositories
-- Create and delete member accounts
-- Add or remove participants for each repository
-- Upload, download, and delete files anywhere
-- Review recent activity from the administration dashboard
-
-### Member
-
-Members can:
-
-- See repositories they have been assigned to
-- Upload, download, and delete files in those repositories
-- Use the file search, filters, sorting controls, and view modes
-
-Administrative pages remain unavailable to regular accounts.
-
-## File explorer
-
-Each repository opens in a browser-style workspace with a breadcrumb bar, search field, command toolbar, category filters, and optional details panel. A file can be selected with one click or downloaded from its name. The interface also supports:
-
-- Newest, oldest, alphabetical, and size-based sorting
-- List and icon layouts saved in the browser
-- File-type filtering for documents, images, media, archives, and other content
-- `Ctrl+F` or `Command+F` to focus repository search
-- `Esc` to clear a selection or close the upload panel
-
-Repositories currently use a flat file list. Nested folders are not part of this release.
-
 ## Docker
-
-Create the environment file first, then set `NODE_ENV=production` and replace the sample secrets.
 
 ```bash
 cp .env.example .env
 docker compose up --build -d
 ```
 
-The Compose configuration stores the database and uploaded files in the `recorddrive_data` volume. Stop and remove the container without deleting that volume when upgrading.
+The Compose configuration stores the database and uploaded files in the `recorddrive_data` volume.
 
-To inspect the service health:
+To inspect service health:
 
 ```bash
 curl http://localhost:3000/health
 ```
 
-A healthy instance responds with:
+A healthy instance returns:
 
 ```json
 {
@@ -144,36 +133,29 @@ A healthy instance responds with:
 }
 ```
 
-## Data and backups
-
-By default, all persistent content is kept under `data/`:
-
-- `recorddrive.db` contains accounts, repositories, memberships, file metadata, sessions, and activity records.
-- `uploads/` contains the actual file contents, grouped by repository ID.
-
-Back up the database and upload directory together. For a straightforward offline backup, stop the application first and copy the entire `data` directory. The runtime directory is excluded from Git so private files, sessions, and local database contents are not committed accidentally.
-
 ## Project layout
 
 ```text
 RecordDrive/
 ├── src/
-│   ├── app.js                 # Express setup and application entry point
-│   ├── config.js              # Environment configuration
-│   ├── database.js            # Schema creation and administrator bootstrap
-│   ├── session-store.js       # SQLite-backed session store
-│   ├── middleware/            # Authentication, CSRF, and login throttling
-│   └── routes/                # Authentication, dashboard, admin, and file routes
-├── views/                     # EJS templates
-├── public/                    # Stylesheets and browser-side JavaScript
-├── data/                      # Local runtime data; ignored by Git
-├── test/                      # Integration smoke test
+│   ├── app.js
+│   ├── config.js
+│   ├── database.js
+│   ├── repository-access.js
+│   ├── repository-service.js
+│   ├── session-store.js
+│   ├── middleware/
+│   └── routes/
+├── views/
+├── public/
+├── data/
+├── test/
 ├── Dockerfile
 └── docker-compose.yml
 ```
 
 ## Deployment notes
 
-Run the service behind an HTTPS reverse proxy and set `NODE_ENV=production`. Keep `SESSION_SECRET` outside source control, use a unique administrator password, and protect the `data` volume with regular backups and suitable filesystem permissions.
+Run the service behind an HTTPS reverse proxy with `NODE_ENV=production`. Keep secrets outside source control, protect the persistent data volume with filesystem permissions, and maintain regular backups.
 
-This build is intended for a single application instance using local SQLite and disk storage. A multi-instance deployment would need shared sessions, a networked database, and object storage. Malware scanning, file previews, version history, public links, trash recovery, quotas, and nested directories are also outside the current scope.
+This build targets a single application instance with local SQLite and disk storage. Multi-instance deployments require shared sessions, a networked database, and shared object storage. Malware scanning, file previews, quotas, public links, trash recovery, and nested folders are outside the current scope.

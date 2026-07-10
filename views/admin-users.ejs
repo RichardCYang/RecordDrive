@@ -6,7 +6,7 @@
   <main class="page-main">
     <div class="shell">
       <%- include('partials/flash') %>
-      <section class="page-hero compact-hero"><div><span class="eyebrow">ACCOUNT MANAGEMENT</span><h1>Account management</h1><p>Create and manage user accounts that can be added to repositories.</p></div></section>
+      <section class="page-hero compact-hero"><div><span class="eyebrow">ACCOUNT MANAGEMENT</span><h1>Account management</h1><p>Create and manage regular user accounts that can own repositories and receive permission grants.</p></div></section>
       <%- include('partials/admin-tabs') %>
 
       <div class="admin-split">
@@ -37,7 +37,7 @@
                     <td><%= formatDate(user.created_at) %></td>
                     <td class="align-right">
                       <% if (user.role !== 'ADMIN') { %>
-                        <form action="/admin/users/<%= user.id %>/delete" method="post" class="inline-form" data-confirm="Delete this account? Its repository access will be removed, while uploaded files will remain in their repositories.">
+                        <form action="/admin/users/<%= user.id %>/delete" method="post" class="inline-form" data-confirm="Delete this account? Permission grants will be removed, owned repositories will become unassigned, and uploaded files will remain in place.">
                           <input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="button button-danger button-small" type="submit">Delete</button>
                         </form>
                       <% } else { %><span class="muted">Protected</span><% } %>

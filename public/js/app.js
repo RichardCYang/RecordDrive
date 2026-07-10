@@ -248,7 +248,7 @@
         detailIcon.classList.add(`file-${data.fileKind || 'file'}`);
         detailIcon.textContent = kindCodes[data.fileKind] || 'FILE';
       }
-      if (detailDownload) detailDownload.href = data.downloadUrl;
+      if (detailDownload && data.downloadUrl) detailDownload.href = data.downloadUrl;
       if (detailDeleteForm) {
         detailDeleteForm.action = data.deleteUrl;
         detailDeleteForm.dataset.confirm = `Permanently delete '${data.fileName}'?`;
@@ -264,13 +264,13 @@
       });
       primaryLink?.addEventListener('dblclick', (event) => {
         event.preventDefault();
-        window.location.assign(item.dataset.downloadUrl);
+        if (item.dataset.downloadUrl) window.location.assign(item.dataset.downloadUrl);
       });
       item.addEventListener('click', (event) => {
         if (!isInteractiveTarget(event.target)) selectFile(item);
       });
       item.addEventListener('dblclick', (event) => {
-        if (!isInteractiveTarget(event.target)) window.location.assign(item.dataset.downloadUrl);
+        if (!isInteractiveTarget(event.target)) if (item.dataset.downloadUrl) window.location.assign(item.dataset.downloadUrl);
       });
       item.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {

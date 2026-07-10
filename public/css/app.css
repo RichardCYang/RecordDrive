@@ -1285,3 +1285,151 @@ input:focus, textarea:focus, select:focus { border-color: var(--sky-400); backgr
   .explorer-sort-form label { width: 104px; }
   .explorer-file-items[data-view="grid"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Personal repositories and permission management */
+.panel-header > p {
+  max-width: 480px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+.repository-create-panel { margin-bottom: 24px; }
+.repository-create-form {
+  padding: 20px 22px 22px;
+  display: grid;
+  grid-template-columns: minmax(190px, .8fr) minmax(260px, 1.4fr) auto;
+  align-items: end;
+  gap: 14px;
+}
+.repository-create-form .button { min-height: 45px; }
+.repository-access-label {
+  padding: 4px 9px;
+  color: var(--sky-700);
+  border: 1px solid var(--sky-200);
+  border-radius: 999px;
+  background: var(--sky-50);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .2px;
+}
+.repository-permission-summary {
+  margin: 11px 0 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.repository-permission-summary span {
+  padding: 3px 7px;
+  color: #537086;
+  border-radius: 999px;
+  background: #edf5f9;
+  font-size: 9px;
+  font-weight: 800;
+}
+.repo-card-footer { display: flex; justify-content: space-between; gap: 10px; }
+.repo-card-footer span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.explorer-title-actions > form { display: flex; }
+.explorer-icon-danger { color: #c62f3a; border-color: #fecdd3; background: #fff7f8; }
+.explorer-icon-danger:hover { color: #a91f2d; border-color: #fda4af; background: var(--danger-soft); }
+.explorer-readonly-label {
+  padding: 7px 10px;
+  color: #667e90;
+  border: 1px solid #dce8ef;
+  border-radius: 7px;
+  background: #f8fbfd;
+  font-size: 10px;
+  font-weight: 800;
+}
+.permission-overview {
+  margin-bottom: 18px;
+  padding: 20px 22px;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+}
+.permission-overview > div:first-child { display: flex; flex-direction: column; }
+.permission-overview > div:first-child strong { margin-top: 7px; font-size: 18px; }
+.permission-overview > div:first-child small { color: var(--muted); font-size: 11px; }
+.permission-help-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.permission-help-grid > span {
+  min-height: 76px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f9fcfe;
+}
+.permission-help-grid strong { font-size: 12px; }
+.permission-help-grid small { margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.permission-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 18px; align-items: start; }
+.permission-fieldset { margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border: 0; }
+.permission-fieldset legend { margin-bottom: 8px; color: #3e5d73; font-size: 12px; font-weight: 850; }
+.permission-fieldset label {
+  min-height: 59px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fbfdff;
+  cursor: pointer;
+}
+.permission-fieldset input { width: 16px; height: 16px; min-height: 0; accent-color: var(--sky-600); }
+.permission-fieldset label > span { display: flex; flex-direction: column; }
+.permission-fieldset strong { font-size: 11px; }
+.permission-fieldset small { color: var(--muted); font-size: 9px; }
+.permission-fieldset .permission-danger { border-color: #fee2e2; background: #fff9f9; }
+.permission-grant-list { padding: 5px 20px 14px; }
+.permission-grant-row {
+  padding: 15px 2px;
+  display: grid;
+  grid-template-columns: minmax(185px, 1fr) minmax(420px, auto) auto;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #edf3f6;
+}
+.permission-grant-row:last-child { border-bottom: 0; }
+.permission-user-cell { min-width: 0; }
+.permission-inline-form { display: flex; align-items: center; gap: 5px; }
+.permission-inline-form label {
+  min-height: 32px;
+  padding: 5px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #557085;
+  border: 1px solid #dce8ef;
+  border-radius: 8px;
+  background: #fbfdff;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.permission-inline-form input { width: 14px; height: 14px; min-height: 0; accent-color: var(--sky-600); }
+.permission-inline-form .permission-danger { color: #b42335; border-color: #fecdd3; background: #fff8f8; }
+
+@media (max-width: 980px) {
+  .repository-create-form { grid-template-columns: 1fr 1fr; }
+  .repository-create-form .button { grid-column: 1 / -1; }
+  .permission-overview { grid-template-columns: 1fr; }
+  .permission-help-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .permission-layout { grid-template-columns: 1fr; }
+  .permission-layout .sticky-panel { position: static; }
+  .permission-grant-row { grid-template-columns: 1fr; }
+  .permission-inline-form { flex-wrap: wrap; }
+}
+
+@media (max-width: 650px) {
+  .panel-header { align-items: flex-start; flex-direction: column; }
+  .panel-header > p { text-align: left; }
+  .repository-create-form { grid-template-columns: 1fr; }
+  .repository-create-form .button { grid-column: auto; }
+  .permission-help-grid { grid-template-columns: 1fr; }
+  .permission-fieldset { grid-template-columns: 1fr; }
+  .permission-inline-form label { flex: 1 1 42%; justify-content: center; }
+  .repo-card-footer { align-items: flex-start; flex-direction: column; }
+}

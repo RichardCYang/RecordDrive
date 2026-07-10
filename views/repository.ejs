@@ -52,7 +52,7 @@
             <div class="explorer-repository-copy">
               <div class="explorer-title-line">
                 <h1><%= repository.name %></h1>
-                <span class="explorer-access-badge"><%= currentUser.role === 'ADMIN' ? 'Administrator access' : 'Participant' %></span>
+                <span class="explorer-access-badge"><%= repositoryPermissions.source === 'ADMIN' ? 'Administrator access' : repositoryPermissions.source === 'OWNER' ? 'Owner access' : 'Shared access' %></span>
               </div>
               <p><%= repository.description || 'Manage the files in this repository securely.' %></p>
             </div>
@@ -62,12 +62,20 @@
             <div class="explorer-stat-pills" aria-label="Repository summary">
               <span><strong><%= stats.file_count %></strong> <%= stats.file_count === 1 ? 'file' : 'files' %></span>
               <span><strong><%= formatBytes(stats.total_size) %></strong> used</span>
-              <span><strong><%= members.length %></strong> <%= members.length === 1 ? 'participant' : 'participants' %></span>
+              <span><strong><%= grants.length %></strong> shared <%= grants.length === 1 ? 'user' : 'users' %></span>
             </div>
-            <% if (currentUser.role === 'ADMIN') { %>
-              <a class="explorer-icon-action" href="/admin/repositories/<%= repository.id %>/participants" title="Manage participants" aria-label="Manage participants">
+            <% if (repositoryPermissions.canManage) { %>
+              <a class="explorer-icon-action" href="/repositories/<%= repository.id %>/permissions" title="Manage permissions" aria-label="Manage permissions">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
               </a>
+            <% } %>
+            <% if (repositoryPermissions.delete) { %>
+              <form action="/repositories/<%= repository.id %>/delete" method="post" data-confirm="Permanently delete this repository and every stored file? This action cannot be undone.">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="explorer-icon-action explorer-icon-danger" type="submit" title="Delete repository" aria-label="Delete repository">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                </button>
+              </form>
             <% } %>
           </div>
         </header>
@@ -103,22 +111,31 @@
 
         <div class="explorer-commandbar">
           <div class="explorer-command-group">
-            <button class="explorer-command explorer-command-primary" type="button" data-upload-open>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-              <span>Upload files</span>
-            </button>
-            <span class="explorer-command-divider" aria-hidden="true"></span>
-            <a class="explorer-command is-disabled" href="#" data-selected-download aria-disabled="true" tabindex="-1">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
-              <span>Download</span>
-            </a>
-            <form action="#" method="post" data-selected-delete-form data-confirm="Permanently delete the selected file?">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <button class="explorer-command is-disabled" type="submit" data-selected-delete disabled>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"/></svg>
-                <span>Delete</span>
+            <% if (repositoryPermissions.upload) { %>
+              <button class="explorer-command explorer-command-primary" type="button" data-upload-open>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                <span>Upload files</span>
               </button>
-            </form>
+            <% } %>
+            <% if (repositoryPermissions.upload && (repositoryPermissions.download || repositoryPermissions.delete)) { %><span class="explorer-command-divider" aria-hidden="true"></span><% } %>
+            <% if (repositoryPermissions.download) { %>
+              <a class="explorer-command is-disabled" href="#" data-selected-download aria-disabled="true" tabindex="-1">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
+                <span>Download</span>
+              </a>
+            <% } %>
+            <% if (repositoryPermissions.delete) { %>
+              <form action="#" method="post" data-selected-delete-form data-confirm="Permanently delete the selected file?">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="explorer-command is-disabled" type="submit" data-selected-delete disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"/></svg>
+                  <span>Delete</span>
+                </button>
+              </form>
+            <% } %>
+            <% if (!repositoryPermissions.upload && !repositoryPermissions.download && !repositoryPermissions.delete) { %>
+              <span class="explorer-readonly-label">View-only access</span>
+            <% } %>
           </div>
 
           <div class="explorer-command-group explorer-command-group-right">
@@ -149,6 +166,7 @@
           </div>
         </div>
 
+        <% if (repositoryPermissions.upload) { %>
         <section class="explorer-upload-drawer" data-upload-drawer hidden aria-label="File upload">
           <div class="explorer-upload-heading">
             <div>
@@ -180,6 +198,7 @@
             </div>
           </form>
         </section>
+        <% } %>
 
         <div class="explorer-body">
           <aside class="explorer-sidebar" aria-label="File categories">
@@ -220,17 +239,17 @@
             </div>
 
             <div class="explorer-members-card">
-              <div class="explorer-members-heading"><span>Participants</span><strong><%= members.length %></strong></div>
+              <div class="explorer-members-heading"><span>Shared users</span><strong><%= grants.length %></strong></div>
               <div class="explorer-member-list">
-                <% members.slice(0, 4).forEach((member) => { %>
+                <% grants.slice(0, 4).forEach((grant) => { %>
                   <div class="explorer-member">
-                    <span class="avatar"><%= member.display_name.slice(0, 1).toUpperCase() %></span>
-                    <span><strong><%= member.display_name %></strong><small>@<%= member.username %></small></span>
+                    <span class="avatar"><%= grant.display_name.slice(0, 1).toUpperCase() %></span>
+                    <span><strong><%= grant.display_name %></strong><small>@<%= grant.username %></small></span>
                   </div>
                 <% }) %>
               </div>
-              <% if (currentUser.role === 'ADMIN') { %>
-                <a href="/admin/repositories/<%= repository.id %>/participants">Manage participants</a>
+              <% if (repositoryPermissions.canManage) { %>
+                <a href="/repositories/<%= repository.id %>/permissions">Manage permissions</a>
               <% } %>
             </div>
           </aside>
@@ -259,8 +278,8 @@
                 <% files.forEach((file) => {
                   const kind = fileKind(file.mime_type, file.original_name);
                   const owner = file.uploader_name || 'Deleted account';
-                  const downloadUrl = `/repositories/${repository.id}/files/${file.id}/download`;
-                  const deleteUrl = `/repositories/${repository.id}/files/${file.id}/delete`;
+                  const downloadUrl = repositoryPermissions.download ? `/repositories/${repository.id}/files/${file.id}/download` : '';
+                  const deleteUrl = repositoryPermissions.delete ? `/repositories/${repository.id}/files/${file.id}/delete` : '';
                 %>
                   <article
                     class="explorer-file-item"
@@ -282,7 +301,7 @@
                       <span></span>
                     </label>
 
-                    <a class="explorer-file-primary" href="<%= downloadUrl %>" data-file-primary title="Click once to select; double-click to download">
+                    <a class="explorer-file-primary" href="<%= downloadUrl || '#' %>" data-file-primary title="<%= repositoryPermissions.download ? 'Click once to select; double-click to download' : 'Click to select' %>">
                       <span class="file-icon explorer-file-icon file-<%= kind %>" aria-hidden="true"><%= kindCodes[kind] || 'FILE' %></span>
                       <span class="explorer-file-copy">
                         <strong><%= file.original_name %></strong>
@@ -296,27 +315,35 @@
                     <span class="explorer-file-cell explorer-file-owner"><%= owner %></span>
 
                     <div class="explorer-file-actions">
-                      <a href="<%= downloadUrl %>" title="Download" aria-label="Download <%= file.original_name %>">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
-                      </a>
-                      <details class="explorer-file-menu">
-                        <summary title="More options" aria-label="More actions for <%= file.original_name %>">
-                          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
-                        </summary>
-                        <div>
-                          <a href="<%= downloadUrl %>">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
-                            Download
-                          </a>
-                          <form action="<%= deleteUrl %>" method="post" data-confirm="Permanently delete '<%= file.original_name %>'?">
-                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                            <button type="submit">
-                              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
-                              Delete
-                            </button>
-                          </form>
-                        </div>
-                      </details>
+                      <% if (repositoryPermissions.download) { %>
+                        <a href="<%= downloadUrl %>" title="Download" aria-label="Download <%= file.original_name %>">
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
+                        </a>
+                      <% } %>
+                      <% if (repositoryPermissions.download || repositoryPermissions.delete) { %>
+                        <details class="explorer-file-menu">
+                          <summary title="More options" aria-label="More actions for <%= file.original_name %>">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                          </summary>
+                          <div>
+                            <% if (repositoryPermissions.download) { %>
+                              <a href="<%= downloadUrl %>">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
+                                Download
+                              </a>
+                            <% } %>
+                            <% if (repositoryPermissions.delete) { %>
+                              <form action="<%= deleteUrl %>" method="post" data-confirm="Permanently delete '<%= file.original_name %>'?">
+                                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                                <button type="submit">
+                                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                                  Delete
+                                </button>
+                              </form>
+                            <% } %>
+                          </div>
+                        </details>
+                      <% } %>
                     </div>
                   </article>
                 <% }) %>
@@ -336,7 +363,7 @@
                 <p><%= search ? 'Try another name or return to all files.' : 'Upload the first file to share it with the team.' %></p>
                 <% if (search) { %>
                   <a class="button button-secondary" href="/repositories/<%= repository.id %>">View all files</a>
-                <% } else { %>
+                <% } else if (repositoryPermissions.upload) { %>
                   <button class="button button-primary" type="button" data-upload-open>Upload files</button>
                 <% } %>
               </div>
@@ -375,13 +402,17 @@
                 <div><dt>Uploaded</dt><dd data-detail-date></dd></div>
                 <div><dt>Uploader</dt><dd data-detail-owner></dd></div>
               </dl>
-              <div class="explorer-details-actions">
-                <a class="button button-primary button-block" href="#" data-detail-download>Download</a>
-                <form action="#" method="post" data-detail-delete-form data-confirm="Permanently delete the selected file?">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                  <button class="button button-danger button-block" type="submit">Delete file</button>
-                </form>
-              </div>
+              <% if (repositoryPermissions.download || repositoryPermissions.delete) { %>
+                <div class="explorer-details-actions">
+                  <% if (repositoryPermissions.download) { %><a class="button button-primary button-block" href="#" data-detail-download>Download</a><% } %>
+                  <% if (repositoryPermissions.delete) { %>
+                    <form action="#" method="post" data-detail-delete-form data-confirm="Permanently delete the selected file?">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <button class="button button-danger button-block" type="submit">Delete file</button>
+                    </form>
+                  <% } %>
+                </div>
+              <% } %>
             </div>
           </aside>
         </div>
