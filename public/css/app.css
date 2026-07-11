@@ -45,7 +45,7 @@ svg { display: block; }
 /* Brand & navigation */
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--sky-600); }
 .brand-mark { width: 34px; height: 34px; display: inline-grid; place-items: center; }
-.brand-mark svg { width: 100%; height: 100%; }
+.brand-mark img { width: 100%; height: 100%; object-fit: contain; border-radius: 22%; }
 .brand-copy { display: inline-flex; align-items: baseline; font-size: 20px; letter-spacing: -.7px; }
 .brand-copy strong { color: var(--sky-700); }
 .brand-copy span { color: var(--sky-400); font-weight: 700; }
