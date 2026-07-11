@@ -22,216 +22,231 @@
 
       <nav class="settings-section-nav" aria-label="<%= t('Settings sections') %>">
         <a href="#security"><%= t('Security') %></a>
+        <a href="#totp"><%= t('Authenticator app') %></a>
+        <a href="#passkeys"><%= t('Passkeys') %></a>
+        <a href="#recovery-codes"><%= t('Recovery keys') %></a>
         <a href="#language"><%= t('Language') %></a>
       </nav>
 
-      <section class="panel settings-security-panel" id="security">
-        <div class="panel-header">
-          <div><span class="eyebrow"><%= t('ACCOUNT SECURITY') %></span><h2><%= t('Two-step verification') %></h2></div>
-          <p><%= t('Add more than one verification method so you can keep access when a device is unavailable.') %></p>
-        </div>
-
-        <div class="security-overview-grid">
-          <div class="security-overview-item">
-            <span><%= t('Authenticator app') %></span>
-            <strong><%= mfaState.totpEnabled ? t('Enabled') : t('Not enabled') %></strong>
-          </div>
-          <div class="security-overview-item">
-            <span><%= t('Registered passkeys') %></span>
-            <strong><%= mfaState.passkeyCount %></strong>
-          </div>
-          <div class="security-overview-item">
-            <span><%= t('Active recovery keys') %></span>
-            <strong><%= mfaState.recoveryCodeCount %></strong>
-          </div>
-        </div>
-
-        <% if (!securityVerified) { %>
-          <section class="security-verification-card" id="security-verification">
-            <div>
-              <h3><%= t('Confirm your password') %></h3>
-              <p><%= t('Enter your current password before adding, removing, or regenerating security methods.') %></p>
-            </div>
-            <form action="/settings/security/verify-password" method="post" class="inline-security-form">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <label class="field">
-                <span><%= t('Current password') %></span>
-                <input type="password" name="password" autocomplete="current-password" required>
-              </label>
-              <button class="button button-primary" type="submit"><%= t('Unlock security settings') %></button>
-            </form>
-          </section>
-        <% } else { %>
-          <div class="security-unlocked-notice"><%= t('Security settings are unlocked for ten minutes after password verification or sign-in.') %></div>
-        <% } %>
-      </section>
-
-      <% if (newRecoveryCodes.length) { %>
-        <section class="panel recovery-codes-reveal" id="new-recovery-codes">
+      <div class="settings-content-stack">
+        <section class="panel settings-security-panel" id="security">
           <div class="panel-header">
-            <div><span class="eyebrow"><%= t('SAVE THESE NOW') %></span><h2><%= t('New recovery keys') %></h2></div>
-            <p><%= t('Each key works once. Store them in a secure password manager or an offline location. They will not be shown again.') %></p>
+            <div><span class="eyebrow"><%= t('ACCOUNT SECURITY') %></span><h2><%= t('Two-step verification') %></h2></div>
+            <p><%= t('Add more than one verification method so you can keep access when a device is unavailable.') %></p>
           </div>
-          <div class="recovery-code-grid" data-recovery-code-list>
-            <% newRecoveryCodes.forEach((code) => { %>
-              <code class="recovery-code"><%= code %></code>
-            <% }) %>
+
+          <div class="settings-panel-body">
+            <div class="security-overview-grid">
+              <div class="security-overview-item">
+                <span><%= t('Authenticator app') %></span>
+                <strong><%= mfaState.totpEnabled ? t('Enabled') : t('Not enabled') %></strong>
+              </div>
+              <div class="security-overview-item">
+                <span><%= t('Registered passkeys') %></span>
+                <strong><%= mfaState.passkeyCount %></strong>
+              </div>
+              <div class="security-overview-item">
+                <span><%= t('Active recovery keys') %></span>
+                <strong><%= mfaState.recoveryCodeCount %></strong>
+              </div>
+            </div>
+
+            <% if (!securityVerified) { %>
+              <section class="security-verification-card" id="security-verification">
+                <div>
+                  <h3><%= t('Confirm your password') %></h3>
+                  <p><%= t('Enter your current password before adding, removing, or regenerating security methods.') %></p>
+                </div>
+                <form action="/settings/security/verify-password" method="post" class="inline-security-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <label class="field">
+                    <span><%= t('Current password') %></span>
+                    <input type="password" name="password" autocomplete="current-password" required>
+                  </label>
+                  <button class="button button-primary" type="submit"><%= t('Unlock security settings') %></button>
+                </form>
+              </section>
+            <% } else { %>
+              <div class="security-unlocked-notice"><%= t('Security settings are unlocked for ten minutes after password verification or sign-in.') %></div>
+            <% } %>
           </div>
-          <button class="button button-secondary" type="button" data-copy-recovery-codes><%= t('Copy recovery keys') %></button>
-          <p class="form-status" role="status" data-copy-recovery-status data-copied="<%= t('Recovery keys copied.') %>"></p>
         </section>
-      <% } %>
 
-      <section class="panel security-method-panel" id="totp">
-        <div class="security-method-heading">
-          <span class="security-method-icon" aria-hidden="true">123</span>
-          <div>
-            <span class="eyebrow"><%= t('TIME-BASED OTP') %></span>
-            <h2><%= t('Authenticator app') %></h2>
-            <p><%= t('Use a standards-compatible TOTP app to generate a new six-digit code every thirty seconds.') %></p>
+        <% if (newRecoveryCodes.length) { %>
+          <section class="panel recovery-codes-reveal" id="new-recovery-codes">
+            <div class="panel-header">
+              <div><span class="eyebrow"><%= t('SAVE THESE NOW') %></span><h2><%= t('New recovery keys') %></h2></div>
+              <p><%= t('Each key works once. Store them in a secure password manager or an offline location. They will not be shown again.') %></p>
+            </div>
+            <div class="settings-panel-body recovery-codes-body">
+              <div class="recovery-code-grid" data-recovery-code-list>
+                <% newRecoveryCodes.forEach((code) => { %>
+                  <code class="recovery-code"><%= code %></code>
+                <% }) %>
+              </div>
+              <button class="button button-secondary" type="button" data-copy-recovery-codes><%= t('Copy recovery keys') %></button>
+              <p class="form-status" role="status" data-copy-recovery-status data-copied="<%= t('Recovery keys copied.') %>"></p>
+            </div>
+          </section>
+        <% } %>
+
+        <section class="panel security-method-panel" id="totp">
+          <div class="security-method-heading">
+            <span class="security-method-icon" aria-hidden="true">123</span>
+            <div>
+              <span class="eyebrow"><%= t('TIME-BASED OTP') %></span>
+              <h2><%= t('Authenticator app') %></h2>
+              <p><%= t('Use a standards-compatible TOTP app to generate a new six-digit code every thirty seconds.') %></p>
+            </div>
+            <strong class="status-pill <%= mfaState.totpEnabled ? 'status-success' : 'status-neutral' %>"><%= mfaState.totpEnabled ? t('Enabled') : t('Not enabled') %></strong>
           </div>
-          <strong class="status-pill <%= mfaState.totpEnabled ? 'status-success' : 'status-neutral' %>"><%= mfaState.totpEnabled ? t('Enabled') : t('Not enabled') %></strong>
-        </div>
 
-        <% if (totpEnrollment) { %>
-          <div class="totp-enrollment-grid">
-            <div class="totp-qr-card"><img src="<%= totpEnrollment.qrCodeDataUrl %>" alt="<%= t('Authenticator QR code') %>"></div>
-            <div class="totp-enrollment-instructions">
-              <ol>
-                <li><%= t('Scan the QR code with your authenticator app.') %></li>
-                <li><%= t('If scanning is unavailable, enter this setup key manually:') %> <code class="manual-secret" data-totp-secret><%= totpEnrollment.secret %></code></li>
-                <li><%= t('Enter the current six-digit code to finish enrollment.') %></li>
-              </ol>
-              <form action="/settings/security/totp/confirm" method="post" class="inline-security-form">
+          <div class="security-method-content">
+            <% if (totpEnrollment) { %>
+              <div class="totp-enrollment-grid">
+                <div class="totp-qr-card"><img src="<%= totpEnrollment.qrCodeDataUrl %>" alt="<%= t('Authenticator QR code') %>"></div>
+                <div class="totp-enrollment-instructions">
+                  <ol>
+                    <li><%= t('Scan the QR code with your authenticator app.') %></li>
+                    <li><%= t('If scanning is unavailable, enter this setup key manually:') %> <code class="manual-secret" data-totp-secret><%= totpEnrollment.secret %></code></li>
+                    <li><%= t('Enter the current six-digit code to finish enrollment.') %></li>
+                  </ol>
+                  <form action="/settings/security/totp/confirm" method="post" class="inline-security-form">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <label class="field">
+                      <span><%= t('Authentication code') %></span>
+                      <input class="otp-input" type="text" name="token" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+                    </label>
+                    <button class="button button-primary" type="submit"><%= t('Enable authenticator app') %></button>
+                  </form>
+                  <form action="/settings/security/totp/cancel" method="post">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button class="text-button" type="submit"><%= t('Cancel enrollment') %></button>
+                  </form>
+                </div>
+              </div>
+            <% } else if (mfaState.totpEnabled) { %>
+              <form action="/settings/security/totp/disable" method="post" data-confirm="<%= t('Disable authenticator app verification?') %>">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <label class="field">
-                  <span><%= t('Authentication code') %></span>
-                  <input class="otp-input" type="text" name="token" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
-                </label>
-                <button class="button button-primary" type="submit"><%= t('Enable authenticator app') %></button>
+                <button class="button button-danger" type="submit" <%= !securityVerified ? 'disabled' : '' %>><%= t('Disable authenticator app') %></button>
               </form>
-              <form action="/settings/security/totp/cancel" method="post">
+            <% } else { %>
+              <form action="/settings/security/totp/start" method="post">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <button class="text-button" type="submit"><%= t('Cancel enrollment') %></button>
+                <button class="button button-primary" type="submit" <%= !securityVerified ? 'disabled' : '' %>><%= t('Set up authenticator app') %></button>
+              </form>
+            <% } %>
+          </div>
+        </section>
+
+        <section class="panel security-method-panel" id="passkeys">
+          <div class="security-method-heading">
+            <span class="security-method-icon" aria-hidden="true">⌁</span>
+            <div>
+              <span class="eyebrow"><%= t('FIDO2 / WEBAUTHN') %></span>
+              <h2><%= t('Passkeys') %></h2>
+              <p><%= t('Register multiple passkeys for built-in biometrics, password managers, phones, or hardware security keys.') %></p>
+            </div>
+            <strong class="status-pill <%= mfaState.passkeyEnabled ? 'status-success' : 'status-neutral' %>"><%= t('{{count}} registered', { count: mfaState.passkeyCount }) %></strong>
+          </div>
+
+          <div class="security-method-content">
+            <% if (!webAuthnAvailable) { %>
+              <div class="form-alert"><%= webAuthnError %></div>
+            <% } %>
+
+            <div class="passkey-list">
+              <% passkeys.forEach((passkey) => { %>
+                <article class="passkey-item">
+                  <div>
+                    <strong><%= passkey.name %></strong>
+                    <span><%= t('Added {{date}}', { date: formatDate(passkey.created_at) }) %></span>
+                    <% if (passkey.last_used_at) { %><small><%= t('Last used {{date}}', { date: formatDate(passkey.last_used_at) }) %></small><% } %>
+                    <% if (passkey.backed_up) { %><small><%= t('Synced or backed up') %></small><% } %>
+                  </div>
+                  <form action="/settings/security/passkeys/<%= passkey.id %>/delete" method="post" data-confirm="<%= t('Remove this passkey?') %>">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <button class="button button-danger button-small" type="submit" <%= !securityVerified ? 'disabled' : '' %>><%= t('Remove') %></button>
+                  </form>
+                </article>
+              <% }) %>
+              <% if (!passkeys.length) { %>
+                <div class="empty-inline-state"><%= t('No passkeys are registered yet.') %></div>
+              <% } %>
+            </div>
+
+            <div class="passkey-registration-form">
+              <label class="field">
+                <span><%= t('Passkey name') %></span>
+                <input type="text" maxlength="80" placeholder="<%= t('e.g. Work laptop') %>" data-passkey-name>
+              </label>
+              <button
+                class="button button-primary"
+                type="button"
+                data-passkey-register
+                data-options-url="/settings/security/passkeys/options"
+                data-verify-url="/settings/security/passkeys/verify"
+                <%= !securityVerified || !webAuthnAvailable ? 'disabled' : '' %>
+              ><%= t('Register a passkey') %></button>
+              <p
+                class="form-status"
+                role="status"
+                data-passkey-register-status
+                data-working="<%= t('Waiting for your authenticator…') %>"
+                data-not-supported="<%= t('This browser does not support WebAuthn passkeys.') %>"
+              ></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel security-method-panel" id="recovery-codes">
+          <div class="security-method-heading">
+            <span class="security-method-icon" aria-hidden="true">#</span>
+            <div>
+              <span class="eyebrow"><%= t('ACCOUNT RECOVERY') %></span>
+              <h2><%= t('Recovery keys') %></h2>
+              <p><%= t('Recovery keys are single-use backups for signing in when your authenticator or passkey is unavailable.') %></p>
+            </div>
+            <strong class="status-pill <%= mfaState.recoveryCodeCount ? 'status-success' : 'status-neutral' %>"><%= t('{{count}} active', { count: mfaState.recoveryCodeCount }) %></strong>
+          </div>
+          <div class="security-method-content">
+            <div class="recovery-actions">
+              <form action="/settings/security/recovery-codes/add" method="post">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="button button-secondary" type="submit" <%= !securityVerified || !mfaState.enabled || mfaState.recoveryCodeCount >= 32 ? 'disabled' : '' %>><%= t('Generate more recovery keys') %></button>
+              </form>
+              <form action="/settings/security/recovery-codes/regenerate" method="post" data-confirm="<%= t('Replace all existing recovery keys? Existing keys will stop working.') %>">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="button button-danger" type="submit" <%= !securityVerified || !mfaState.enabled ? 'disabled' : '' %>><%= t('Replace all recovery keys') %></button>
               </form>
             </div>
           </div>
-        <% } else if (mfaState.totpEnabled) { %>
-          <form action="/settings/security/totp/disable" method="post" data-confirm="<%= t('Disable authenticator app verification?') %>">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <button class="button button-danger" type="submit" <%= !securityVerified ? 'disabled' : '' %>><%= t('Disable authenticator app') %></button>
-          </form>
-        <% } else { %>
-          <form action="/settings/security/totp/start" method="post">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <button class="button button-primary" type="submit" <%= !securityVerified ? 'disabled' : '' %>><%= t('Set up authenticator app') %></button>
-          </form>
-        <% } %>
-      </section>
+        </section>
 
-      <section class="panel security-method-panel" id="passkeys">
-        <div class="security-method-heading">
-          <span class="security-method-icon" aria-hidden="true">⌁</span>
-          <div>
-            <span class="eyebrow"><%= t('FIDO2 / WEBAUTHN') %></span>
-            <h2><%= t('Passkeys') %></h2>
-            <p><%= t('Register multiple passkeys for built-in biometrics, password managers, phones, or hardware security keys.') %></p>
+        <section class="panel settings-language-panel" id="language">
+          <div class="panel-header">
+            <div><span class="eyebrow"><%= t('LANGUAGE AND REGION') %></span><h2><%= t('Language settings') %></h2></div>
+            <p><%= t('Your selection is stored in this browser and remains available after signing out.') %></p>
           </div>
-          <strong class="status-pill <%= mfaState.passkeyEnabled ? 'status-success' : 'status-neutral' %>"><%= t('{{count}} registered', { count: mfaState.passkeyCount }) %></strong>
-        </div>
-
-        <% if (!webAuthnAvailable) { %>
-          <div class="form-alert"><%= webAuthnError %></div>
-        <% } %>
-
-        <div class="passkey-list">
-          <% passkeys.forEach((passkey) => { %>
-            <article class="passkey-item">
-              <div>
-                <strong><%= passkey.name %></strong>
-                <span><%= t('Added {{date}}', { date: formatDate(passkey.created_at) }) %></span>
-                <% if (passkey.last_used_at) { %><small><%= t('Last used {{date}}', { date: formatDate(passkey.last_used_at) }) %></small><% } %>
-                <% if (passkey.backed_up) { %><small><%= t('Synced or backed up') %></small><% } %>
-              </div>
-              <form action="/settings/security/passkeys/<%= passkey.id %>/delete" method="post" data-confirm="<%= t('Remove this passkey?') %>">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <button class="button button-danger button-small" type="submit" <%= !securityVerified ? 'disabled' : '' %>><%= t('Remove') %></button>
-              </form>
-            </article>
-          <% }) %>
-          <% if (!passkeys.length) { %>
-            <div class="empty-inline-state"><%= t('No passkeys are registered yet.') %></div>
-          <% } %>
-        </div>
-
-        <div class="passkey-registration-form">
-          <label class="field">
-            <span><%= t('Passkey name') %></span>
-            <input type="text" maxlength="80" placeholder="<%= t('e.g. Work laptop') %>" data-passkey-name>
-          </label>
-          <button
-            class="button button-primary"
-            type="button"
-            data-passkey-register
-            data-options-url="/settings/security/passkeys/options"
-            data-verify-url="/settings/security/passkeys/verify"
-            <%= !securityVerified || !webAuthnAvailable ? 'disabled' : '' %>
-          ><%= t('Register a passkey') %></button>
-          <p
-            class="form-status"
-            role="status"
-            data-passkey-register-status
-            data-working="<%= t('Waiting for your authenticator…') %>"
-            data-not-supported="<%= t('This browser does not support WebAuthn passkeys.') %>"
-          ></p>
-        </div>
-      </section>
-
-      <section class="panel security-method-panel" id="recovery-codes">
-        <div class="security-method-heading">
-          <span class="security-method-icon" aria-hidden="true">#</span>
-          <div>
-            <span class="eyebrow"><%= t('ACCOUNT RECOVERY') %></span>
-            <h2><%= t('Recovery keys') %></h2>
-            <p><%= t('Recovery keys are single-use backups for signing in when your authenticator or passkey is unavailable.') %></p>
-          </div>
-          <strong class="status-pill <%= mfaState.recoveryCodeCount ? 'status-success' : 'status-neutral' %>"><%= t('{{count}} active', { count: mfaState.recoveryCodeCount }) %></strong>
-        </div>
-        <div class="recovery-actions">
-          <form action="/settings/security/recovery-codes/add" method="post">
+          <form action="/settings/language" method="post" class="language-settings-form">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <button class="button button-secondary" type="submit" <%= !securityVerified || !mfaState.enabled || mfaState.recoveryCodeCount >= 32 ? 'disabled' : '' %>><%= t('Generate more recovery keys') %></button>
+            <label class="field">
+              <span><%= t('Language preference') %></span>
+              <select name="language" required>
+                <option value="auto" <%= languageMode === 'auto' ? 'selected' : '' %>><%= t('Use browser language') %></option>
+                <% supportedLanguages.forEach((option) => { %>
+                  <option value="<%= option.code %>" <%= languageMode === 'saved' && language === option.code ? 'selected' : '' %>><%= option.name %></option>
+                <% }) %>
+              </select>
+            </label>
+            <div class="language-source-card">
+              <span><%= t('Current source') %></span>
+              <strong><%= languageMode === 'saved' ? t('Saved preference') : t('Browser language') %></strong>
+            </div>
+            <button class="button button-primary" type="submit"><%= t('Save language') %></button>
           </form>
-          <form action="/settings/security/recovery-codes/regenerate" method="post" data-confirm="<%= t('Replace all existing recovery keys? Existing keys will stop working.') %>">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <button class="button button-danger" type="submit" <%= !securityVerified || !mfaState.enabled ? 'disabled' : '' %>><%= t('Replace all recovery keys') %></button>
-          </form>
-        </div>
-      </section>
-
-      <section class="panel settings-language-panel" id="language">
-        <div class="panel-header">
-          <div><span class="eyebrow"><%= t('LANGUAGE AND REGION') %></span><h2><%= t('Language settings') %></h2></div>
-          <p><%= t('Your selection is stored in this browser and remains available after signing out.') %></p>
-        </div>
-        <form action="/settings/language" method="post" class="language-settings-form">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <label class="field">
-            <span><%= t('Language preference') %></span>
-            <select name="language" required>
-              <option value="auto" <%= languageMode === 'auto' ? 'selected' : '' %>><%= t('Use browser language') %></option>
-              <% supportedLanguages.forEach((option) => { %>
-                <option value="<%= option.code %>" <%= languageMode === 'saved' && language === option.code ? 'selected' : '' %>><%= option.name %></option>
-              <% }) %>
-            </select>
-          </label>
-          <div class="language-source-card">
-            <span><%= t('Current source') %></span>
-            <strong><%= languageMode === 'saved' ? t('Saved preference') : t('Browser language') %></strong>
-          </div>
-          <button class="button button-primary" type="submit"><%= t('Save language') %></button>
-        </form>
-      </section>
+        </section>
+      </div>
     </div>
   </main>
   <%- include('partials/footer') %>
