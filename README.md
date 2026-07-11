@@ -6,7 +6,7 @@ Metadata, sessions, permission grants, and activity history are stored in SQLite
 
 ## Preview
 
-![RecordDrive repository file explorer showing shared users, file categories, storage usage, and uploaded documents](docs/images/recorddrive-overview.png)
+![RecordDrive repository file explorer with shared users, file categories, storage usage, and a selected spreadsheet preview](docs/images/recorddrive-overview.png)
 
 ## File previews
 
