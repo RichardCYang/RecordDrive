@@ -38,7 +38,9 @@ export function createApplication(options = {}) {
   app.disable('x-powered-by');
   app.set('view engine', 'ejs');
   app.set('views', path.join(projectRoot, 'views'));
-  if (config.isProduction) app.set('trust proxy', 1);
+  if (config.trustProxy !== undefined && config.trustProxy !== false) {
+    app.set('trust proxy', config.trustProxy);
+  }
 
   app.locals.db = db;
   app.locals.config = config;
@@ -74,6 +76,7 @@ export function createApplication(options = {}) {
       httpOnly: true,
       sameSite: 'strict',
       secure: 'auto',
+      priority: 'high',
       maxAge: 1000 * 60 * 60 * 12
     }
   }));
@@ -86,6 +89,7 @@ export function createApplication(options = {}) {
 
     if (userId && !req.currentUser) delete req.session.userId;
     res.locals.currentUser = req.currentUser;
+    if (req.currentUser) res.set('Cache-Control', 'private, no-store');
     res.locals.flash = req.session.flash || null;
     delete req.session.flash;
     res.locals.formatBytes = formatBytes;

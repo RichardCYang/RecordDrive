@@ -5,15 +5,32 @@ import bcrypt from 'bcryptjs';
 import { purgeAdministratorSessions } from './admin-access.js';
 import { readInitialAccessTimeMs, resolveStoredFilePath } from './file-access-time.js';
 
+
+function restrictPermissions(targetPath, mode, options = {}) {
+  try {
+    fs.chmodSync(targetPath, mode);
+  } catch (error) {
+    if (options.allowMissing && error.code === 'ENOENT') return;
+    if (process.platform === 'win32' && ['EINVAL', 'ENOSYS', 'EPERM'].includes(error.code)) return;
+    throw error;
+  }
+}
+
 export function createDatabase(config) {
-  fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
-  fs.mkdirSync(config.uploadRoot, { recursive: true });
+  const databaseDirectory = path.dirname(config.dbPath);
+  fs.mkdirSync(databaseDirectory, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(config.uploadRoot, { recursive: true, mode: 0o700 });
+  restrictPermissions(databaseDirectory, 0o700);
+  restrictPermissions(config.uploadRoot, 0o700);
 
   const db = new DatabaseSync(config.dbPath, {
     timeout: 5000,
     enableForeignKeyConstraints: true
   });
   db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
+  restrictPermissions(config.dbPath, 0o600);
+  restrictPermissions(`${config.dbPath}-wal`, 0o600, { allowMissing: true });
+  restrictPermissions(`${config.dbPath}-shm`, 0o600, { allowMissing: true });
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -195,6 +212,9 @@ export function createDatabase(config) {
     purgeAdministratorSessions(db);
   }
 
+  restrictPermissions(config.dbPath, 0o600);
+  restrictPermissions(`${config.dbPath}-wal`, 0o600, { allowMissing: true });
+  restrictPermissions(`${config.dbPath}-shm`, 0o600, { allowMissing: true });
   return db;
 }
 

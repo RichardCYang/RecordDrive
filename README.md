@@ -150,7 +150,8 @@ Change the administrator password and `SESSION_SECRET` before exposing the servi
 | `TLS_PASSPHRASE` | Empty | Initial private key or PFX passphrase |
 | `TLS_AUTO_RELOAD` | `true` | Automatically reload renewed certificate files |
 | `TLS_RELOAD_INTERVAL_MINUTES` | `5` | Certificate file change check interval |
-| `NODE_ENV` | `development` | Enables production proxy handling when set to `production` |
+| `NODE_ENV` | `development` | Enables production error behavior and static asset caching |
+| `TRUST_PROXY` | `false` | Explicit Express proxy trust setting; use a hop count or comma-separated trusted addresses/subnets only when required |
 | `SESSION_SECRET` | Example value | Secret used to sign session cookies |
 | `ADMIN_ACCESS_DISABLED` | `false` | Disables administrator creation, login, sessions, privileges, and `/admin` routes when set to `true`, `on`, `yes`, or `1` |
 | `ADMIN_USERNAME` | `admin` | Username for the first administrator when administrator access is enabled |
@@ -268,6 +269,6 @@ RecordDrive/
 
 ## Deployment notes
 
-Use either the native HTTPS listener or a trusted HTTPS reverse proxy with `NODE_ENV=production`. Keep secrets outside source control, protect the persistent data volume and certificate files with filesystem permissions, and maintain regular backups.
+Use either the native HTTPS listener or a trusted HTTPS reverse proxy with `NODE_ENV=production`. Proxy trust is disabled by default; set `TRUST_PROXY` only when the exact proxy topology is known, because forwarded client and protocol headers are otherwise attacker-controlled. Universal trust values such as `true` are rejected. Keep secrets outside source control, protect the persistent data volume and certificate files with filesystem permissions, and maintain regular backups.
 
 This build targets a single application instance with local SQLite and disk storage. Multi-instance deployments require shared sessions, a networked database, and shared object storage. Malware scanning, quotas, public links, trash recovery, and nested folders are outside the current scope.

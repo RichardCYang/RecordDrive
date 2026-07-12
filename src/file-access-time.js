@@ -2,13 +2,41 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ACCESS_TIME_TOLERANCE_MS = 0.5;
+const MAX_STORED_NAME_BYTES = 255;
+
+function validateStoredName(storedName) {
+  const value = String(storedName || '');
+  if (
+    !value ||
+    value === '.' ||
+    value === '..' ||
+    value.includes('/') ||
+    value.includes('\\') ||
+    /[\u0000-\u001f\u007f]/.test(value) ||
+    Buffer.byteLength(value, 'utf8') > MAX_STORED_NAME_BYTES ||
+    path.basename(value) !== value ||
+    path.win32.basename(value) !== value
+  ) {
+    throw new Error('The stored file name is not allowed.');
+  }
+  return value;
+}
+
+function rejectSymbolicLink(filePath, label) {
+  const stats = fs.lstatSync(filePath, { throwIfNoEntry: false });
+  if (stats?.isSymbolicLink()) throw new Error(`${label} cannot be a symbolic link.`);
+}
 
 export function resolveStoredFilePath(config, repositoryId, storedName) {
   const repositoryRoot = path.resolve(config.uploadRoot, String(repositoryId));
-  const candidate = path.resolve(repositoryRoot, storedName);
-  if (!candidate.startsWith(`${repositoryRoot}${path.sep}`)) {
+  rejectSymbolicLink(repositoryRoot, 'The repository directory');
+
+  const safeStoredName = validateStoredName(storedName);
+  const candidate = path.resolve(repositoryRoot, safeStoredName);
+  if (path.dirname(candidate) !== repositoryRoot) {
     throw new Error('The requested file path is not allowed.');
   }
+  rejectSymbolicLink(candidate, 'The stored file');
   return candidate;
 }
 

@@ -2,6 +2,7 @@ import {
   canUseAdministratorAccess,
   isBlockedAdministrator
 } from '../admin-access.js';
+import { safeInternalPath } from '../utils.js';
 
 function administratorAccessDisabledMessage(req) {
   return req.t('Administrator access is disabled by server configuration.');
@@ -39,7 +40,9 @@ export function requireAuth(req, res, next) {
     return renderAdministratorAccessDisabled(req, res);
   }
   if (!req.currentUser) {
-    req.session.returnTo = req.originalUrl;
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      req.session.returnTo = safeInternalPath(req.originalUrl, '/');
+    }
     return res.redirect('/login');
   }
   return next();

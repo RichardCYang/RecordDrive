@@ -39,7 +39,9 @@ function previewErrorMessage(req, error) {
     XLSX_TOO_LARGE: req.t('This spreadsheet is too large to preview.'),
     INVALID_XLSX: req.t('The spreadsheet preview could not be generated.'),
     EMPTY_XLSX: req.t('The spreadsheet does not contain any worksheets.'),
-    INVALID_ZIP: req.t('The ZIP archive preview could not be generated.')
+    INVALID_ZIP: req.t('The ZIP archive preview could not be generated.'),
+    ZIP_TOO_LARGE: req.t('The ZIP archive is too large to preview safely.'),
+    PREVIEW_BUSY: req.t('The preview service is busy. Try again shortly.')
   };
   return messages[error.code] || req.t('The file preview could not be generated.');
 }
@@ -181,7 +183,10 @@ export function createRepositoriesRouter(db, config) {
   const storage = multer.diskStorage({
     destination(req, file, callback) {
       const directory = path.join(config.uploadRoot, String(req.repository.id));
-      fs.mkdir(directory, { recursive: true }, (error) => callback(error, directory));
+      fs.mkdir(directory, { recursive: true, mode: 0o700 }, (mkdirError) => {
+        if (mkdirError) return callback(mkdirError);
+        return fs.chmod(directory, 0o700, (chmodError) => callback(chmodError, directory));
+      });
     },
     filename(req, file, callback) {
       callback(null, crypto.randomUUID());
@@ -196,6 +201,11 @@ export function createRepositoriesRouter(db, config) {
       fields: 10,
       parts: config.maxFilesPerUpload + 10
     }
+  });
+  const parseUpload = upload.array('files', config.maxFilesPerUpload);
+  const uploadFiles = (req, res, next) => parseUpload(req, res, (error) => {
+    if (error) cleanupUploadedFiles(req.files);
+    next(error);
   });
 
   router.use(requireAuth);
@@ -401,7 +411,7 @@ export function createRepositoriesRouter(db, config) {
   router.post(
     '/:repositoryId/upload',
     requireUpload,
-    upload.array('files', config.maxFilesPerUpload),
+    uploadFiles,
     (req, res, next) => {
       try {
         if (!isValidCsrf(req)) {
@@ -428,6 +438,7 @@ export function createRepositoriesRouter(db, config) {
         try {
           db.exec('BEGIN IMMEDIATE');
           for (const file of req.files) {
+            fs.chmodSync(file.path, 0o600);
             insertFile.run(
               crypto.randomUUID(),
               req.repository.id,
@@ -513,7 +524,10 @@ export function createRepositoriesRouter(db, config) {
       return res.status(415).json({ error: req.t('Preview is not available for this file type.') });
     } catch (error) {
       if (error instanceof FilePreviewError) {
-        const status = error.code === 'XLSX_TOO_LARGE' ? 413 : 422;
+        const status = ['XLSX_TOO_LARGE', 'ZIP_TOO_LARGE'].includes(error.code)
+          ? 413
+          : (error.code === 'PREVIEW_BUSY' ? 503 : 422);
+        if (error.code === 'PREVIEW_BUSY') res.set('Retry-After', '2');
         return res.status(status).json({ error: previewErrorMessage(req, error), code: error.code });
       }
       return next(error);

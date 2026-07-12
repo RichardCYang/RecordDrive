@@ -107,8 +107,8 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
         formError = req.t('Use 3-32 lowercase letters, numbers, periods, underscores, or hyphens for the username.');
       } else if (displayName.length < 2 || displayName.length > 50) {
         formError = req.t('The display name must be between 2 and 50 characters.');
-      } else if (password.length < 8 || password.length > 128) {
-        formError = req.t('The password must be between 8 and 128 characters.');
+      } else if (password.length < 8 || password.length > 128 || bcrypt.truncates(password)) {
+        formError = req.t('The password must be 8 to 128 characters and no more than 72 UTF-8 bytes.');
       } else if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(username)) {
         formError = req.t('That username is already in use.');
       }

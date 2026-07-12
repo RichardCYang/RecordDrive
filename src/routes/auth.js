@@ -6,17 +6,25 @@ import {
 } from '@simplewebauthn/server';
 import { isBlockedAdministrator } from '../admin-access.js';
 import { logActivity } from '../database.js';
-import { clearLoginAttempts, loginRateLimit } from '../middleware/login-rate-limit.js';
+import {
+  checkMfaRateLimit,
+  clearLoginAttempts,
+  clearMfaAttempts,
+  loginRateLimit,
+  recordLoginFailure,
+  recordMfaFailure
+} from '../middleware/login-rate-limit.js';
 import {
   consumeRecoveryCode,
   getMfaState,
   resolveWebAuthnSettings,
   verifyAndConsumeTotp
 } from '../security-service.js';
+import { safeInternalPath } from '../utils.js';
 
 const MFA_CHALLENGE_MAX_AGE_MS = 10 * 60 * 1000;
-const MFA_ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
-const MFA_MAX_ATTEMPTS = 10;
+const MAX_LOGIN_PASSWORD_BYTES = 1024;
+const DUMMY_PASSWORD_HASH = '$2b$12$tmAY9ZRvy85L.ewBHL4X/uj9QzQnhapJ93kGHAOGKKK4MAGnpotLq';
 
 function parseTransports(value) {
   try {
@@ -46,19 +54,6 @@ function getPendingMfa(req, db, config) {
   return { pending, user, state: getMfaState(db, user.id) };
 }
 
-function consumeMfaAttempt(req) {
-  const now = Date.now();
-  const attempts = req.session.mfaAttempts;
-  if (!attempts || now - Number(attempts.startedAt || 0) > MFA_ATTEMPT_WINDOW_MS) {
-    req.session.mfaAttempts = { count: 1, startedAt: now };
-    return { allowed: true, retrySeconds: 0 };
-  }
-  attempts.count += 1;
-  if (attempts.count <= MFA_MAX_ATTEMPTS) return { allowed: true, retrySeconds: 0 };
-  const retrySeconds = Math.max(1, Math.ceil((MFA_ATTEMPT_WINDOW_MS - (now - attempts.startedAt)) / 1000));
-  return { allowed: false, retrySeconds };
-}
-
 function clearPendingAuthentication(req) {
   delete req.session.userId;
   delete req.session.authenticatedAt;
@@ -83,6 +78,8 @@ function completeLogin(req, res, next, db, config, user, returnTo, options = {})
     clearPendingAuthentication(req);
     return rejectLogin(req, res, user.username, { json });
   }
+
+  clearMfaAttempts(user.id);
   return req.session.regenerate((error) => {
     if (error) return next(error);
     req.session.userId = user.id;
@@ -93,8 +90,9 @@ function completeLogin(req, res, next, db, config, user, returnTo, options = {})
       targetType: 'USER',
       targetLabel: user.username
     });
-    if (json) return res.json({ verified: true, redirect: returnTo });
-    return res.redirect(returnTo);
+    const redirect = safeInternalPath(returnTo, '/');
+    if (json) return res.json({ verified: true, redirect });
+    return res.redirect(redirect);
   });
 }
 
@@ -107,6 +105,20 @@ function renderMfa(req, res, db, config, options = {}) {
     user: context.user,
     mfaState: context.state
   });
+}
+
+function rejectMfaRateLimit(req, res, db, config, context, options = {}) {
+  const limit = checkMfaRateLimit(req, context.user.id);
+  if (!limit.blocked) return false;
+
+  res.set('Retry-After', String(limit.retrySeconds));
+  const error = req.t('Too many verification attempts. Try again later.');
+  if (options.json === true) {
+    res.status(429).json({ error });
+  } else {
+    renderMfa(req, res, db, config, { status: 429, error });
+  }
+  return true;
 }
 
 export function createAuthRouter(db, config) {
@@ -127,18 +139,19 @@ export function createAuthRouter(db, config) {
     try {
       const username = String(req.body.username || '').trim().toLowerCase();
       const password = String(req.body.password || '');
+      const passwordWithinLimit = Buffer.byteLength(password, 'utf8') <= MAX_LOGIN_PASSWORD_BYTES;
       const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-      const passwordMatches = user ? await bcrypt.compare(password, user.password_hash) : false;
+      const passwordHash = user?.password_hash || DUMMY_PASSWORD_HASH;
+      const passwordMatches = await bcrypt.compare(passwordWithinLimit ? password : '', passwordHash);
 
-      if (!user || !passwordMatches || isBlockedAdministrator(config, user)) {
+      if (!user || !passwordWithinLimit || !passwordMatches || isBlockedAdministrator(config, user)) {
+        recordLoginFailure(req, username);
         clearPendingAuthentication(req);
         return rejectLogin(req, res, username);
       }
 
-      clearLoginAttempts(req);
-      const returnTo = req.session.returnTo && req.session.returnTo.startsWith('/')
-        ? req.session.returnTo
-        : '/';
+      clearLoginAttempts(username);
+      const returnTo = safeInternalPath(req.session.returnTo, '/');
       const mfaState = getMfaState(db, user.id);
 
       if (!mfaState.enabled) {
@@ -175,18 +188,11 @@ export function createAuthRouter(db, config) {
           error: req.t('Authenticator app verification is not available for this account.')
         });
       }
-
-      const attempt = consumeMfaAttempt(req);
-      if (!attempt.allowed) {
-        res.set('Retry-After', String(attempt.retrySeconds));
-        return renderMfa(req, res, db, config, {
-          status: 429,
-          error: req.t('Too many verification attempts. Try again later.')
-        });
-      }
+      if (rejectMfaRateLimit(req, res, db, config, context)) return undefined;
 
       const verified = await verifyAndConsumeTotp(db, context.user.id, req.body.token, config);
       if (!verified) {
+        recordMfaFailure(req, context.user.id);
         return renderMfa(req, res, db, config, {
           status: 401,
           error: req.t('The authenticator code is invalid, expired, or already used.')
@@ -205,18 +211,11 @@ export function createAuthRouter(db, config) {
     try {
       const context = getPendingMfa(req, db, config);
       if (!context) return res.redirect('/login');
-
-      const attempt = consumeMfaAttempt(req);
-      if (!attempt.allowed) {
-        res.set('Retry-After', String(attempt.retrySeconds));
-        return renderMfa(req, res, db, config, {
-          status: 429,
-          error: req.t('Too many verification attempts. Try again later.')
-        });
-      }
+      if (rejectMfaRateLimit(req, res, db, config, context)) return undefined;
 
       const verified = consumeRecoveryCode(db, context.user.id, req.body.recoveryCode, config);
       if (!verified) {
+        recordMfaFailure(req, context.user.id);
         return renderMfa(req, res, db, config, {
           status: 401,
           error: req.t('The recovery key is invalid or has already been used.')
@@ -238,12 +237,7 @@ export function createAuthRouter(db, config) {
       if (!context.state.passkeyEnabled) {
         return res.status(400).json({ error: req.t('Passkey verification is not available for this account.') });
       }
-
-      const attempt = consumeMfaAttempt(req);
-      if (!attempt.allowed) {
-        res.set('Retry-After', String(attempt.retrySeconds));
-        return res.status(429).json({ error: req.t('Too many verification attempts. Try again later.') });
-      }
+      if (rejectMfaRateLimit(req, res, db, config, context, { json: true })) return undefined;
 
       const webAuthn = resolveWebAuthnSettings(req, config);
       const credentials = db.prepare(`
@@ -286,6 +280,7 @@ export function createAuthRouter(db, config) {
         delete req.session.webAuthnAuthentication;
         return res.status(401).json({ error: req.t('Your passkey challenge has expired. Try again.') });
       }
+      if (rejectMfaRateLimit(req, res, db, config, context, { json: true })) return undefined;
 
       const response = req.body?.credential;
       const stored = db.prepare(`
@@ -293,22 +288,41 @@ export function createAuthRouter(db, config) {
         FROM webauthn_credentials
         WHERE user_id = ? AND credential_id = ?
       `).get(context.user.id, response?.id);
-      if (!stored) return res.status(401).json({ error: req.t('The passkey could not be verified.') });
+      if (!stored) {
+        delete req.session.webAuthnAuthentication;
+        recordMfaFailure(req, context.user.id);
+        return res.status(401).json({ error: req.t('The passkey could not be verified.') });
+      }
 
-      const verification = await verifyAuthenticationResponse({
-        response,
-        expectedChallenge: challenge.challenge,
-        expectedOrigin: challenge.origin,
-        expectedRPID: challenge.rpID,
-        credential: {
-          id: stored.credential_id,
-          publicKey: new Uint8Array(stored.public_key),
-          counter: stored.counter,
-          transports: parseTransports(stored.transports)
-        },
-        requireUserVerification: true
-      });
+      let verification;
+      try {
+        verification = await verifyAuthenticationResponse({
+          response,
+          expectedChallenge: challenge.challenge,
+          expectedOrigin: challenge.origin,
+          expectedRPID: challenge.rpID,
+          credential: {
+            id: stored.credential_id,
+            publicKey: new Uint8Array(stored.public_key),
+            counter: stored.counter,
+            transports: parseTransports(stored.transports)
+          },
+          requireUserVerification: true
+        });
+      } catch (error) {
+        delete req.session.webAuthnAuthentication;
+        recordMfaFailure(req, context.user.id);
+        if (String(error.message).includes('counter value')) {
+          return res.status(401).json({
+            error: req.t('The passkey counter was rejected. Remove and register this passkey again.')
+          });
+        }
+        return res.status(401).json({ error: req.t('The passkey could not be verified.') });
+      }
+
+      delete req.session.webAuthnAuthentication;
       if (!verification.verified) {
+        recordMfaFailure(req, context.user.id);
         return res.status(401).json({ error: req.t('The passkey could not be verified.') });
       }
 
@@ -326,9 +340,6 @@ export function createAuthRouter(db, config) {
       clearPendingAuthentication(req);
       return completeLogin(req, res, next, db, config, context.user, returnTo, { json: true });
     } catch (error) {
-      if (String(error.message).includes('counter value')) {
-        return res.status(401).json({ error: req.t('The passkey counter was rejected. Remove and register this passkey again.') });
-      }
       return next(error);
     }
   });

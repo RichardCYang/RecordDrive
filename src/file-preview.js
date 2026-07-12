@@ -2,17 +2,36 @@ import ExcelJS from 'exceljs';
 import yauzl from 'yauzl';
 
 const XLSX_MAX_FILE_BYTES = 25 * 1024 * 1024;
+const XLSX_MAX_ARCHIVE_ENTRIES = 4096;
+const XLSX_MAX_UNCOMPRESSED_BYTES = 64 * 1024 * 1024;
+const XLSX_MAX_ENTRY_BYTES = 32 * 1024 * 1024;
 const XLSX_MAX_ROWS = 200;
 const XLSX_MAX_COLUMNS = 50;
 const ZIP_MAX_VISIBLE_ENTRIES = 2500;
-const WORKBOOK_CACHE_LIMIT = 2;
-const workbookCache = new Map();
+const ZIP_MAX_SCANNED_ENTRIES = 10000;
+const ZIP_MAX_ENTRY_NAME_BYTES = 1024;
+const PREVIEW_CONCURRENCY_LIMITS = Object.freeze({ xlsx: 2, zip: 4 });
+const activePreviews = { xlsx: 0, zip: 0 };
 
 export class FilePreviewError extends Error {
   constructor(code, message) {
     super(message);
     this.name = 'FilePreviewError';
     this.code = code;
+  }
+}
+
+async function withPreviewSlot(kind, operation) {
+  const limit = PREVIEW_CONCURRENCY_LIMITS[kind];
+  if (activePreviews[kind] >= limit) {
+    throw new FilePreviewError('PREVIEW_BUSY', 'The preview service is at its concurrency limit.');
+  }
+
+  activePreviews[kind] += 1;
+  try {
+    return await operation();
+  } finally {
+    activePreviews[kind] -= 1;
   }
 }
 
@@ -77,33 +96,90 @@ function displayCellValue(cell) {
   return String(cell.value);
 }
 
-function cacheWorkbook(cacheKey, workbook) {
-  workbookCache.delete(cacheKey);
-  workbookCache.set(cacheKey, workbook);
-  while (workbookCache.size > WORKBOOK_CACHE_LIMIT) {
-    const oldestKey = workbookCache.keys().next().value;
-    workbookCache.delete(oldestKey);
-  }
+function inspectZipLimits(filePath, options) {
+  return new Promise((resolve, reject) => {
+    yauzl.open(filePath, {
+      lazyEntries: true,
+      autoClose: true,
+      decodeStrings: true,
+      validateEntrySizes: true,
+      strictFileNames: false
+    }, (openError, zipfile) => {
+      if (openError) {
+        reject(new FilePreviewError(options.invalidCode, `${options.invalidMessage}: ${openError.message}`));
+        return;
+      }
+
+      let entryCount = 0;
+      let totalUncompressedSize = 0;
+      let settled = false;
+
+      const finish = (callback) => {
+        if (settled) return;
+        settled = true;
+        callback();
+      };
+      const rejectLimit = (message) => finish(() => {
+        zipfile.close();
+        reject(new FilePreviewError(options.limitCode, message));
+      });
+
+      if (Number(zipfile.entryCount || 0) > options.maxEntries) {
+        rejectLimit(`The archive contains more than ${options.maxEntries} entries.`);
+        return;
+      }
+
+      zipfile.on('entry', (entry) => {
+        entryCount += 1;
+        const entrySize = Number(entry.uncompressedSize || 0);
+        totalUncompressedSize += entrySize;
+        const nameBytes = Buffer.byteLength(String(entry.fileName || ''), 'utf8');
+
+        if (entryCount > options.maxEntries) {
+          rejectLimit(`The archive contains more than ${options.maxEntries} entries.`);
+          return;
+        }
+        if (entrySize > options.maxEntryBytes) {
+          rejectLimit(`An archive entry exceeds ${options.maxEntryBytes} uncompressed bytes.`);
+          return;
+        }
+        if (totalUncompressedSize > options.maxTotalBytes) {
+          rejectLimit(`The archive expands beyond ${options.maxTotalBytes} bytes.`);
+          return;
+        }
+        if (nameBytes > options.maxNameBytes) {
+          rejectLimit(`An archive entry name exceeds ${options.maxNameBytes} bytes.`);
+          return;
+        }
+        zipfile.readEntry();
+      });
+
+      zipfile.on('end', () => finish(() => resolve({ entryCount, totalUncompressedSize })));
+      zipfile.on('error', (error) => finish(() => {
+        reject(new FilePreviewError(options.invalidCode, `${options.invalidMessage}: ${error.message}`));
+      }));
+      zipfile.readEntry();
+    });
+  });
 }
 
 async function loadWorkbook(filePath, stats) {
   if (stats.size > XLSX_MAX_FILE_BYTES) {
     throw new FilePreviewError(
       'XLSX_TOO_LARGE',
-      `Spreadsheet previews are limited to ${XLSX_MAX_FILE_BYTES} bytes.`
+      `Spreadsheet previews are limited to ${XLSX_MAX_FILE_BYTES} compressed bytes.`
     );
   }
 
-  const cacheKey = `${filePath}:${stats.size}:${stats.mtimeMs}`;
-  const cached = workbookCache.get(cacheKey);
-  if (cached) {
-    cacheWorkbook(cacheKey, cached);
-    return cached;
-  }
-
-  for (const key of workbookCache.keys()) {
-    if (key.startsWith(`${filePath}:`)) workbookCache.delete(key);
-  }
+  await inspectZipLimits(filePath, {
+    invalidCode: 'INVALID_XLSX',
+    invalidMessage: 'The spreadsheet archive could not be read',
+    limitCode: 'XLSX_TOO_LARGE',
+    maxEntries: XLSX_MAX_ARCHIVE_ENTRIES,
+    maxEntryBytes: XLSX_MAX_ENTRY_BYTES,
+    maxTotalBytes: XLSX_MAX_UNCOMPRESSED_BYTES,
+    maxNameBytes: ZIP_MAX_ENTRY_NAME_BYTES
+  });
 
   const workbook = new ExcelJS.Workbook();
   try {
@@ -111,7 +187,6 @@ async function loadWorkbook(filePath, stats) {
   } catch (error) {
     throw new FilePreviewError('INVALID_XLSX', `The spreadsheet could not be read: ${error.message}`);
   }
-  cacheWorkbook(cacheKey, workbook);
   return workbook;
 }
 
@@ -144,7 +219,7 @@ function worksheetMerges(worksheet) {
   }).filter(Boolean);
 }
 
-export async function createXlsxPreview(filePath, stats, requestedSheetIndex = 0) {
+async function buildXlsxPreview(filePath, stats, requestedSheetIndex = 0) {
   const workbook = await loadWorkbook(filePath, stats);
   if (!workbook.worksheets.length) {
     throw new FilePreviewError('EMPTY_XLSX', 'The spreadsheet does not contain any worksheets.');
@@ -197,6 +272,10 @@ export async function createXlsxPreview(filePath, stats, requestedSheetIndex = 0
   };
 }
 
+export function createXlsxPreview(filePath, stats, requestedSheetIndex = 0) {
+  return withPreviewSlot('xlsx', () => buildXlsxPreview(filePath, stats, requestedSheetIndex));
+}
+
 function zipEntryDate(entry) {
   try {
     const date = entry.getLastModDate();
@@ -210,7 +289,7 @@ function encryptedZipError(error) {
   return /encrypt|password/i.test(String(error?.message || ''));
 }
 
-export function createZipPreview(filePath) {
+function buildZipPreview(filePath) {
   return new Promise((resolve, reject) => {
     yauzl.open(filePath, {
       lazyEntries: true,
@@ -240,9 +319,29 @@ export function createZipPreview(filePath) {
         settled = true;
         callback();
       };
+      const rejectLimit = (message) => finish(() => {
+        zipfile.close();
+        reject(new FilePreviewError('ZIP_TOO_LARGE', message));
+      });
+
+      if (Number(zipfile.entryCount || 0) > ZIP_MAX_SCANNED_ENTRIES) {
+        rejectLimit(`ZIP previews are limited to ${ZIP_MAX_SCANNED_ENTRIES} entries.`);
+        return;
+      }
 
       zipfile.on('entry', (entry) => {
         totalEntries += 1;
+        if (totalEntries > ZIP_MAX_SCANNED_ENTRIES) {
+          rejectLimit(`ZIP previews are limited to ${ZIP_MAX_SCANNED_ENTRIES} entries.`);
+          return;
+        }
+
+        const rawName = String(entry.fileName || '');
+        if (Buffer.byteLength(rawName, 'utf8') > ZIP_MAX_ENTRY_NAME_BYTES) {
+          rejectLimit(`ZIP entry names are limited to ${ZIP_MAX_ENTRY_NAME_BYTES} bytes.`);
+          return;
+        }
+
         totalUncompressedSize += Number(entry.uncompressedSize || 0);
         totalCompressedSize += Number(entry.compressedSize || 0);
         if ((entry.generalPurposeBitFlag & 0x1) !== 0 || (entry.generalPurposeBitFlag & 0x40) !== 0) {
@@ -250,7 +349,7 @@ export function createZipPreview(filePath) {
         }
 
         if (!encrypted && entries.length < ZIP_MAX_VISIBLE_ENTRIES) {
-          const normalizedName = String(entry.fileName || '')
+          const normalizedName = rawName
             .replace(/\\/g, '/')
             .replace(/^\/+/, '')
             .replace(/\u0000/g, '');
@@ -290,3 +389,6 @@ export function createZipPreview(filePath) {
   });
 }
 
+export function createZipPreview(filePath) {
+  return withPreviewSlot('zip', () => buildZipPreview(filePath));
+}

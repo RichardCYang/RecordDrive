@@ -1,6 +1,7 @@
 import path from 'node:path';
 import process from 'node:process';
 import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
 
 dotenv.config();
 
@@ -11,6 +12,18 @@ function resolveFromCwd(value) {
 function booleanFromEnv(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
   return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
+function trustProxyFromEnv(value) {
+  if (value === undefined || value === null || String(value).trim() === '') return false;
+  const normalized = String(value).trim();
+  const lower = normalized.toLowerCase();
+  if (['0', 'false', 'no', 'off'].includes(lower)) return false;
+  if (['true', 'yes', 'on'].includes(lower)) {
+    throw new Error('TRUST_PROXY cannot trust every source. Use a positive hop count or trusted addresses/subnets.');
+  }
+  if (/^[1-9]\d*$/.test(normalized)) return Number.parseInt(normalized, 10);
+  return normalized.split(',').map((entry) => entry.trim()).filter(Boolean);
 }
 
 export function loadConfig(overrides = {}) {
@@ -26,6 +39,9 @@ export function loadConfig(overrides = {}) {
     }
     if (!adminAccessDisabled && adminPassword === 'ChangeMe123!') {
       throw new Error('The default ADMIN_PASSWORD cannot be used in production while administrator access is enabled.');
+    }
+    if (!adminAccessDisabled && bcrypt.truncates(adminPassword)) {
+      throw new Error('ADMIN_PASSWORD must not exceed the bcrypt 72-byte input limit.');
     }
   }
 
@@ -54,6 +70,7 @@ export function loadConfig(overrides = {}) {
     reloadIntervalMinutes: Number.isFinite(reloadIntervalMinutes) ? reloadIntervalMinutes : 5,
     nodeEnv,
     isProduction: nodeEnv === 'production',
+    trustProxy: trustProxyFromEnv(env.TRUST_PROXY),
     sessionSecret,
     adminAccessDisabled,
     adminUsername: (env.ADMIN_USERNAME || 'admin').trim().toLowerCase(),

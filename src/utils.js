@@ -42,6 +42,27 @@ export function filePreviewKind(mimeType = '', filename = '') {
   return '';
 }
 
+export function safeInternalPath(value, fallback = '/') {
+  const candidate = String(value || '');
+  if (
+    !candidate.startsWith('/') ||
+    candidate.startsWith('//') ||
+    candidate.includes('\\') ||
+    /[\u0000-\u001f\u007f]/.test(candidate)
+  ) {
+    return fallback;
+  }
+
+  try {
+    const base = new URL('http://recorddrive.local');
+    const resolved = new URL(candidate, base);
+    if (resolved.origin !== base.origin) return fallback;
+    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  } catch {
+    return fallback;
+  }
+}
+
 export function safeOriginalName(name) {
   const normalized = path.basename(String(name || 'unnamed-file')).replace(/[\u0000-\u001f\u007f]/g, '').trim();
   return normalized.slice(0, 240) || 'unnamed-file';
