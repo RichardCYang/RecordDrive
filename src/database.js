@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { purgeAdministratorSessions } from './admin-access.js';
 import { ensureSecureUploadRoot, openStoredFile, readInitialAccessTimeMs } from './file-access-time.js';
 import { normalizeAndValidateStorageConfiguration } from './storage-path-security.js';
+import { applyStoredRepositoryStorageRoot, ensureStorageSettingsTable } from './storage-settings.js';
 
 const activityLogRetentionByDatabase = new WeakMap();
 
@@ -82,7 +83,6 @@ export function createDatabase(providedConfig) {
   const databaseDirectory = path.dirname(config.dbPath);
   fs.mkdirSync(databaseDirectory, { recursive: true, mode: 0o700 });
   requireSecureDatabasePath(databaseDirectory, config.dbPath);
-  ensureSecureUploadRoot(config);
   restrictPermissions(databaseDirectory, 0o700);
 
   const db = new DatabaseSync(config.dbPath, {
@@ -90,6 +90,14 @@ export function createDatabase(providedConfig) {
     enableForeignKeyConstraints: true
   });
   db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
+  try {
+    ensureStorageSettingsTable(db);
+    applyStoredRepositoryStorageRoot(db, config);
+    ensureSecureUploadRoot(config);
+  } catch (error) {
+    db.close();
+    throw error;
+  }
   restrictPermissions(config.dbPath, 0o600);
   restrictPermissions(`${config.dbPath}-wal`, 0o600, { allowMissing: true });
   restrictPermissions(`${config.dbPath}-shm`, 0o600, { allowMissing: true });

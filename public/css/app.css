@@ -2154,3 +2154,47 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .security-method-heading { gap: 13px; }
   .security-overview-item { min-height: 88px; }
 }
+
+.storage-status-grid { margin-bottom: 22px; display: grid; grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)); gap: 14px; }
+.storage-status-card { min-height: 142px; padding: 20px; display: flex; flex-direction: column; justify-content: center; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255,255,255,.94); box-shadow: var(--shadow-sm); }
+.storage-status-card strong { display: block; margin: 7px 0 3px; font-size: 27px; letter-spacing: -.8px; }
+.storage-status-card small { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.storage-path-card code { margin: 10px 0 8px; padding: 10px 12px; overflow-wrap: anywhere; border: 1px solid #d9edf7; border-radius: 10px; color: #145b7d; background: #f2fbff; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.55; }
+.storage-settings-form { display: grid; gap: 20px; }
+.storage-panel { overflow: visible; }
+.storage-panel .panel-header > p { max-width: 440px; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; text-align: right; }
+.storage-panel-body { padding: 22px; display: grid; gap: 20px; }
+.storage-form-alert { margin-bottom: 0; }
+.storage-path-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.storage-path-details > div { min-width: 0; padding: 14px; display: grid; gap: 7px; border: 1px solid #e0edf4; border-radius: 12px; background: #fbfdff; }
+.storage-path-details span { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.storage-path-details code { overflow-wrap: anywhere; color: #294a62; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; line-height: 1.5; }
+.storage-mode-selector { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.storage-mode-selector label { position: relative; }
+.storage-mode-selector input { position: absolute; width: 1px; height: 1px; min-height: 0; opacity: 0; }
+.storage-mode-selector label > span { min-height: 130px; padding: 18px; display: flex; flex-direction: column; justify-content: center; border: 1px solid #d7e7f0; border-radius: 14px; background: #fbfdff; cursor: pointer; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease; }
+.storage-mode-selector strong { color: #294a62; font-size: 13px; }
+.storage-mode-selector small { margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.storage-mode-selector input:checked + span { border-color: var(--sky-500); background: var(--sky-50); box-shadow: 0 0 0 3px rgba(56,189,248,.12); }
+.storage-mode-selector input:focus-visible + span { box-shadow: 0 0 0 4px rgba(56,189,248,.2); }
+.storage-warning { padding: 15px 17px; display: grid; gap: 4px; border: 1px solid #fde68a; border-radius: 13px; background: #fffbeb; }
+.storage-warning strong { color: #8a5a0a; font-size: 11px; }
+.storage-warning span { color: #806a3d; font-size: 10px; line-height: 1.6; }
+.storage-action-bar { position: sticky; bottom: 12px; z-index: 8; padding: 15px 17px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border: 1px solid var(--sky-200); border-radius: 15px; background: rgba(255,255,255,.96); box-shadow: 0 18px 50px rgba(21,94,117,.17); backdrop-filter: blur(10px); }
+.storage-action-bar > div { display: grid; gap: 3px; }
+.storage-action-bar strong { color: #294a62; font-size: 12px; }
+.storage-action-bar span { color: var(--muted); font-size: 10px; }
+
+@media (max-width: 900px) {
+  .storage-status-grid { grid-template-columns: 1fr 1fr; }
+  .storage-path-card { grid-column: 1 / -1; }
+  .storage-path-details, .storage-mode-selector { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .storage-status-grid { grid-template-columns: 1fr; }
+  .storage-path-card { grid-column: auto; }
+  .storage-panel .panel-header > p { text-align: left; }
+  .storage-action-bar { position: static; align-items: stretch; flex-direction: column; }
+  .storage-action-bar .button { width: 100%; }
+}

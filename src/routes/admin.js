@@ -10,6 +10,11 @@ import {
   validateTlsSettings
 } from '../tls-settings.js';
 import { setFlash } from '../utils.js';
+import {
+  loadRepositoryStorageSettings,
+  StorageSettingsError,
+  updateRepositoryStorageSettings
+} from '../storage-settings.js';
 
 const USERNAME_PATTERN = /^[a-z0-9_.-]{3,32}$/;
 
@@ -55,6 +60,33 @@ function renderTlsPage(req, res, { settings, runtimeControl, formError = null, s
     runtimeState,
     hasStoredPassphrase,
     canReloadCertificate: typeof runtimeControl.reloadTlsCertificate === 'function',
+    formError
+  });
+}
+
+
+function renderStoragePage(req, res, db, config, {
+  formError = null,
+  statusCode = 200,
+  form = null
+} = {}) {
+  const settings = loadRepositoryStorageSettings(db, config);
+  const metrics = db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM repositories) AS repositories,
+      (SELECT COUNT(*) FROM files) AS files,
+      (SELECT COALESCE(SUM(size), 0) FROM files) AS bytes
+  `).get();
+
+  return res.status(statusCode).render('admin-storage', {
+    title: req.t('Repository storage settings'),
+    activeAdminTab: 'storage',
+    settings: {
+      ...settings,
+      repositoryRoot: form?.repositoryRoot ?? settings.repositoryRoot,
+      migrationMode: form?.migrationMode === 'use-existing' ? 'use-existing' : 'move'
+    },
+    metrics,
     formError
   });
 }
@@ -195,6 +227,48 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
       activeAdminTab: 'repositories',
       repositories
     });
+  });
+
+
+  router.get('/storage', (req, res) => {
+    return renderStoragePage(req, res, db, config);
+  });
+
+  router.post('/storage', (req, res, next) => {
+    const form = {
+      repositoryRoot: String(req.body.repositoryRoot || '').trim(),
+      migrationMode: req.body.migrationMode === 'use-existing' ? 'use-existing' : 'move'
+    };
+
+    try {
+      const result = updateRepositoryStorageSettings(db, config, form);
+      logActivity(db, {
+        actorId: req.currentUser.id,
+        action: 'UPDATE_STORAGE_SETTINGS',
+        targetType: 'SYSTEM',
+        targetLabel: result.repositoryRoot
+      });
+
+      if (!result.changed) {
+        setFlash(req, 'success', req.t('Repository storage settings were saved.'));
+      } else if (result.migrationMode === 'use-existing') {
+        setFlash(req, 'success', req.t('Repository storage now uses the selected local filesystem path.'));
+      } else if (result.cleanupRequired) {
+        setFlash(req, 'success', req.t('Repository storage was moved, but the old storage directory could not be removed automatically.'));
+      } else {
+        setFlash(req, 'success', req.t('Repository storage was moved to the new local filesystem path.'));
+      }
+      return res.redirect('/admin/storage');
+    } catch (error) {
+      if (error instanceof StorageSettingsError) {
+        return renderStoragePage(req, res, db, config, {
+          formError: req.t(error.message),
+          statusCode: error.statusCode,
+          form
+        });
+      }
+      return next(error);
+    }
   });
 
   router.get('/tls', (req, res) => {

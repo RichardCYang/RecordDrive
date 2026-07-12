@@ -177,9 +177,23 @@ Change the administrator password and `SESSION_SECRET` before exposing the servi
 | `SESSION_IDLE_HOURS` | `12` | Rolling inactivity lifetime for a server-side session |
 | `SESSION_ABSOLUTE_HOURS` | `168` | Maximum authenticated session lifetime regardless of activity |
 | `DB_PATH` | `./data/recorddrive.db` | SQLite database path; it must remain outside `UPLOAD_ROOT` |
-| `UPLOAD_ROOT` | `./data/uploads` | Uploaded file storage directory; it must not contain `DB_PATH` |
+| `UPLOAD_ROOT` | `./data/uploads` | Initial uploaded-file storage directory; the administrator can override it in **Admin → Storage**, and it must not contain `DB_PATH` |
 
 Every environment other than `development` and `test` uses production validation. Startup rejects a weak session secret, a weak or bcrypt-truncated bootstrap administrator password, and a separately configured MFA encryption key shorter than 32 UTF-8 bytes.
+
+
+## Repository storage location
+
+Open **Admin → Storage** to change the local filesystem root used for repository file contents. The administrator setting accepts an absolute path outside the RecordDrive project directory, including another local disk or a mounted filesystem. The saved path is stored in the SQLite `app_settings` table, takes precedence over `UPLOAD_ROOT` on later starts, and is applied immediately.
+
+Two activation modes are available:
+
+- **Move current repository data** requires an empty or nonexistent destination. RecordDrive validates the current storage tree, moves it to the new path, verifies cross-filesystem copies, and then saves the setting.
+- **Use data already at the new path** is intended for data that an administrator copied or mounted separately. RecordDrive verifies that every file recorded in SQLite exists as a regular file under the selected root before switching.
+
+The configured path cannot be a filesystem root, a parent of the RecordDrive project, a protected source/static/view/Git directory, a symbolic-link path, or a directory containing the SQLite database. The operating-system account running RecordDrive must have permission to create directories and read, write, rename, and delete files there.
+
+The path field expands `~`, `$HOME`, `${VARIABLE}`, and `%VARIABLE%`. Relative paths are rejected in the administrator UI so the active location is unambiguous.
 
 ## Native HTTPS with Posh-ACME
 
@@ -221,6 +235,18 @@ docker compose up --build -d
 ```
 
 The Compose configuration stores the database and uploaded files in the `recorddrive_data` volume and publishes the default HTTP and HTTPS ports. If the administrator selects different ports, update the Compose port mappings to match.
+
+A container can use an administrator-selected host storage path only when that path is mounted into the container. Add a writable bind mount or volume, then enter the container path in **Admin → Storage**, for example:
+
+```yaml
+services:
+  recorddrive:
+    volumes:
+      - recorddrive_data:/app/data
+      - /host/path/to/repository-data:/repository-data
+```
+
+Then set the repository local filesystem path to `/repository-data`.
 
 A container cannot read a Posh-ACME directory from the host unless it is mounted. Add a read-only bind mount and use the container path in the administrator UI, for example:
 

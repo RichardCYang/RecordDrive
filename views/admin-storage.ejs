@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="<%= language %>">
+<head><%- include('partials/head') %></head>
+<body>
+  <%- include('partials/nav') %>
+  <main class="page-main">
+    <div class="shell">
+      <%- include('partials/flash') %>
+      <section class="page-hero compact-hero">
+        <div>
+          <span class="eyebrow"><%= t('LOCAL FILESYSTEM') %></span>
+          <h1><%= t('Repository storage settings') %></h1>
+          <p><%= t('Choose the local filesystem directory used for repository file contents. The path can be outside the RecordDrive project directory.') %></p>
+        </div>
+      </section>
+      <%- include('partials/admin-tabs') %>
+
+      <section class="storage-status-grid">
+        <article class="storage-status-card storage-path-card">
+          <span class="metric-label"><%= t('Active storage path') %></span>
+          <code><%= settings.activeRepositoryRoot %></code>
+          <small><%= settings.persisted ? t('Saved in administrator settings') : t('Provided by UPLOAD_ROOT or the application default') %></small>
+        </article>
+        <article class="storage-status-card">
+          <span class="metric-label"><%= t('Repositories') %></span>
+          <strong><%= metrics.repositories %></strong>
+          <small><%= t('Repository directories managed by RecordDrive') %></small>
+        </article>
+        <article class="storage-status-card">
+          <span class="metric-label"><%= t('Stored data') %></span>
+          <strong><%= formatBytes(metrics.bytes) %></strong>
+          <small><%= metrics.files %> <%= metrics.files === 1 ? t('file') : t('files') %></small>
+        </article>
+      </section>
+
+      <form class="storage-settings-form" action="/admin/storage" method="post">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% if (formError) { %>
+          <div class="alert alert-error storage-form-alert"><%= formError %></div>
+        <% } %>
+
+        <section class="panel storage-panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow"><%= t('STORAGE LOCATION') %></span>
+              <h2><%= t('Repository local filesystem path') %></h2>
+            </div>
+            <p><%= t('RecordDrive validates the path, rejects symbolic links and protected project locations, and verifies write access before applying it.') %></p>
+          </div>
+          <div class="storage-panel-body">
+            <label class="field">
+              <span><%= t('Absolute directory path') %></span>
+              <input type="text" name="repositoryRoot" value="<%= settings.repositoryRoot %>" maxlength="4096" required autocomplete="off" spellcheck="false" placeholder="/srv/recorddrive/repositories or D:\RecordDrive\Repositories">
+              <small><%= t('The directory may be on another local disk or mounted volume. Environment variables and a leading home-directory shortcut are supported.') %></small>
+            </label>
+
+            <div class="storage-path-details">
+              <div>
+                <span><%= t('Environment default') %></span>
+                <code><%= settings.environmentRepositoryRoot %></code>
+              </div>
+              <div>
+                <span><%= t('Database path') %></span>
+                <code><%= config.dbPath %></code>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel storage-panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow"><%= t('EXISTING DATA') %></span>
+              <h2><%= t('Choose how to activate the new path') %></h2>
+            </div>
+            <p><%= t('Select the option that matches how repository files should reach the new directory.') %></p>
+          </div>
+          <div class="storage-panel-body">
+            <div class="storage-mode-selector">
+              <label>
+                <input type="radio" name="migrationMode" value="move" <%= settings.migrationMode === 'move' ? 'checked' : '' %>>
+                <span>
+                  <strong><%= t('Move current repository data') %></strong>
+                  <small><%= t('The new path must be empty or not exist. RecordDrive moves all current repository directories and files before switching paths.') %></small>
+                </span>
+              </label>
+              <label>
+                <input type="radio" name="migrationMode" value="use-existing" <%= settings.migrationMode === 'use-existing' ? 'checked' : '' %>>
+                <span>
+                  <strong><%= t('Use data already at the new path') %></strong>
+                  <small><%= t('Use this after copying or mounting the data yourself. RecordDrive verifies every database file record at the selected path before switching.') %></small>
+                </span>
+              </label>
+            </div>
+
+            <div class="storage-warning">
+              <strong><%= t('Operating system access is required') %></strong>
+              <span><%= t('The account running RecordDrive must be able to create directories and read, write, rename, and delete files at this path. Containers require a bind mount or volume for host paths.') %></span>
+            </div>
+          </div>
+        </section>
+
+        <div class="storage-action-bar">
+          <div>
+            <strong><%= t('Validate, persist, and apply') %></strong>
+            <span><%= t('The active path changes immediately and is loaded from the database on future starts.') %></span>
+          </div>
+          <button class="button button-primary" type="submit"><%= t('Save storage settings') %></button>
+        </div>
+      </form>
+    </div>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>

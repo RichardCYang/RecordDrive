@@ -25,6 +25,8 @@ import { languageMiddleware } from './i18n.js';
 import { createSettingsRouter } from './routes/settings.js';
 import { UploadCsrfError, UploadQuotaError } from './upload-storage.js';
 import { normalizeAndValidateStorageConfiguration } from './storage-path-security.js';
+import { applyStoredRepositoryStorageRoot } from './storage-settings.js';
+import { ensureSecureUploadRoot } from './file-access-time.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -32,6 +34,8 @@ const projectRoot = path.resolve(__dirname, '..');
 export function createApplication(options = {}) {
   const config = normalizeAndValidateStorageConfiguration(options.config || loadConfig(options.env));
   const db = options.db || createDatabase(config);
+  applyStoredRepositoryStorageRoot(db, config);
+  ensureSecureUploadRoot(config);
   if (config.adminAccessDisabled) purgeAdministratorSessions(db);
   const runtimeControl = options.runtimeControl || {};
   const networkSettings = loadTlsSettings(db, config);
