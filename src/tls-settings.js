@@ -4,6 +4,7 @@ import path from 'node:path';
 import { isIP } from 'node:net';
 import tls from 'node:tls';
 import { X509Certificate, createPrivateKey } from 'node:crypto';
+import { decryptProtectedValue, encryptProtectedValue } from './secret-protection.js';
 
 const SETTINGS_KEY = 'network.tls';
 const CERTIFICATE_MODES = new Set(['pem', 'pfx']);
@@ -102,15 +103,31 @@ export function loadTlsSettings(db, config = {}) {
   const row = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(SETTINGS_KEY);
   if (!row) return createDefaultTlsSettings(config);
   try {
-    return normalizeTlsSettings(JSON.parse(row.setting_value), config);
+    const stored = JSON.parse(row.setting_value);
+    if (stored.passphraseEncrypted) {
+      stored.passphrase = decryptProtectedValue(
+        stored.passphraseEncrypted,
+        config,
+        'tls-passphrase'
+      );
+    }
+    delete stored.passphraseEncrypted;
+    return normalizeTlsSettings(stored, config);
   } catch (error) {
-    console.warn(`TLS settings could not be parsed and defaults will be used: ${error.message}`);
+    console.warn(`TLS settings could not be parsed or decrypted and defaults will be used: ${error.message}`);
     return createDefaultTlsSettings(config);
   }
 }
 
-export function saveTlsSettings(db, settings) {
-  const value = JSON.stringify(normalizeTlsSettings(settings));
+export function saveTlsSettings(db, settings, config = {}) {
+  const normalized = normalizeTlsSettings(settings, config);
+  const passphrase = normalized.passphrase;
+  const stored = { ...normalized };
+  delete stored.passphrase;
+  if (passphrase) {
+    stored.passphraseEncrypted = encryptProtectedValue(passphrase, config, 'tls-passphrase');
+  }
+  const value = JSON.stringify(stored);
   db.prepare(`
     INSERT INTO app_settings (setting_key, setting_value, updated_at)
     VALUES (?, ?, CURRENT_TIMESTAMP)

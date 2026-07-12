@@ -4,7 +4,7 @@ Review date: 2026-07-12
 
 ## Scope
 
-This review covered the Node.js application source, route and middleware ordering, authentication and MFA flows, file upload/download/preview behavior, SQLite persistence, deployment files, dependency lockfile, and the repository history included in `.git`.
+This review covered the Node.js application source, route and middleware ordering, authentication and MFA flows, multipart uploads, file download and preview behavior, SQLite persistence, TLS configuration, deployment files, dependency metadata, and the repository history retained in `.git`.
 
 ## Remediated findings
 
@@ -12,50 +12,70 @@ This review covered the Node.js application source, route and middleware orderin
 
 The global CSRF middleware previously skipped every `multipart/form-data` request. Only the upload route performed a later token check, so an attacker could submit multipart requests to unrelated state-changing endpoints and bypass CSRF validation.
 
-The exception is now restricted to the exact repository upload route. Every other multipart state-changing request is rejected, and the upload route continues to validate its token after Multer parses the form fields.
+The exception is restricted to the exact repository upload route. Every other multipart state-changing request is rejected, and the upload route validates its token after Multer parses the form field.
 
 ### High: Authentication and MFA rate-limit reset
 
-Login attempts were counted before credential verification and the entire IP bucket was cleared after any successful password. MFA failures were stored only in the session, allowing a new password-authenticated session to reset the MFA counter.
+Login attempts were counted before credential verification and the entire IP bucket was cleared after any successful password. MFA failures were stored only in the session, allowing a newly created password-authenticated session to reset the MFA counter.
 
-The replacement limiter records failures only, tracks independent IP and account/user buckets outside the session, bounds in-memory key growth, and preserves MFA failures across session regeneration. Successful authentication clears only the relevant account or user bucket, not unrelated IP failures.
+The replacement limiter records failures only, tracks independent IP and account or user buckets outside the session, bounds in-memory key growth, and preserves MFA failures across session regeneration. Successful authentication clears only the relevant account or user bucket.
 
 ### High: Spreadsheet and ZIP preview resource exhaustion
 
-Spreadsheet preview limits previously covered only compressed file size. A small XLSX archive could expand into a much larger set of XML parts before ExcelJS parsed it. ZIP previews also scanned every central-directory entry even though only a subset was displayed.
+Spreadsheet preview limits previously covered only compressed file size. A small XLSX archive could expand into much larger XML parts, and repeated shared strings could amplify the JSON response. ZIP previews also scanned every central-directory entry even though only a subset was displayed.
 
-XLSX files now receive a ZIP metadata preflight with entry-count, total-uncompressed-size, single-entry-size, and entry-name limits before parsing. In-memory workbook caching was removed, and concurrent preview parsing is capped. ZIP previews now reject archives with excessive entry counts or oversized entry names before unbounded scanning.
+XLSX files now receive archive metadata preflight checks for entry count, total expansion, individual entry size, and entry-name length. Cell text, aggregate response text, visible merge metadata, compressed input size, and concurrent parsing are bounded. ZIP previews now cap compressed size, scanned entries, visible entries, individual names, aggregate visible-name bytes, and concurrent parsing. Preview admission occurs before the file is read into memory.
 
-### Medium: Implicit reverse-proxy trust
+### High: Persistent storage exhaustion
 
-Production mode automatically trusted one proxy hop. A deployment that was directly reachable or had a different path length could accept spoofed forwarded client IP or protocol headers, affecting rate limits and secure-request detection.
+An authorized uploader could repeatedly fill the storage volume because only per-request file size and file count were limited.
 
-Proxy trust is now disabled by default and can be enabled only through the explicit `TRUST_PROXY` setting. Universal trust is rejected; deployments must provide a positive hop count or trusted addresses/subnets.
+Repository and service-wide storage quotas are now configurable and enforced inside an immediate SQLite transaction. Rejected uploads are removed from disk and are not inserted into the database. Operating-system or volume quotas remain recommended for defense in depth.
 
-### Medium: Stored-file path and symbolic-link hardening
+### Medium: Multipart field nesting and parser limits
 
-Stored filenames are now restricted to a single path component with a bounded byte length. Repository directories and stored files are rejected when they are symbolic links, reducing the risk of filesystem redirection through a modified data volume or database.
+The project used a patched Multer release but left field nesting effectively unbounded. Additional multipart metadata limits were also broader than the upload form required.
 
-### Medium: Filesystem permission hardening
+The upload form now permits one non-file field, disables nested field names, bounds field name and value sizes, limits header pairs, and sets the exact part count required by the configured file limit.
 
-Database directories and upload roots are restricted to owner-only access where the platform supports POSIX modes. SQLite files and uploaded files are set to mode `0600`, repository directories to `0700`, and the Docker image now runs as the unprivileged `node` user.
+### Medium: Stored-file race and symbolic-link handling
 
-### Medium: Authentication response hardening
+Path validation used a check followed by a later path-based read, leaving a time-of-check/time-of-use window. Upload and database paths could also be redirected through pre-existing symbolic links in a modified data volume.
 
-Unknown-user password checks now perform a dummy bcrypt comparison to reduce username timing differences. Login password input is byte-bounded before bcrypt processing, and newly configured bootstrap or regular-user passwords cannot exceed bcrypt's 72-byte UTF-8 input limit. Internal post-login redirects reject network-path references, backslashes, and control characters. Authenticated responses are marked private and non-cacheable, and session cookies receive high priority.
+Stored files are now opened with `O_NOFOLLOW` where supported, verified as regular files with `fstat`, and streamed or previewed through the same file descriptor. Upload roots, repository directories, repository deletion paths, database directories, and database files reject symbolic links. Owner-only permissions are reapplied where the platform supports POSIX modes.
 
-### Medium: Partial-upload cleanup
+### Medium: Plaintext secondary secrets in SQLite
 
-Multer errors can occur after one or more files have already been written. The upload wrapper now removes partial files before forwarding an error, reducing orphan-file accumulation.
+TLS private-key or PFX passphrases were stored as plaintext application settings. Newly generated recovery codes were also temporarily stored as plaintext in the server-side session database until displayed.
 
-## Dependency review
+Both values now use purpose-bound AES-256-GCM protection derived from the configured MFA encryption key source. Existing plaintext TLS settings remain readable and are migrated to encrypted storage on the next save.
 
-`npm ci --ignore-scripts` completed successfully. `npm audit --json` reported zero known vulnerabilities in the installed production and development dependency graph at review time.
+### Medium: Production configuration bypass and weak bootstrap credentials
+
+Only `NODE_ENV=production` activated strict validation, so staging or misspelled deployment environments could start with development defaults. Bootstrap administrator passwords were checked for the sample value and bcrypt truncation but not for minimum strength.
+
+Every environment other than `development` and `test` now receives production validation. Session secrets must contain at least 32 UTF-8 bytes, enabled bootstrap administrator passwords must contain 12 to 128 characters and stay within bcrypt's 72-byte input limit, and a separately configured MFA encryption key must contain at least 32 UTF-8 bytes.
+
+### Medium: Outdated vulnerable runtime floor
+
+The previous engine floor allowed Node.js 22.16.0, which predates the June 2026 security releases. The Docker base also used a mutable major-version tag.
+
+The supported engine ranges now begin at Node.js 22.23.0, 24.17.0, and 26.3.1. The Docker image is pinned to Node.js 24.18.0 Alpine, installs production dependencies with lifecycle scripts disabled, and runs as the unprivileged `node` user.
+
+### Medium: Authentication response and filesystem hardening
+
+Unknown-user password checks perform a dummy bcrypt comparison to reduce username timing differences. Login password input is byte-bounded before bcrypt processing, internal post-login redirects reject network-path references, backslashes, and control characters, authenticated responses are non-cacheable, session cookies use strict settings, database and uploaded files use owner-only modes, and partial Multer uploads are removed on error.
+
+## Dependency and history review
+
+`npm ci --ignore-scripts` completed successfully. `npm audit --json` reported zero known vulnerabilities in the installed production and development dependency graph at review time. Helmet was updated to 8.3.0, and Multer remains at the patched 2.2.0 release.
+
+The retained Git history was scanned for common private-key, cloud-key, GitHub-token, OpenAI-key, and long secret assignment patterns. Only documented sample values were found. The `.git` directory and all refs remain present.
 
 ## Validation
 
-The project includes regression coverage for multipart CSRF rejection, persistent MFA failure limits, redirect sanitization, proxy-trust parsing, strict stored-file paths, archive preview limits, file permissions, and the existing authentication, repository permission, TLS, preview, and access-time flows.
+The test suite contains 22 passing integration and regression tests. Added coverage includes nested multipart rejection, quota cleanup, production-mode secret validation, symbolic-link storage rejection, encrypted TLS passphrase storage, encrypted temporary recovery-code bundles, and XLSX response text limits. Syntax checks, dependency installation, dependency audit, Git whitespace checks, and archive integrity checks are also part of the final validation.
 
 ## Residual operational risks
 
-Uploaded files are not malware-scanned. For deployments that accept files from partially trusted users, add an isolated scanning service and quarantine workflow before making files downloadable. Complex document preview remains a resource-sensitive operation; high-exposure deployments should move preview generation to a sandboxed worker with CPU, memory, and wall-clock limits. Keep the application and lockfile updated, protect the SQLite and upload volume, use HTTPS, and configure `TRUST_PROXY` only for a verified proxy topology.
+Uploaded files are not malware-scanned. High-exposure deployments should add quarantine and scanning before files become downloadable, and should move complex document preview generation to a sandboxed worker with CPU, memory, and wall-clock limits. Rate-limit state is process-local, so multi-instance deployments require a shared limiter. Database-tracked quotas do not replace filesystem quotas and cannot account for unrelated files or an out-of-band modified volume. Protect the SQLite database, upload volume, encryption keys, certificates, backups, and the retained Git history with strict host-level access controls.

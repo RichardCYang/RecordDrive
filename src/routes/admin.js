@@ -220,7 +220,7 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
         });
       }
 
-      saveTlsSettings(db, settings);
+      saveTlsSettings(db, settings, config);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'UPDATE_TLS_SETTINGS',

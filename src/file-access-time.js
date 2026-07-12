@@ -4,6 +4,14 @@ import path from 'node:path';
 const ACCESS_TIME_TOLERANCE_MS = 0.5;
 const MAX_STORED_NAME_BYTES = 255;
 
+function validateRepositoryId(repositoryId) {
+  const value = Number(repositoryId);
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new Error('The repository identifier is not allowed.');
+  }
+  return String(value);
+}
+
 function validateStoredName(storedName) {
   const value = String(storedName || '');
   if (
@@ -22,33 +30,93 @@ function validateStoredName(storedName) {
   return value;
 }
 
-function rejectSymbolicLink(filePath, label) {
-  const stats = fs.lstatSync(filePath, { throwIfNoEntry: false });
-  if (stats?.isSymbolicLink()) throw new Error(`${label} cannot be a symbolic link.`);
+function lstatIfPresent(targetPath) {
+  return fs.lstatSync(targetPath, { throwIfNoEntry: false });
+}
+
+function requireSecureDirectory(directoryPath, label) {
+  const stats = lstatIfPresent(directoryPath);
+  if (!stats) throw new Error(`${label} does not exist.`);
+  if (stats.isSymbolicLink()) throw new Error(`${label} cannot be a symbolic link.`);
+  if (!stats.isDirectory()) throw new Error(`${label} must be a directory.`);
+  return stats;
+}
+
+export function ensureSecureUploadRoot(config) {
+  const uploadRoot = path.resolve(config.uploadRoot);
+  fs.mkdirSync(uploadRoot, { recursive: true, mode: 0o700 });
+  requireSecureDirectory(uploadRoot, 'The upload root');
+  fs.chmodSync(uploadRoot, 0o700);
+  return uploadRoot;
+}
+
+export function ensureSecureRepositoryDirectory(config, repositoryId) {
+  const uploadRoot = ensureSecureUploadRoot(config);
+  const repositoryRoot = path.resolve(uploadRoot, validateRepositoryId(repositoryId));
+  if (path.dirname(repositoryRoot) !== uploadRoot) {
+    throw new Error('The repository directory path is not allowed.');
+  }
+
+  try {
+    fs.mkdirSync(repositoryRoot, { mode: 0o700 });
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+  }
+  requireSecureDirectory(repositoryRoot, 'The repository directory');
+  fs.chmodSync(repositoryRoot, 0o700);
+  return repositoryRoot;
 }
 
 export function resolveStoredFilePath(config, repositoryId, storedName) {
-  const repositoryRoot = path.resolve(config.uploadRoot, String(repositoryId));
-  rejectSymbolicLink(repositoryRoot, 'The repository directory');
+  const uploadRoot = path.resolve(config.uploadRoot);
+  requireSecureDirectory(uploadRoot, 'The upload root');
+
+  const repositoryRoot = path.resolve(uploadRoot, validateRepositoryId(repositoryId));
+  if (path.dirname(repositoryRoot) !== uploadRoot) {
+    throw new Error('The repository directory path is not allowed.');
+  }
+  requireSecureDirectory(repositoryRoot, 'The repository directory');
 
   const safeStoredName = validateStoredName(storedName);
   const candidate = path.resolve(repositoryRoot, safeStoredName);
   if (path.dirname(candidate) !== repositoryRoot) {
     throw new Error('The requested file path is not allowed.');
   }
-  rejectSymbolicLink(candidate, 'The stored file');
+
+  const candidateStats = lstatIfPresent(candidate);
+  if (candidateStats?.isSymbolicLink()) throw new Error('The stored file cannot be a symbolic link.');
   return candidate;
 }
 
-export function readInitialAccessTimeMs(filePath) {
-  return fs.statSync(filePath).atimeMs;
+export function openStoredFile(config, repositoryId, storedName) {
+  const filePath = resolveStoredFilePath(config, repositoryId, storedName);
+  const noFollow = Number.isInteger(fs.constants.O_NOFOLLOW) ? fs.constants.O_NOFOLLOW : 0;
+  const fd = fs.openSync(filePath, fs.constants.O_RDONLY | noFollow);
+  try {
+    const stats = fs.fstatSync(fd);
+    if (!stats.isFile()) throw new Error('The stored file must be a regular file.');
+    return { fd, filePath, stats };
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
 }
 
-function storedInitialAccessTimeMs(db, file, filePath) {
+function fileStats(fileReference) {
+  return typeof fileReference === 'number'
+    ? fs.fstatSync(fileReference)
+    : fs.statSync(fileReference);
+}
+
+export function readInitialAccessTimeMs(fileReference) {
+  return fileStats(fileReference).atimeMs;
+}
+
+function storedInitialAccessTimeMs(db, file, fileReference) {
   const storedValue = Number(file.initial_access_time_ms);
   if (Number.isFinite(storedValue)) return storedValue;
 
-  const detectedValue = readInitialAccessTimeMs(filePath);
+  const detectedValue = readInitialAccessTimeMs(fileReference);
   db.prepare(`
     UPDATE files
     SET initial_access_time_ms = COALESCE(initial_access_time_ms, ?)
@@ -61,15 +129,19 @@ function storedInitialAccessTimeMs(db, file, filePath) {
   return Number(saved?.initial_access_time_ms ?? detectedValue);
 }
 
-function applyAccessTimeMs(filePath, targetAccessTimeMs) {
-  const stats = fs.statSync(filePath);
+function applyAccessTimeMs(fileReference, targetAccessTimeMs) {
+  const stats = fileStats(fileReference);
   if (Math.abs(stats.atimeMs - targetAccessTimeMs) <= ACCESS_TIME_TOLERANCE_MS) return;
-  fs.utimesSync(filePath, targetAccessTimeMs / 1000, stats.mtimeMs / 1000);
+  if (typeof fileReference === 'number') {
+    fs.futimesSync(fileReference, targetAccessTimeMs / 1000, stats.mtimeMs / 1000);
+  } else {
+    fs.utimesSync(fileReference, targetAccessTimeMs / 1000, stats.mtimeMs / 1000);
+  }
 }
 
-export function createFileAccessTracker(db, repository, file, filePath) {
+export function createFileAccessTracker(db, repository, file, fileReference) {
   const accessedAtMs = Date.now();
-  const initialAccessTimeMs = storedInitialAccessTimeMs(db, file, filePath);
+  const initialAccessTimeMs = storedInitialAccessTimeMs(db, file, fileReference);
   let completed = false;
 
   return {
@@ -85,7 +157,7 @@ export function createFileAccessTracker(db, repository, file, filePath) {
       const targetAccessTimeMs = currentRepository.update_file_access_time
         ? accessedAtMs
         : initialAccessTimeMs;
-      applyAccessTimeMs(filePath, targetAccessTimeMs);
+      applyAccessTimeMs(fileReference, targetAccessTimeMs);
     }
   };
 }
@@ -98,9 +170,15 @@ export function restoreRepositoryInitialAccessTimes(db, config, repositoryId) {
   `).all(repositoryId);
 
   for (const file of files) {
-    const filePath = resolveStoredFilePath(config, file.repository_id, file.stored_name);
-    if (!fs.existsSync(filePath)) continue;
-    const initialAccessTimeMs = storedInitialAccessTimeMs(db, file, filePath);
-    applyAccessTimeMs(filePath, initialAccessTimeMs);
+    let opened;
+    try {
+      opened = openStoredFile(config, file.repository_id, file.stored_name);
+      const initialAccessTimeMs = storedInitialAccessTimeMs(db, file, opened.fd);
+      applyAccessTimeMs(opened.fd, initialAccessTimeMs);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    } finally {
+      if (opened) fs.closeSync(opened.fd);
+    }
   }
 }

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { generateSecret, generateURI, verify } from 'otplib';
+import { decryptProtectedValue, encryptProtectedValue } from './secret-protection.js';
 
 const TOTP_AAD = Buffer.from('recorddrive:mfa:totp:v1', 'utf8');
 const RECOVERY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -120,6 +121,20 @@ function randomRecoveryCode() {
     plain += RECOVERY_ALPHABET[bytes[index] % RECOVERY_ALPHABET.length];
   }
   return plain.match(/.{1,4}/g).join('-');
+}
+
+
+export function encryptRecoveryCodeBundle(codes, config) {
+  const normalizedCodes = Array.isArray(codes) ? codes.map((code) => String(code)) : [];
+  return encryptProtectedValue(JSON.stringify(normalizedCodes), config, 'recovery-code-bundle');
+}
+
+export function decryptRecoveryCodeBundle(value, config) {
+  const parsed = JSON.parse(decryptProtectedValue(value, config, 'recovery-code-bundle'));
+  if (!Array.isArray(parsed) || parsed.some((code) => typeof code !== 'string')) {
+    throw new Error('The protected recovery code bundle is invalid.');
+  }
+  return parsed;
 }
 
 export function countActiveRecoveryCodes(db, userId) {

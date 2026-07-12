@@ -28,20 +28,25 @@ function trustProxyFromEnv(value) {
 
 export function loadConfig(overrides = {}) {
   const env = { ...process.env, ...overrides };
-  const nodeEnv = env.NODE_ENV || 'development';
+  const nodeEnv = String(env.NODE_ENV || 'development').trim().toLowerCase();
   const sessionSecret = env.SESSION_SECRET || 'recorddrive-change-this-session-secret-at-least-32-chars';
   const adminPassword = env.ADMIN_PASSWORD || 'ChangeMe123!';
   const adminAccessDisabled = booleanFromEnv(env.ADMIN_ACCESS_DISABLED, false);
+  const isProduction = !['development', 'test'].includes(nodeEnv);
+  const configuredMfaEncryptionKey = String(env.MFA_ENCRYPTION_KEY || '');
 
-  if (nodeEnv === 'production') {
-    if (sessionSecret.length < 32 || sessionSecret.includes('change-this')) {
-      throw new Error('Production requires a secure SESSION_SECRET of at least 32 characters.');
+  if (isProduction) {
+    if (Buffer.byteLength(sessionSecret, 'utf8') < 32 || sessionSecret.includes('change-this')) {
+      throw new Error('Production requires a secure SESSION_SECRET of at least 32 UTF-8 bytes.');
     }
     if (!adminAccessDisabled && adminPassword === 'ChangeMe123!') {
       throw new Error('The default ADMIN_PASSWORD cannot be used in production while administrator access is enabled.');
     }
-    if (!adminAccessDisabled && bcrypt.truncates(adminPassword)) {
-      throw new Error('ADMIN_PASSWORD must not exceed the bcrypt 72-byte input limit.');
+    if (!adminAccessDisabled && (adminPassword.length < 12 || adminPassword.length > 128 || bcrypt.truncates(adminPassword))) {
+      throw new Error("ADMIN_PASSWORD must be 12 to 128 characters and remain within bcrypt's 72-byte input limit.");
+    }
+    if (configuredMfaEncryptionKey && Buffer.byteLength(configuredMfaEncryptionKey, 'utf8') < 32) {
+      throw new Error('MFA_ENCRYPTION_KEY must contain at least 32 UTF-8 bytes in production.');
     }
   }
 
@@ -50,6 +55,8 @@ export function loadConfig(overrides = {}) {
   const httpPort = Number.parseInt(env.HTTP_PORT || env.PORT || '3000', 10);
   const httpsPort = Number.parseInt(env.HTTPS_PORT || '3443', 10);
   const reloadIntervalMinutes = Number.parseInt(env.TLS_RELOAD_INTERVAL_MINUTES || '5', 10);
+  const maxRepositoryStorageMb = Number.parseInt(env.MAX_REPOSITORY_STORAGE_MB || '10240', 10);
+  const maxTotalStorageMb = Number.parseInt(env.MAX_TOTAL_STORAGE_MB || '102400', 10);
 
   return {
     port: Number.isFinite(httpPort) ? httpPort : 3000,
@@ -69,20 +76,30 @@ export function loadConfig(overrides = {}) {
     autoReloadCertificate: booleanFromEnv(env.TLS_AUTO_RELOAD, true),
     reloadIntervalMinutes: Number.isFinite(reloadIntervalMinutes) ? reloadIntervalMinutes : 5,
     nodeEnv,
-    isProduction: nodeEnv === 'production',
+    isProduction,
     trustProxy: trustProxyFromEnv(env.TRUST_PROXY),
     sessionSecret,
     adminAccessDisabled,
     adminUsername: (env.ADMIN_USERNAME || 'admin').trim().toLowerCase(),
     adminPassword,
     adminDisplayName: (env.ADMIN_DISPLAY_NAME || 'System Administrator').trim(),
-    mfaEncryptionKey: env.MFA_ENCRYPTION_KEY || sessionSecret,
+    mfaEncryptionKey: configuredMfaEncryptionKey || sessionSecret,
     mfaIssuer: (env.MFA_ISSUER || 'RecordDrive').trim(),
     webAuthnRpName: (env.WEBAUTHN_RP_NAME || 'RecordDrive').trim(),
     webAuthnRpId: (env.WEBAUTHN_RP_ID || '').trim().toLowerCase(),
     webAuthnOrigin: (env.WEBAUTHN_ORIGIN || '').trim(),
-    maxFileSizeMb: Number.isFinite(maxFileSizeMb) && maxFileSizeMb > 0 ? maxFileSizeMb : 100,
-    maxFilesPerUpload: Number.isFinite(maxFilesPerUpload) && maxFilesPerUpload > 0 ? maxFilesPerUpload : 10,
+    maxFileSizeMb: Number.isFinite(maxFileSizeMb) && maxFileSizeMb > 0
+      ? Math.min(maxFileSizeMb, 10240)
+      : 100,
+    maxFilesPerUpload: Number.isFinite(maxFilesPerUpload) && maxFilesPerUpload > 0
+      ? Math.min(maxFilesPerUpload, 100)
+      : 10,
+    maxRepositoryStorageMb: Number.isFinite(maxRepositoryStorageMb) && maxRepositoryStorageMb >= 0
+      ? Math.min(maxRepositoryStorageMb, 1024 * 1024)
+      : 10240,
+    maxTotalStorageMb: Number.isFinite(maxTotalStorageMb) && maxTotalStorageMb >= 0
+      ? Math.min(maxTotalStorageMb, 1024 * 1024)
+      : 102400,
     dbPath: resolveFromCwd(env.DB_PATH || './data/recorddrive.db'),
     uploadRoot: resolveFromCwd(env.UPLOAD_ROOT || './data/uploads')
   };

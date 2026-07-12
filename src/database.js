@@ -3,8 +3,19 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
 import { purgeAdministratorSessions } from './admin-access.js';
-import { readInitialAccessTimeMs, resolveStoredFilePath } from './file-access-time.js';
+import { ensureSecureUploadRoot, openStoredFile, readInitialAccessTimeMs } from './file-access-time.js';
 
+function requireSecureDatabasePath(databaseDirectory, databasePath) {
+  const directoryStats = fs.lstatSync(databaseDirectory, { throwIfNoEntry: false });
+  if (!directoryStats || directoryStats.isSymbolicLink() || !directoryStats.isDirectory()) {
+    throw new Error('The database directory must be a real directory and cannot be a symbolic link.');
+  }
+
+  const databaseStats = fs.lstatSync(databasePath, { throwIfNoEntry: false });
+  if (databaseStats && (databaseStats.isSymbolicLink() || !databaseStats.isFile())) {
+    throw new Error('The database path must be a regular file and cannot be a symbolic link.');
+  }
+}
 
 function restrictPermissions(targetPath, mode, options = {}) {
   try {
@@ -19,9 +30,9 @@ function restrictPermissions(targetPath, mode, options = {}) {
 export function createDatabase(config) {
   const databaseDirectory = path.dirname(config.dbPath);
   fs.mkdirSync(databaseDirectory, { recursive: true, mode: 0o700 });
-  fs.mkdirSync(config.uploadRoot, { recursive: true, mode: 0o700 });
+  requireSecureDatabasePath(databaseDirectory, config.dbPath);
+  ensureSecureUploadRoot(config);
   restrictPermissions(databaseDirectory, 0o700);
-  restrictPermissions(config.uploadRoot, 0o700);
 
   const db = new DatabaseSync(config.dbPath, {
     timeout: 5000,
@@ -189,13 +200,14 @@ export function createDatabase(config) {
     UPDATE files SET initial_access_time_ms = ? WHERE id = ?
   `);
   for (const file of filesWithoutInitialAccessTime) {
+    let opened;
     try {
-      const filePath = resolveStoredFilePath(config, file.repository_id, file.stored_name);
-      if (fs.existsSync(filePath)) {
-        saveInitialAccessTime.run(readInitialAccessTimeMs(filePath), file.id);
-      }
+      opened = openStoredFile(config, file.repository_id, file.stored_name);
+      saveInitialAccessTime.run(readInitialAccessTimeMs(opened.fd), file.id);
     } catch {
       // Leave unavailable file records unchanged so startup can continue.
+    } finally {
+      if (opened) fs.closeSync(opened.fd);
     }
   }
 

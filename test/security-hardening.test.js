@@ -5,13 +5,20 @@ import os from 'node:os';
 import path from 'node:path';
 import request from 'supertest';
 import JSZip from 'jszip';
+import ExcelJS from 'exceljs';
+import bcrypt from 'bcryptjs';
 import { createApplication } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { createDatabase } from '../src/database.js';
-import { resolveStoredFilePath } from '../src/file-access-time.js';
+import { ensureSecureRepositoryDirectory, resolveStoredFilePath } from '../src/file-access-time.js';
 import { createXlsxPreview, createZipPreview, FilePreviewError } from '../src/file-preview.js';
 import { resetAuthenticationRateLimits } from '../src/middleware/login-rate-limit.js';
-import { encryptTotpSecret } from '../src/security-service.js';
+import {
+  decryptRecoveryCodeBundle,
+  encryptRecoveryCodeBundle,
+  encryptTotpSecret
+} from '../src/security-service.js';
+import { loadTlsSettings, saveTlsSettings } from '../src/tls-settings.js';
 import { safeInternalPath } from '../src/utils.js';
 
 function csrfFrom(html) {
@@ -218,4 +225,147 @@ test('rejects oversized archive metadata before preview parsing', async (t) => {
     createXlsxPreview(filePath, stats),
     (error) => error instanceof FilePreviewError && error.code === 'XLSX_TOO_LARGE'
   );
+});
+
+test('treats non-development environments as production and validates secret strength', () => {
+  assert.throws(() => loadConfig({
+    NODE_ENV: 'staging',
+    SESSION_SECRET: 'short',
+    ADMIN_ACCESS_DISABLED: 'true'
+  }), /32 UTF-8 bytes/);
+
+  assert.throws(() => loadConfig({
+    NODE_ENV: 'production',
+    SESSION_SECRET: 'production-session-secret-with-more-than-thirty-two-characters',
+    ADMIN_ACCESS_DISABLED: 'false',
+    ADMIN_PASSWORD: 'ShortPass1!'
+  }), /12 to 128 characters/);
+
+  assert.throws(() => loadConfig({
+    NODE_ENV: 'production',
+    SESSION_SECRET: 'production-session-secret-with-more-than-thirty-two-characters',
+    ADMIN_ACCESS_DISABLED: 'true',
+    MFA_ENCRYPTION_KEY: 'short-key'
+  }), /32 UTF-8 bytes/);
+});
+
+test('rejects symbolic-link database and repository paths', (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-symlink-root-'));
+  t.after(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
+
+  const databaseTarget = path.join(tempRoot, 'database-target');
+  fs.writeFileSync(databaseTarget, 'not-a-database');
+  const databaseLink = path.join(tempRoot, 'database-link');
+  try {
+    fs.symlinkSync(databaseTarget, databaseLink);
+    assert.throws(() => createDatabase({
+      ...testConfig(tempRoot),
+      dbPath: databaseLink,
+      uploadRoot: path.join(tempRoot, 'uploads-for-database-test')
+    }), /cannot be a symbolic link/);
+  } catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOSYS'].includes(error.code)) throw error;
+  }
+
+  const config = testConfig(path.join(tempRoot, 'repository-test'));
+  fs.mkdirSync(config.uploadRoot, { recursive: true });
+  const outside = path.join(tempRoot, 'outside-directory');
+  fs.mkdirSync(outside);
+  try {
+    fs.symlinkSync(outside, path.join(config.uploadRoot, '1'), 'dir');
+    assert.throws(() => ensureSecureRepositoryDirectory(config, 1), /cannot be a symbolic link/);
+  } catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOSYS'].includes(error.code)) throw error;
+  }
+});
+
+test('encrypts saved TLS passphrases and temporary recovery-code bundles', (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-protected-secrets-'));
+  const config = testConfig(tempRoot);
+  const db = createDatabase(config);
+  t.after(() => {
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  saveTlsSettings(db, { passphrase: 'HighlySensitiveTlsPassphrase!' }, config);
+  const stored = db.prepare("SELECT setting_value FROM app_settings WHERE setting_key = 'network.tls'").get().setting_value;
+  assert.doesNotMatch(stored, /HighlySensitiveTlsPassphrase/);
+  assert.equal(JSON.parse(stored).passphrase, undefined);
+  assert.equal(loadTlsSettings(db, config).passphrase, 'HighlySensitiveTlsPassphrase!');
+
+  const codes = ['ABCD-EFGH-IJKL', 'MNOP-QRST-UVWX'];
+  const protectedBundle = encryptRecoveryCodeBundle(codes, config);
+  assert.doesNotMatch(protectedBundle, /ABCD|MNOP/);
+  assert.deepEqual(decryptRecoveryCodeBundle(protectedBundle, config), codes);
+});
+
+test('caps spreadsheet preview text output', async () => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Large text');
+  for (let row = 1; row <= 30; row += 1) {
+    for (let column = 1; column <= 20; column += 1) {
+      worksheet.getCell(row, column).value = `${row}-${column}-${'x'.repeat(2200)}`;
+    }
+  }
+  const source = Buffer.from(await workbook.xlsx.writeBuffer());
+  const preview = await createXlsxPreview(source, { size: source.length });
+  const values = preview.sheet.rows.flat().map((cell) => cell.value);
+  const totalBytes = values.reduce((total, value) => total + Buffer.byteLength(value, 'utf8'), 0);
+
+  assert.equal(preview.sheet.truncatedContent, true);
+  assert.ok(totalBytes <= 1024 * 1024);
+  assert.ok(values.every((value) => Buffer.byteLength(value, 'utf8') <= 4096));
+});
+
+test('rejects nested upload fields and cleans files that exceed storage quotas', async (t) => {
+  resetAuthenticationRateLimits();
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-upload-limits-'));
+  const config = {
+    ...testConfig(tempRoot),
+    maxRepositoryStorageMb: 0.0001,
+    maxTotalStorageMb: 0.0002
+  };
+  const app = createApplication({ config });
+  const db = app.locals.db;
+  const passwordHash = bcrypt.hashSync('OwnerPassword123!', 12);
+  const userId = Number(db.prepare(`
+    INSERT INTO users (username, display_name, password_hash, role)
+    VALUES (?, ?, ?, 'USER')
+  `).run('quota.owner', 'Quota Owner', passwordHash).lastInsertRowid);
+  const repositoryId = Number(db.prepare(`
+    INSERT INTO repositories (name, description, created_by)
+    VALUES (?, '', ?)
+  `).run('Quota Repository', userId).lastInsertRowid);
+  const agent = request.agent(app);
+
+  t.after(() => {
+    resetAuthenticationRateLimits();
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  const loginPage = await agent.get('/login').expect(200);
+  await agent.post('/login').type('form').send({
+    _csrf: csrfFrom(loginPage.text),
+    username: 'quota.owner',
+    password: 'OwnerPassword123!'
+  }).expect(302);
+
+  await agent
+    .post(`/repositories/${repositoryId}/upload`)
+    .field('_csrf[nested]', 'invalid')
+    .attach('files', Buffer.from('nested field payload'), 'nested.txt')
+    .expect(400);
+
+  const repositoryPage = await agent.get(`/repositories/${repositoryId}`).expect(200);
+  await agent
+    .post(`/repositories/${repositoryId}/upload`)
+    .field('_csrf', csrfFrom(repositoryPage.text))
+    .attach('files', Buffer.alloc(512, 0x61), 'over-quota.txt')
+    .expect(413);
+
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM files WHERE repository_id = ?').get(repositoryId).count, 0);
+  const repositoryRoot = path.join(config.uploadRoot, String(repositoryId));
+  assert.deepEqual(fs.existsSync(repositoryRoot) ? fs.readdirSync(repositoryRoot) : [], []);
 });

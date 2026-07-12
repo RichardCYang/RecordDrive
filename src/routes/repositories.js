@@ -2,7 +2,6 @@ import express from 'express';
 import { canUseAdministratorAccess } from '../admin-access.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import path from 'node:path';
 import multer from 'multer';
 import { requireAuth, requireRegularUser } from '../middleware/auth.js';
 import { isValidCsrf } from '../middleware/csrf.js';
@@ -16,14 +15,21 @@ import {
 import { deleteRepository } from '../repository-service.js';
 import {
   createFileAccessTracker,
+  ensureSecureRepositoryDirectory,
+  openStoredFile,
   readInitialAccessTimeMs,
   resolveStoredFilePath,
   restoreRepositoryInitialAccessTimes
 } from '../file-access-time.js';
 import { filePreviewKind, safeOriginalName, setFlash } from '../utils.js';
-import { createXlsxPreview, createZipPreview, FilePreviewError } from '../file-preview.js';
+import {
+  createXlsxPreview,
+  createZipPreview,
+  FilePreviewError,
+  previewFileSizeLimit
+} from '../file-preview.js';
 
-function inlineContentDisposition(filename) {
+function contentDisposition(disposition, filename) {
   const originalName = String(filename || 'preview.pdf');
   const fallback = originalName
     .replace(/[^\x20-\x7e]/g, '_')
@@ -31,7 +37,7 @@ function inlineContentDisposition(filename) {
   const encodedName = encodeURIComponent(originalName).replace(/['()*]/g, (character) => {
     return `%${character.charCodeAt(0).toString(16).toUpperCase()}`;
   });
-  return `inline; filename="${fallback}"; filename*=UTF-8''${encodedName}`;
+  return `${disposition}; filename="${fallback}"; filename*=UTF-8''${encodedName}`;
 }
 
 function previewErrorMessage(req, error) {
@@ -74,14 +80,68 @@ async function withTrackedFileAccess(tracker, operation) {
   }
 }
 
-function finishStreamedFileAccess(tracker, error, res, next) {
-  try {
-    tracker.complete();
-  } catch (completionError) {
-    console.error(`File access time update failed: ${completionError.message}`);
-    if (!error) error = completionError;
+class UploadQuotaError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'UploadQuotaError';
   }
-  if (error && !res.headersSent) next(error);
+}
+
+function configuredQuotaBytes(value) {
+  const megabytes = Number(value);
+  if (!Number.isFinite(megabytes) || megabytes <= 0) return Number.POSITIVE_INFINITY;
+  return megabytes * 1024 * 1024;
+}
+
+function enforceUploadQuotas(db, config, repositoryId, uploadedFiles) {
+  const uploadedBytes = uploadedFiles.reduce((total, file) => total + Number(file.size || 0), 0);
+  const repositoryBytes = Number(db.prepare(`
+    SELECT COALESCE(SUM(size), 0) AS size FROM files WHERE repository_id = ?
+  `).get(repositoryId).size || 0);
+  const totalBytes = Number(db.prepare(`
+    SELECT COALESCE(SUM(size), 0) AS size FROM files
+  `).get().size || 0);
+
+  if (repositoryBytes + uploadedBytes > configuredQuotaBytes(config.maxRepositoryStorageMb)) {
+    throw new UploadQuotaError('The repository storage quota would be exceeded.');
+  }
+  if (totalBytes + uploadedBytes > configuredQuotaBytes(config.maxTotalStorageMb)) {
+    throw new UploadQuotaError('The server storage quota would be exceeded.');
+  }
+}
+
+function streamOpenedFile(opened, tracker, res, next) {
+  let finalized = false;
+  const finalize = (streamError = null) => {
+    if (finalized) return;
+    finalized = true;
+    let error = streamError;
+    try {
+      tracker.complete();
+    } catch (completionError) {
+      console.error(`File access time update failed: ${completionError.message}`);
+      if (!error) error = completionError;
+    }
+    try {
+      fs.closeSync(opened.fd);
+    } catch (closeError) {
+      if (closeError.code !== 'EBADF') {
+        console.error(`Stored file close failed: ${closeError.message}`);
+        if (!error) error = closeError;
+      }
+    }
+    if (error && !res.headersSent) next(error);
+  };
+
+  const stream = fs.createReadStream(opened.filePath, { fd: opened.fd, autoClose: false });
+  stream.on('error', finalize);
+  res.on('finish', () => finalize());
+  res.on('close', () => finalize());
+  stream.pipe(res);
+}
+
+function readOpenedFile(opened) {
+  return fs.readFileSync(opened.fd);
 }
 
 function permissionNames(permissions) {
@@ -182,11 +242,11 @@ export function createRepositoriesRouter(db, config) {
 
   const storage = multer.diskStorage({
     destination(req, file, callback) {
-      const directory = path.join(config.uploadRoot, String(req.repository.id));
-      fs.mkdir(directory, { recursive: true, mode: 0o700 }, (mkdirError) => {
-        if (mkdirError) return callback(mkdirError);
-        return fs.chmod(directory, 0o700, (chmodError) => callback(chmodError, directory));
-      });
+      try {
+        callback(null, ensureSecureRepositoryDirectory(config, req.repository.id));
+      } catch (error) {
+        callback(error);
+      }
     },
     filename(req, file, callback) {
       callback(null, crypto.randomUUID());
@@ -198,8 +258,12 @@ export function createRepositoriesRouter(db, config) {
     limits: {
       fileSize: config.maxFileSizeMb * 1024 * 1024,
       files: config.maxFilesPerUpload,
-      fields: 10,
-      parts: config.maxFilesPerUpload + 10
+      fieldNameSize: 64,
+      fieldSize: 256,
+      fields: 1,
+      parts: config.maxFilesPerUpload + 1,
+      headerPairs: 100,
+      fieldNestingDepth: 0
     }
   });
   const parseUpload = upload.array('files', config.maxFilesPerUpload);
@@ -437,6 +501,7 @@ export function createRepositoriesRouter(db, config) {
 
         try {
           db.exec('BEGIN IMMEDIATE');
+          enforceUploadQuotas(db, config, req.repository.id, req.files);
           for (const file of req.files) {
             fs.chmodSync(file.path, 0o600);
             insertFile.run(
@@ -469,6 +534,13 @@ export function createRepositoriesRouter(db, config) {
         setFlash(req, 'success', req.t('{{count}} file(s) uploaded successfully.', { count: req.files.length }));
         return res.redirect(`/repositories/${req.repository.id}`);
       } catch (error) {
+        if (error instanceof UploadQuotaError) {
+          return res.status(413).render('error', {
+            title: req.t('Upload failed'),
+            statusCode: 413,
+            message: req.t(error.message)
+          });
+        }
         return next(error);
       }
     }
@@ -483,46 +555,44 @@ export function createRepositoriesRouter(db, config) {
       return res.status(404).json({ error: req.t('The requested file does not exist.') });
     }
 
+    const previewKind = filePreviewKind(file.mime_type, file.original_name);
+    if (!['pdf', 'xlsx', 'zip'].includes(previewKind)) {
+      return res.status(415).json({ error: req.t('Preview is not available for this file type.') });
+    }
+
+    let opened;
     try {
-      const absolutePath = resolveStoredFilePath(config, req.repository.id, file.stored_name);
-      if (!fs.existsSync(absolutePath)) {
+      opened = openStoredFile(config, req.repository.id, file.stored_name);
+      const tracker = createFileAccessTracker(db, req.repository, file, opened.fd);
+      res.set('Cache-Control', 'private, no-store');
+
+      if (previewKind === 'pdf') {
+        res.type('application/pdf');
+        res.set('Content-Length', String(opened.stats.size));
+        res.set('Content-Disposition', contentDisposition('inline', file.original_name));
+        streamOpenedFile(opened, tracker, res, next);
+        opened = null;
+        return;
+      }
+
+      const sizeLimit = previewFileSizeLimit(previewKind);
+      if (opened.stats.size > sizeLimit) {
+        const code = previewKind === 'xlsx' ? 'XLSX_TOO_LARGE' : 'ZIP_TOO_LARGE';
+        throw new FilePreviewError(code, 'The file exceeds the compressed preview size limit.');
+      }
+      const preview = await withTrackedFileAccess(
+        tracker,
+        () => previewKind === 'xlsx'
+          ? createXlsxPreview(() => readOpenedFile(opened), opened.stats, req.query.sheet)
+          : createZipPreview(() => readOpenedFile(opened), opened.stats)
+      );
+      return res.json(preview);
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
         return res.status(410).json({
           error: req.t('The file record exists, but its data could not be found on disk.')
         });
       }
-
-      const previewKind = filePreviewKind(file.mime_type, file.original_name);
-      res.set('Cache-Control', 'private, no-store');
-
-      if (previewKind === 'pdf') {
-        const tracker = createFileAccessTracker(db, req.repository, file, absolutePath);
-        res.type('application/pdf');
-        res.set('Content-Disposition', inlineContentDisposition(file.original_name));
-        return res.sendFile(absolutePath, (error) => {
-          finishStreamedFileAccess(tracker, error, res, next);
-        });
-      }
-
-      if (previewKind === 'xlsx') {
-        const tracker = createFileAccessTracker(db, req.repository, file, absolutePath);
-        const preview = await withTrackedFileAccess(tracker, async () => {
-          const stats = fs.statSync(absolutePath);
-          return createXlsxPreview(absolutePath, stats, req.query.sheet);
-        });
-        return res.json(preview);
-      }
-
-      if (previewKind === 'zip') {
-        const tracker = createFileAccessTracker(db, req.repository, file, absolutePath);
-        const preview = await withTrackedFileAccess(
-          tracker,
-          () => createZipPreview(absolutePath)
-        );
-        return res.json(preview);
-      }
-
-      return res.status(415).json({ error: req.t('Preview is not available for this file type.') });
-    } catch (error) {
       if (error instanceof FilePreviewError) {
         const status = ['XLSX_TOO_LARGE', 'ZIP_TOO_LARGE'].includes(error.code)
           ? 413
@@ -531,6 +601,8 @@ export function createRepositoriesRouter(db, config) {
         return res.status(status).json({ error: previewErrorMessage(req, error), code: error.code });
       }
       return next(error);
+    } finally {
+      if (opened) fs.closeSync(opened.fd);
     }
   });
 
@@ -547,20 +619,25 @@ export function createRepositoriesRouter(db, config) {
       });
     }
 
+    let opened;
     try {
-      const absolutePath = resolveStoredFilePath(config, req.repository.id, file.stored_name);
-      if (!fs.existsSync(absolutePath)) {
+      opened = openStoredFile(config, req.repository.id, file.stored_name);
+      const tracker = createFileAccessTracker(db, req.repository, file, opened.fd);
+      res.type(file.mime_type || 'application/octet-stream');
+      res.set('Content-Length', String(opened.stats.size));
+      res.set('Content-Disposition', contentDisposition('attachment', file.original_name));
+      streamOpenedFile(opened, tracker, res, next);
+      opened = null;
+      return;
+    } catch (error) {
+      if (opened) fs.closeSync(opened.fd);
+      if (error?.code === 'ENOENT') {
         return res.status(410).render('error', {
           title: req.t('File data missing'),
           statusCode: 410,
           message: req.t('The file record exists, but its data could not be found on disk.')
         });
       }
-      const tracker = createFileAccessTracker(db, req.repository, file, absolutePath);
-      return res.download(absolutePath, file.original_name, (error) => {
-        finishStreamedFileAccess(tracker, error, res, next);
-      });
-    } catch (error) {
       return next(error);
     }
   });

@@ -16,10 +16,12 @@ import {
 import { logActivity } from '../database.js';
 import {
   countActiveRecoveryCodes,
+  decryptRecoveryCodeBundle,
   createRecoveryCodes,
   createTotpEnrollment,
   createTotpUri,
   decryptTotpSecret,
+  encryptRecoveryCodeBundle,
   encryptTotpSecret,
   getMfaState,
   isSecurityRecentlyVerified,
@@ -85,6 +87,33 @@ function pendingTotpFromSession(req, config) {
   }
 }
 
+
+function storeNewRecoveryCodes(req, codes, config) {
+  delete req.session.newRecoveryCodes;
+  if (!Array.isArray(codes) || codes.length === 0) {
+    delete req.session.newRecoveryCodesEncrypted;
+    return;
+  }
+  req.session.newRecoveryCodesEncrypted = encryptRecoveryCodeBundle(codes, config);
+}
+
+function consumeNewRecoveryCodes(req, config) {
+  let codes = [];
+  try {
+    if (req.session.newRecoveryCodesEncrypted) {
+      codes = decryptRecoveryCodeBundle(req.session.newRecoveryCodesEncrypted, config);
+    } else if (Array.isArray(req.session.newRecoveryCodes)) {
+      codes = req.session.newRecoveryCodes.map((code) => String(code));
+    }
+  } catch (error) {
+    console.warn(`Protected recovery codes could not be decrypted: ${error.message}`);
+  } finally {
+    delete req.session.newRecoveryCodes;
+    delete req.session.newRecoveryCodesEncrypted;
+  }
+  return codes;
+}
+
 export function createSettingsRouter(db, config) {
   const router = express.Router();
 
@@ -116,10 +145,7 @@ export function createSettingsRouter(db, config) {
         };
       }
 
-      const newRecoveryCodes = Array.isArray(req.session.newRecoveryCodes)
-        ? req.session.newRecoveryCodes
-        : [];
-      delete req.session.newRecoveryCodes;
+      const newRecoveryCodes = consumeNewRecoveryCodes(req, config);
 
       let webAuthnAvailable = true;
       let webAuthnError = '';
@@ -228,7 +254,7 @@ export function createSettingsRouter(db, config) {
       delete req.session.pendingTotpEnrollment;
 
       if (countActiveRecoveryCodes(db, req.currentUser.id) === 0) {
-        req.session.newRecoveryCodes = createRecoveryCodes(db, req.currentUser.id, config);
+        storeNewRecoveryCodes(req, createRecoveryCodes(db, req.currentUser.id, config), config);
       }
       logActivity(db, {
         actorId: req.currentUser.id,
@@ -280,7 +306,7 @@ export function createSettingsRouter(db, config) {
         setFlash(req, 'error', req.t('The maximum number of active recovery keys has been reached.'));
         return res.redirect('/settings#recovery-codes');
       }
-      req.session.newRecoveryCodes = codes;
+      storeNewRecoveryCodes(req, codes, config);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'RECOVERY_CODES_ADDED',
@@ -299,7 +325,7 @@ export function createSettingsRouter(db, config) {
         setFlash(req, 'error', req.t('Enable an authenticator app or passkey before creating recovery keys.'));
         return res.redirect('/settings#recovery-codes');
       }
-      req.session.newRecoveryCodes = replaceRecoveryCodes(db, req.currentUser.id, config);
+      storeNewRecoveryCodes(req, replaceRecoveryCodes(db, req.currentUser.id, config), config);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'RECOVERY_CODES_REGENERATED',
@@ -402,7 +428,7 @@ export function createSettingsRouter(db, config) {
       delete req.session.webAuthnRegistration;
 
       if (countActiveRecoveryCodes(db, req.currentUser.id) === 0) {
-        req.session.newRecoveryCodes = createRecoveryCodes(db, req.currentUser.id, config);
+        storeNewRecoveryCodes(req, createRecoveryCodes(db, req.currentUser.id, config), config);
       }
       logActivity(db, {
         actorId: req.currentUser.id,
