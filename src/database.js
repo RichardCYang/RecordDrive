@@ -6,6 +6,47 @@ import { purgeAdministratorSessions } from './admin-access.js';
 import { ensureSecureUploadRoot, openStoredFile, readInitialAccessTimeMs } from './file-access-time.js';
 import { normalizeAndValidateStorageConfiguration } from './storage-path-security.js';
 
+const activityLogRetentionByDatabase = new WeakMap();
+
+function deleteOldestActivityLogs(db, numberToDelete) {
+  if (numberToDelete <= 0) return 0;
+  return db.prepare(`
+    DELETE FROM activity_logs
+    WHERE id IN (
+      SELECT id
+      FROM activity_logs
+      ORDER BY id ASC
+      LIMIT ?
+    )
+  `).run(numberToDelete).changes;
+}
+
+function configureActivityLogRetention(db, maxEntries) {
+  const safeMaximum = Number.isSafeInteger(maxEntries) && maxEntries > 0
+    ? maxEntries
+    : 100000;
+  let rowCount = db.prepare('SELECT COUNT(*) AS count FROM activity_logs').get().count;
+  if (rowCount > safeMaximum) {
+    deleteOldestActivityLogs(db, rowCount - safeMaximum);
+    rowCount = db.prepare('SELECT COUNT(*) AS count FROM activity_logs').get().count;
+  }
+
+  const trimBatch = Math.max(1, Math.min(1000, Math.floor(safeMaximum / 10)));
+  activityLogRetentionByDatabase.set(db, {
+    maxEntries: safeMaximum,
+    trimTo: Math.max(0, safeMaximum - trimBatch),
+    rowCount
+  });
+}
+
+function enforceActivityLogRetention(db) {
+  const state = activityLogRetentionByDatabase.get(db);
+  if (!state || state.rowCount <= state.maxEntries) return;
+
+  deleteOldestActivityLogs(db, state.rowCount - state.trimTo);
+  state.rowCount = db.prepare('SELECT COUNT(*) AS count FROM activity_logs').get().count;
+}
+
 function comparablePath(targetPath) {
   const resolved = path.resolve(targetPath);
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
@@ -234,6 +275,7 @@ export function createDatabase(providedConfig) {
     purgeAdministratorSessions(db);
   }
 
+  configureActivityLogRetention(db, config.maxActivityLogEntries);
   restrictPermissions(config.dbPath, 0o600);
   restrictPermissions(`${config.dbPath}-wal`, 0o600, { allowMissing: true });
   restrictPermissions(`${config.dbPath}-shm`, 0o600, { allowMissing: true });
@@ -245,4 +287,10 @@ export function logActivity(db, { actorId = null, action, targetType, targetLabe
     INSERT INTO activity_logs (actor_id, action, target_type, target_label, repository_id)
     VALUES (?, ?, ?, ?, ?)
   `).run(actorId, action, targetType, targetLabel, repositoryId);
+
+  const retentionState = activityLogRetentionByDatabase.get(db);
+  if (retentionState) {
+    retentionState.rowCount += 1;
+    enforceActivityLogRetention(db);
+  }
 }

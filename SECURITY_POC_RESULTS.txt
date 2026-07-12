@@ -1,0 +1,45 @@
+RecordDrive Security PoC Results
+Review date: 2026-07-12
+
+1. Activity-log resource exhaustion baseline
+   Source: Git commit 40ea9e3 before the new retention fix
+   Attempts: 25,000
+   Retained activity rows: 25,000
+   SQLite page growth: 2,469,888 bytes
+   Result: VULNERABLE. Every generated audit record remained stored without a boundary.
+
+2. Activity-log resource exhaustion after remediation
+   Configuration: MAX_ACTIVITY_LOG_ENTRIES=1000
+   Attempts: 25,000
+   Retained activity rows: 962
+   SQLite page growth: 110,592 bytes
+   Result: PASS. The newest records remained available and the row count stayed below the configured limit.
+
+3. CVE-2026-31988 package-level comparison
+   Crafted input: ZIP archive containing a four-byte malformed NTFS timestamp extra field
+   yauzl 3.2.0: RangeError, ERR_OUT_OF_RANGE, comparison process exit status 2
+   Project yauzl 3.4.0: Safe completion, DOS timestamp fallback returned
+   Result: NOT AFFECTED. The installed project version is fixed, and the application preview path completed safely.
+
+4. Automated security regression suite
+   Command: npm run test:security
+   Tests: 2
+   Passed: 2
+   Failed: 0
+
+5. Full regression suite
+   Command: npm test
+   Tests: 32
+   Passed: 32
+   Failed: 0
+
+6. Dependency audit
+   Command: npm audit --omit=dev --json
+   Production dependencies: 247
+   Total installed dependencies: 266
+   Known vulnerabilities: 0
+
+7. Source and repository checks
+   Dangerous API pattern scan: no child-process execution, eval, new Function, or vm.run matches
+   Git secret-pattern history scan: 0 matches for selected private-key and common token patterns
+   Git integrity: git fsck --full completed without errors

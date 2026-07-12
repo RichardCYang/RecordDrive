@@ -60,6 +60,7 @@ export function loadConfig(overrides = {}) {
   const maxRepositoryFiles = Number.parseInt(env.MAX_REPOSITORY_FILES || '10000', 10);
   const maxTotalFiles = Number.parseInt(env.MAX_TOTAL_FILES || '100000', 10);
   const maxSessionsPerUser = Number.parseInt(env.MAX_SESSIONS_PER_USER || '10', 10);
+  const maxActivityLogEntries = Number.parseInt(env.MAX_ACTIVITY_LOG_ENTRIES || '100000', 10);
   const sessionIdleHours = Number.parseInt(env.SESSION_IDLE_HOURS || '12', 10);
   const sessionAbsoluteHours = Number.parseInt(env.SESSION_ABSOLUTE_HOURS || '168', 10);
 
@@ -114,6 +115,9 @@ export function loadConfig(overrides = {}) {
     maxSessionsPerUser: Number.isFinite(maxSessionsPerUser) && maxSessionsPerUser > 0
       ? Math.min(maxSessionsPerUser, 100)
       : 10,
+    maxActivityLogEntries: Number.isFinite(maxActivityLogEntries) && maxActivityLogEntries > 0
+      ? Math.min(maxActivityLogEntries, 10_000_000)
+      : 100000,
     sessionIdleHours: Number.isFinite(sessionIdleHours) && sessionIdleHours > 0
       ? Math.min(sessionIdleHours, 24 * 30)
       : 12,

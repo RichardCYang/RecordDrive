@@ -40,6 +40,12 @@ Express JSON character escaping was not enabled. Current JSON responses are cons
 
 The application now enables Express `json escape`, causing `<`, `>`, and `&` to be emitted as Unicode escape sequences in JSON responses.
 
+### Medium: Audit records could grow without a retention boundary
+
+Every successful security-sensitive action appended a row to `activity_logs`, but no maximum or retention mechanism existed. An authenticated user able to perform repeatable repository operations could grow the SQLite database indefinitely, eventually exhausting the database volume and disrupting availability. This is mapped to CWE-770, Allocation of Resources Without Limits or Throttling. No CVE identifier has been assigned to this private application-specific finding.
+
+The application now retains a configurable maximum number of recent audit records through `MAX_ACTIVITY_LOG_ENTRIES` (default `100000`). Existing oversized databases are reduced at startup, and runtime inserts prune the oldest records in bounded batches while preserving the newest records.
+
 ## Previously hardened controls verified
 
 The retained code already provided the following material protections:
@@ -69,7 +75,7 @@ The retained Git history was scanned for common private-key blocks, cloud creden
 
 ## Validation performed
 
-- All 30 Node.js integration and regression tests pass.
+- All 32 Node.js integration and regression tests pass.
 - New regression coverage verifies plaintext production rejection before static and authentication processing, secure cookies behind an explicitly trusted HTTPS proxy, canonical storage-path enforcement, protected-directory alias rejection, database/upload-root separation, file-only delegated deletion, and owner-only repository deletion.
 - Every JavaScript source and test file passes `node --check`.
 - Production dependency audit reports zero known vulnerabilities.
@@ -88,6 +94,6 @@ A reverse proxy must strip untrusted forwarding headers, set the authoritative p
 
 Storage-path checks materially reduce accidental exposure and destructive overlap, but they do not replace host permissions. An attacker who can rename validated parent directories or alter mount topology as the service account can still create filesystem time-of-check/time-of-use conditions. Keep the application directory, database parent, and upload parent non-writable by untrusted users.
 
-Activity logs do not have a built-in retention policy, and large repository, user, or administrative listings can increase response and database work. Add retention, pagination, request timeouts, reverse-proxy body limits, monitoring, backup testing, and recovery procedures for production deployments.
+Audit logs now have a bounded built-in retention policy, but operators that require longer forensic history should export records before they age out. Large repository, user, or administrative listings can still increase response and database work. Add pagination, request timeouts, reverse-proxy body limits, monitoring, backup testing, and recovery procedures for production deployments.
 
 Protect the database, upload volume, encryption keys, certificates, environment files, backups, and retained Git history with strict operating-system access controls. Do not publish the final archive to an untrusted location because Git history can retain deleted source and operational metadata.

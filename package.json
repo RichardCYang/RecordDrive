@@ -8,6 +8,7 @@
     "dev": "node --watch src/app.js",
     "start": "node src/app.js",
     "test": "node --test",
+    "test:security": "node --test test/security-poc.test.js",
     "check": "node --check src/app.js"
   },
   "engines": {

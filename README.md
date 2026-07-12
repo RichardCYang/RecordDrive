@@ -170,6 +170,7 @@ Change the administrator password and `SESSION_SECRET` before exposing the servi
 | `MAX_TOTAL_STORAGE_MB` | `102400` | Maximum stored file bytes across the service; `0` disables this quota |
 | `MAX_REPOSITORY_FILES` | `10000` | Maximum file records per repository; `0` disables this quota |
 | `MAX_TOTAL_FILES` | `100000` | Maximum file records across the service; `0` disables this quota |
+| `MAX_ACTIVITY_LOG_ENTRIES` | `100000` | Maximum retained audit-log records; the oldest records are removed in bounded batches |
 | `MAX_SESSIONS_PER_USER` | `10` | Maximum active authenticated or pending-MFA sessions retained per account |
 | `SESSION_IDLE_HOURS` | `12` | Rolling inactivity lifetime for a server-side session |
 | `SESSION_ABSOLUTE_HOURS` | `168` | Maximum authenticated session lifetime regardless of activity |
