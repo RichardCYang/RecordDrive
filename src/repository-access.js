@@ -1,3 +1,8 @@
+import {
+  canUseAdministratorAccess,
+  isBlockedAdministrator
+} from './admin-access.js';
+
 const PERMISSION_COLUMNS = {
   view: 'can_view',
   upload: 'can_upload',
@@ -29,9 +34,10 @@ function emptyPermissions() {
   };
 }
 
-export function getRepositoryAccess(db, repository, user) {
+export function getRepositoryAccess(db, repository, user, config = {}) {
   if (!repository || !user) return emptyPermissions();
-  if (user.role === 'ADMIN') return fullPermissions('ADMIN');
+  if (isBlockedAdministrator(config, user)) return emptyPermissions();
+  if (canUseAdministratorAccess(config, user)) return fullPermissions('ADMIN');
   if (Number(repository.created_by) === Number(user.id)) return fullPermissions('OWNER');
 
   const grant = db.prepare(`
@@ -59,7 +65,7 @@ function renderRepositoryNotFound(req, res) {
   });
 }
 
-export function createRepositoryPermissionMiddleware(db, permissionName) {
+export function createRepositoryPermissionMiddleware(db, permissionName, config = {}) {
   if (!REPOSITORY_PERMISSION_NAMES.includes(permissionName)) {
     throw new Error(`Unsupported repository permission: ${permissionName}`);
   }
@@ -76,7 +82,7 @@ export function createRepositoryPermissionMiddleware(db, permissionName) {
     `).get(repositoryId);
     if (!repository) return renderRepositoryNotFound(req, res);
 
-    const access = getRepositoryAccess(db, repository, req.currentUser);
+    const access = getRepositoryAccess(db, repository, req.currentUser, config);
     if (!access[permissionName]) return renderRepositoryNotFound(req, res);
 
     req.repository = repository;
@@ -85,7 +91,7 @@ export function createRepositoryPermissionMiddleware(db, permissionName) {
   };
 }
 
-export function createRepositoryManagerMiddleware(db) {
+export function createRepositoryManagerMiddleware(db, config = {}) {
   return function requireRepositoryManager(req, res, next) {
     const repositoryId = Number.parseInt(req.params.repositoryId || req.params.id, 10);
     if (!Number.isInteger(repositoryId)) return renderRepositoryNotFound(req, res);
@@ -98,7 +104,7 @@ export function createRepositoryManagerMiddleware(db) {
     `).get(repositoryId);
     if (!repository) return renderRepositoryNotFound(req, res);
 
-    const access = getRepositoryAccess(db, repository, req.currentUser);
+    const access = getRepositoryAccess(db, repository, req.currentUser, config);
     if (!access.canManage) return renderRepositoryNotFound(req, res);
 
     req.repository = repository;

@@ -1,4 +1,5 @@
 import express from 'express';
+import { canUseAdministratorAccess } from '../admin-access.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const REPOSITORY_LIST_SQL = `
@@ -34,11 +35,11 @@ const REPOSITORY_LIST_SQL = `
   ) file_stats ON file_stats.repository_id = r.id
 `;
 
-export function createDashboardRouter(db) {
+export function createDashboardRouter(db, config = {}) {
   const router = express.Router();
 
   router.get('/', requireAuth, (req, res) => {
-    const isAdmin = req.currentUser.role === 'ADMIN';
+    const isAdmin = canUseAdministratorAccess(config, req.currentUser);
     const rows = isAdmin
       ? db.prepare(`${REPOSITORY_LIST_SQL} ORDER BY COALESCE(file_stats.last_file_at, r.created_at) DESC`)
         .all(-1)
@@ -68,6 +69,7 @@ export function createDashboardRouter(db) {
 
     return res.render('dashboard', {
       title: req.t('My Drive'),
+      isAdmin,
       repositories,
       totals
     });

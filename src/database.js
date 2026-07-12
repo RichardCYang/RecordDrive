@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
+import { purgeAdministratorSessions } from './admin-access.js';
 
 export function createDatabase(config) {
   fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
@@ -141,13 +142,17 @@ export function createDatabase(config) {
     db.exec('ALTER TABLE users ADD COLUMN totp_last_used_step INTEGER;');
   }
 
-  const admin = db.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('ADMIN');
-  if (!admin) {
-    const passwordHash = bcrypt.hashSync(config.adminPassword, 12);
-    db.prepare(`
-      INSERT INTO users (username, display_name, password_hash, role)
-      VALUES (?, ?, ?, 'ADMIN')
-    `).run(config.adminUsername, config.adminDisplayName, passwordHash);
+  if (!config.adminAccessDisabled) {
+    const admin = db.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('ADMIN');
+    if (!admin) {
+      const passwordHash = bcrypt.hashSync(config.adminPassword, 12);
+      db.prepare(`
+        INSERT INTO users (username, display_name, password_hash, role)
+        VALUES (?, ?, ?, 'ADMIN')
+      `).run(config.adminUsername, config.adminDisplayName, passwordHash);
+    }
+  } else {
+    purgeAdministratorSessions(db);
   }
 
   return db;

@@ -4,6 +4,7 @@ import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse
 } from '@simplewebauthn/server';
+import { isBlockedAdministrator } from '../admin-access.js';
 import { logActivity } from '../database.js';
 import { clearLoginAttempts, loginRateLimit } from '../middleware/login-rate-limit.js';
 import {
@@ -26,7 +27,7 @@ function parseTransports(value) {
   }
 }
 
-function getPendingMfa(req, db) {
+function getPendingMfa(req, db, config) {
   const pending = req.session.pendingMfa;
   if (!pending || Date.now() - Number(pending.createdAt || 0) > MFA_CHALLENGE_MAX_AGE_MS) {
     delete req.session.pendingMfa;
@@ -38,9 +39,8 @@ function getPendingMfa(req, db) {
     FROM users
     WHERE id = ?
   `).get(pending.userId);
-  if (!user) {
-    delete req.session.pendingMfa;
-    delete req.session.webAuthnAuthentication;
+  if (!user || isBlockedAdministrator(config, user)) {
+    clearPendingAuthentication(req);
     return null;
   }
   return { pending, user, state: getMfaState(db, user.id) };
@@ -60,13 +60,29 @@ function consumeMfaAttempt(req) {
 }
 
 function clearPendingAuthentication(req) {
+  delete req.session.userId;
+  delete req.session.authenticatedAt;
   delete req.session.pendingMfa;
   delete req.session.mfaAttempts;
   delete req.session.webAuthnAuthentication;
 }
 
-function completeLogin(req, res, next, db, user, returnTo, options = {}) {
+function rejectLogin(req, res, username = '', options = {}) {
+  const message = req.t('The username or password is incorrect.');
+  if (options.json === true) return res.status(401).json({ error: message });
+  return res.status(401).render('login', {
+    title: req.t('Sign in'),
+    error: message,
+    username
+  });
+}
+
+function completeLogin(req, res, next, db, config, user, returnTo, options = {}) {
   const json = options.json === true;
+  if (isBlockedAdministrator(config, user)) {
+    clearPendingAuthentication(req);
+    return rejectLogin(req, res, user.username, { json });
+  }
   return req.session.regenerate((error) => {
     if (error) return next(error);
     req.session.userId = user.id;
@@ -82,8 +98,8 @@ function completeLogin(req, res, next, db, user, returnTo, options = {}) {
   });
 }
 
-function renderMfa(req, res, db, options = {}) {
-  const context = getPendingMfa(req, db);
+function renderMfa(req, res, db, config, options = {}) {
+  const context = getPendingMfa(req, db, config);
   if (!context) return res.redirect('/login');
   return res.status(options.status || 200).render('login-mfa', {
     title: req.t('Two-step verification'),
@@ -99,7 +115,7 @@ export function createAuthRouter(db, config) {
   router.get('/login', (req, res) => {
     res.set('Cache-Control', 'no-store');
     if (req.currentUser) return res.redirect('/');
-    if (getPendingMfa(req, db)) return res.redirect('/login/mfa');
+    if (getPendingMfa(req, db, config)) return res.redirect('/login/mfa');
     return res.render('login', {
       title: req.t('Sign in'),
       error: null,
@@ -114,12 +130,9 @@ export function createAuthRouter(db, config) {
       const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
       const passwordMatches = user ? await bcrypt.compare(password, user.password_hash) : false;
 
-      if (!user || !passwordMatches) {
-        return res.status(401).render('login', {
-          title: req.t('Sign in'),
-          error: req.t('The username or password is incorrect.'),
-          username
-        });
+      if (!user || !passwordMatches || isBlockedAdministrator(config, user)) {
+        clearPendingAuthentication(req);
+        return rejectLogin(req, res, username);
       }
 
       clearLoginAttempts(req);
@@ -129,7 +142,7 @@ export function createAuthRouter(db, config) {
       const mfaState = getMfaState(db, user.id);
 
       if (!mfaState.enabled) {
-        return completeLogin(req, res, next, db, user, returnTo);
+        return completeLogin(req, res, next, db, config, user, returnTo);
       }
 
       return req.session.regenerate((error) => {
@@ -149,15 +162,15 @@ export function createAuthRouter(db, config) {
   router.get('/login/mfa', (req, res) => {
     res.set('Cache-Control', 'no-store');
     if (req.currentUser) return res.redirect('/');
-    return renderMfa(req, res, db);
+    return renderMfa(req, res, db, config);
   });
 
   router.post('/login/mfa/totp', async (req, res, next) => {
     try {
-      const context = getPendingMfa(req, db);
+      const context = getPendingMfa(req, db, config);
       if (!context) return res.redirect('/login');
       if (!context.state.totpEnabled) {
-        return renderMfa(req, res, db, {
+        return renderMfa(req, res, db, config, {
           status: 400,
           error: req.t('Authenticator app verification is not available for this account.')
         });
@@ -166,7 +179,7 @@ export function createAuthRouter(db, config) {
       const attempt = consumeMfaAttempt(req);
       if (!attempt.allowed) {
         res.set('Retry-After', String(attempt.retrySeconds));
-        return renderMfa(req, res, db, {
+        return renderMfa(req, res, db, config, {
           status: 429,
           error: req.t('Too many verification attempts. Try again later.')
         });
@@ -174,7 +187,7 @@ export function createAuthRouter(db, config) {
 
       const verified = await verifyAndConsumeTotp(db, context.user.id, req.body.token, config);
       if (!verified) {
-        return renderMfa(req, res, db, {
+        return renderMfa(req, res, db, config, {
           status: 401,
           error: req.t('The authenticator code is invalid, expired, or already used.')
         });
@@ -182,7 +195,7 @@ export function createAuthRouter(db, config) {
 
       const returnTo = context.pending.returnTo;
       clearPendingAuthentication(req);
-      return completeLogin(req, res, next, db, context.user, returnTo);
+      return completeLogin(req, res, next, db, config, context.user, returnTo);
     } catch (error) {
       return next(error);
     }
@@ -190,13 +203,13 @@ export function createAuthRouter(db, config) {
 
   router.post('/login/mfa/recovery', (req, res, next) => {
     try {
-      const context = getPendingMfa(req, db);
+      const context = getPendingMfa(req, db, config);
       if (!context) return res.redirect('/login');
 
       const attempt = consumeMfaAttempt(req);
       if (!attempt.allowed) {
         res.set('Retry-After', String(attempt.retrySeconds));
-        return renderMfa(req, res, db, {
+        return renderMfa(req, res, db, config, {
           status: 429,
           error: req.t('Too many verification attempts. Try again later.')
         });
@@ -204,7 +217,7 @@ export function createAuthRouter(db, config) {
 
       const verified = consumeRecoveryCode(db, context.user.id, req.body.recoveryCode, config);
       if (!verified) {
-        return renderMfa(req, res, db, {
+        return renderMfa(req, res, db, config, {
           status: 401,
           error: req.t('The recovery key is invalid or has already been used.')
         });
@@ -212,7 +225,7 @@ export function createAuthRouter(db, config) {
 
       const returnTo = context.pending.returnTo;
       clearPendingAuthentication(req);
-      return completeLogin(req, res, next, db, context.user, returnTo);
+      return completeLogin(req, res, next, db, config, context.user, returnTo);
     } catch (error) {
       return next(error);
     }
@@ -220,7 +233,7 @@ export function createAuthRouter(db, config) {
 
   router.post('/login/mfa/passkey/options', async (req, res, next) => {
     try {
-      const context = getPendingMfa(req, db);
+      const context = getPendingMfa(req, db, config);
       if (!context) return res.status(401).json({ error: req.t('Your sign-in session has expired. Start again.') });
       if (!context.state.passkeyEnabled) {
         return res.status(400).json({ error: req.t('Passkey verification is not available for this account.') });
@@ -264,7 +277,7 @@ export function createAuthRouter(db, config) {
 
   router.post('/login/mfa/passkey/verify', async (req, res, next) => {
     try {
-      const context = getPendingMfa(req, db);
+      const context = getPendingMfa(req, db, config);
       const challenge = req.session.webAuthnAuthentication;
       if (!context || !challenge || challenge.userId !== context.user.id) {
         return res.status(401).json({ error: req.t('Your passkey challenge has expired. Try again.') });
@@ -311,7 +324,7 @@ export function createAuthRouter(db, config) {
 
       const returnTo = context.pending.returnTo;
       clearPendingAuthentication(req);
-      return completeLogin(req, res, next, db, context.user, returnTo, { json: true });
+      return completeLogin(req, res, next, db, config, context.user, returnTo, { json: true });
     } catch (error) {
       if (String(error.message).includes('counter value')) {
         return res.status(401).json({ error: req.t('The passkey counter was rejected. Remove and register this passkey again.') });

@@ -1,0 +1,49 @@
+export const ADMIN_ROLE = 'ADMIN';
+
+export function isAdministrator(user) {
+  return user?.role === ADMIN_ROLE;
+}
+
+export function isAdministratorAccessDisabled(config) {
+  return config?.adminAccessDisabled === true;
+}
+
+export function canUseAdministratorAccess(config, user) {
+  return isAdministrator(user) && !isAdministratorAccessDisabled(config);
+}
+
+export function isBlockedAdministrator(config, user) {
+  return isAdministrator(user) && isAdministratorAccessDisabled(config);
+}
+
+export function purgeAdministratorSessions(db) {
+  const administratorIds = new Set(
+    db.prepare('SELECT id FROM users WHERE role = ?').all(ADMIN_ROLE).map(({ id }) => Number(id))
+  );
+  if (administratorIds.size === 0) return 0;
+
+  const deleteSession = db.prepare('DELETE FROM sessions WHERE sid = ?');
+  let purgedCount = 0;
+
+  for (const row of db.prepare('SELECT sid, sess FROM sessions').all()) {
+    let storedSession;
+    try {
+      storedSession = JSON.parse(row.sess);
+    } catch {
+      continue;
+    }
+
+    const referencedUserIds = [
+      storedSession?.userId,
+      storedSession?.pendingMfa?.userId,
+      storedSession?.webAuthnAuthentication?.userId
+    ].map(Number);
+
+    if (referencedUserIds.some((userId) => administratorIds.has(userId))) {
+      deleteSession.run(row.sid);
+      purgedCount += 1;
+    }
+  }
+
+  return purgedCount;
+}

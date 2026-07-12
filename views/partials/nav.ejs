@@ -6,7 +6,7 @@
 
     <nav class="main-nav" aria-label="<%= t('Primary navigation') %>">
       <a class="nav-link <%= currentPath === '/' || currentPath.startsWith('/repositories') ? 'is-active' : '' %>" href="/"><%= t('My Drive') %></a>
-      <% if (currentUser?.role === 'ADMIN') { %>
+      <% if (currentUser?.role === 'ADMIN' && !config.adminAccessDisabled) { %>
         <a class="nav-link <%= currentPath.startsWith('/admin') ? 'is-active' : '' %>" href="/admin"><%= t('Admin') %></a>
       <% } %>
       <a class="nav-link <%= currentPath.startsWith('/settings') ? 'is-active' : '' %>" href="/settings"><%= t('Settings') %></a>
@@ -17,7 +17,7 @@
         <span class="avatar"><%= currentUser.display_name.slice(0, 1).toUpperCase() %></span>
         <span class="account-text">
           <strong><%= currentUser.display_name %></strong>
-          <small><%= currentUser.role === 'ADMIN' ? t('Administrator') : `@${currentUser.username}` %></small>
+          <small><%= currentUser.role === 'ADMIN' && !config.adminAccessDisabled ? t('Administrator') : `@${currentUser.username}` %></small>
         </span>
       </a>
       <form action="/logout" method="post">

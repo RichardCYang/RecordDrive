@@ -110,14 +110,17 @@ npm start
 
 Open `http://localhost:3000` in a browser.
 
-On the first run, the application creates an administrator from the values in `.env`:
+When administrator access is enabled, the application creates an administrator on the first run from the values in `.env`:
 
 ```env
+ADMIN_ACCESS_DISABLED=false
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=ChangeMe123!
 ```
 
-Change the administrator password and `SESSION_SECRET` before exposing the service. The bootstrap password is used only when no administrator account exists.
+Set `ADMIN_ACCESS_DISABLED=true` (also accepts `on`, `yes`, or `1`) to disable administrator account creation, password login, MFA completion, existing administrator sessions, administrator-only routes, and implicit administrator repository privileges. Regular user login remains available. Existing administrator records are retained in SQLite so access can be restored later by changing the flag and restarting the service.
+
+Change the administrator password and `SESSION_SECRET` before exposing the service whenever administrator access is enabled. The bootstrap password is used only when no administrator account exists.
 
 ## Available commands
 
@@ -149,7 +152,8 @@ Change the administrator password and `SESSION_SECRET` before exposing the servi
 | `TLS_RELOAD_INTERVAL_MINUTES` | `5` | Certificate file change check interval |
 | `NODE_ENV` | `development` | Enables production proxy handling when set to `production` |
 | `SESSION_SECRET` | Example value | Secret used to sign session cookies |
-| `ADMIN_USERNAME` | `admin` | Username for the first administrator |
+| `ADMIN_ACCESS_DISABLED` | `false` | Disables administrator creation, login, sessions, privileges, and `/admin` routes when set to `true`, `on`, `yes`, or `1` |
+| `ADMIN_USERNAME` | `admin` | Username for the first administrator when administrator access is enabled |
 | `ADMIN_PASSWORD` | `ChangeMe123!` | Password for the first administrator |
 | `ADMIN_DISPLAY_NAME` | `System Administrator` | Display name for the first administrator |
 | `MFA_ENCRYPTION_KEY` | `SESSION_SECRET` | Stable key source used to encrypt TOTP secrets and key recovery-code hashes |
@@ -162,7 +166,7 @@ Change the administrator password and `SESSION_SECRET` before exposing the servi
 | `DB_PATH` | `./data/recorddrive.db` | SQLite database path |
 | `UPLOAD_ROOT` | `./data/uploads` | Uploaded file storage directory |
 
-Production mode refuses to start with the sample administrator password or an unsafe session secret.
+Production mode refuses to start with an unsafe session secret. It also rejects the sample administrator password whenever administrator access is enabled.
 
 ## Native HTTPS with Posh-ACME
 

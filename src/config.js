@@ -18,13 +18,14 @@ export function loadConfig(overrides = {}) {
   const nodeEnv = env.NODE_ENV || 'development';
   const sessionSecret = env.SESSION_SECRET || 'recorddrive-change-this-session-secret-at-least-32-chars';
   const adminPassword = env.ADMIN_PASSWORD || 'ChangeMe123!';
+  const adminAccessDisabled = booleanFromEnv(env.ADMIN_ACCESS_DISABLED, false);
 
   if (nodeEnv === 'production') {
     if (sessionSecret.length < 32 || sessionSecret.includes('change-this')) {
       throw new Error('Production requires a secure SESSION_SECRET of at least 32 characters.');
     }
-    if (adminPassword === 'ChangeMe123!') {
-      throw new Error('The default ADMIN_PASSWORD cannot be used in production.');
+    if (!adminAccessDisabled && adminPassword === 'ChangeMe123!') {
+      throw new Error('The default ADMIN_PASSWORD cannot be used in production while administrator access is enabled.');
     }
   }
 
@@ -54,6 +55,7 @@ export function loadConfig(overrides = {}) {
     nodeEnv,
     isProduction: nodeEnv === 'production',
     sessionSecret,
+    adminAccessDisabled,
     adminUsername: (env.ADMIN_USERNAME || 'admin').trim().toLowerCase(),
     adminPassword,
     adminDisplayName: (env.ADMIN_DISPLAY_NAME || 'System Administrator').trim(),

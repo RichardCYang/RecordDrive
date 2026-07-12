@@ -1,4 +1,5 @@
 import express from 'express';
+import { canUseAdministratorAccess } from '../admin-access.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -146,11 +147,11 @@ function savePermissionGrant(db, repository, user, permissions, actorId) {
 
 export function createRepositoriesRouter(db, config) {
   const router = express.Router();
-  const requireView = createRepositoryPermissionMiddleware(db, 'view');
-  const requireUpload = createRepositoryPermissionMiddleware(db, 'upload');
-  const requireDownload = createRepositoryPermissionMiddleware(db, 'download');
-  const requireDelete = createRepositoryPermissionMiddleware(db, 'delete');
-  const requireManager = createRepositoryManagerMiddleware(db);
+  const requireView = createRepositoryPermissionMiddleware(db, 'view', config);
+  const requireUpload = createRepositoryPermissionMiddleware(db, 'upload', config);
+  const requireDownload = createRepositoryPermissionMiddleware(db, 'download', config);
+  const requireDelete = createRepositoryPermissionMiddleware(db, 'delete', config);
+  const requireManager = createRepositoryManagerMiddleware(db, config);
 
   const storage = multer.diskStorage({
     destination(req, file, callback) {
@@ -213,7 +214,8 @@ export function createRepositoriesRouter(db, config) {
       title: req.t('REPOSITORY PERMISSIONS'),
       repository: req.repository,
       grants,
-      availableUsers
+      availableUsers,
+      isAdmin: canUseAdministratorAccess(config, req.currentUser)
     });
   });
 
@@ -503,7 +505,7 @@ export function createRepositoriesRouter(db, config) {
     try {
       deleteRepository(db, config, req.repository, req.currentUser.id);
       setFlash(req, 'success', req.t('Deleted the {{name}} repository and its files.', { name: req.repository.name }));
-      return res.redirect(req.currentUser.role === 'ADMIN' ? '/admin/repositories' : '/');
+      return res.redirect(canUseAdministratorAccess(config, req.currentUser) ? '/admin/repositories' : '/');
     } catch (error) {
       return next(error);
     }

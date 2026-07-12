@@ -11,6 +11,11 @@ import { startNetworkServers } from './network-server.js';
 import { loadTlsSettings } from './tls-settings.js';
 import { SQLiteSessionStore } from './session-store.js';
 import { csrfTokenMiddleware, verifyCsrf } from './middleware/csrf.js';
+import {
+  blockDisabledAdministratorSession,
+  renderAdministratorAccessDisabled
+} from './middleware/auth.js';
+import { purgeAdministratorSessions } from './admin-access.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createDashboardRouter } from './routes/dashboard.js';
 import { createAdminRouter } from './routes/admin.js';
@@ -25,6 +30,7 @@ const projectRoot = path.resolve(__dirname, '..');
 export function createApplication(options = {}) {
   const config = options.config || loadConfig(options.env);
   const db = options.db || createDatabase(config);
+  if (config.adminAccessDisabled) purgeAdministratorSessions(db);
   const runtimeControl = options.runtimeControl || {};
   const networkSettings = loadTlsSettings(db, config);
   const app = express();
@@ -91,6 +97,7 @@ export function createApplication(options = {}) {
     next();
   });
 
+  app.use(blockDisabledAdministratorSession);
   app.use(csrfTokenMiddleware);
   app.use(verifyCsrf);
 
@@ -105,8 +112,12 @@ export function createApplication(options = {}) {
 
   app.use(createAuthRouter(db, config));
   app.use(createSettingsRouter(db, config));
-  app.use(createDashboardRouter(db));
-  app.use('/admin', createAdminRouter(db, { config, runtimeControl }));
+  app.use(createDashboardRouter(db, config));
+  if (config.adminAccessDisabled) {
+    app.use('/admin', (req, res) => renderAdministratorAccessDisabled(req, res, 404));
+  } else {
+    app.use('/admin', createAdminRouter(db, { config, runtimeControl }));
+  }
   app.use('/repositories', createRepositoriesRouter(db, config));
 
   app.use((req, res) => {

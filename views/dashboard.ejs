@@ -11,9 +11,9 @@
         <div>
           <span class="eyebrow"><%= t('MY RECORDDRIVE') %></span>
           <h1><%= t("{{name}}'s Drive", { name: currentUser.display_name }) %></h1>
-          <p><%= currentUser.role === 'ADMIN' ? t('Administrator access includes every repository and every repository action.') : t('Create personal repositories and open only repositories shared with your account.') %></p>
+          <p><%= isAdmin ? t('Administrator access includes every repository and every repository action.') : t('Create personal repositories and open only repositories shared with your account.') %></p>
         </div>
-        <% if (currentUser.role === 'ADMIN') { %>
+        <% if (isAdmin) { %>
           <a class="button button-secondary" href="/admin/repositories"><%= t('Review all repositories') %></a>
         <% } else { %>
           <a class="button button-primary" href="#create-repository"><%= t('+ New personal repository') %></a>
@@ -49,7 +49,7 @@
                 <span class="repo-icon tone-<%= (index % 4) + 1 %>">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3z"/><path d="M3 7V5h7l2 2"/></svg>
                 </span>
-                <span class="repository-access-label"><%= currentUser.role === 'ADMIN' ? t('Administrator') : repository.is_owner ? t('Owner') : t('Shared') %></span>
+                <span class="repository-access-label"><%= isAdmin ? t('Administrator') : repository.is_owner ? t('Owner') : t('Shared') %></span>
               </div>
               <h2><%= repository.name %></h2>
               <p><%= repository.description || t('No description has been provided.') %></p>
@@ -74,7 +74,7 @@
         <section class="empty-state">
           <div class="empty-icon">☁</div>
           <h2><%= t('No repositories to display') %></h2>
-          <p><%= currentUser.role === 'ADMIN' ? t('No user has created a repository yet.') : t('Create your first personal repository, or ask another owner to grant view permission.') %></p>
+          <p><%= isAdmin ? t('No user has created a repository yet.') : t('Create your first personal repository, or ask another owner to grant view permission.') %></p>
           <% if (currentUser.role === 'USER') { %><a class="button button-primary" href="#create-repository"><%= t('Create repository') %></a><% } %>
         </section>
       <% } %>

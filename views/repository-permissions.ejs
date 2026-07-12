@@ -8,7 +8,7 @@
       <%- include('partials/flash') %>
       <section class="page-hero compact-hero">
         <div>
-          <a class="back-link" href="<%= currentUser.role === 'ADMIN' ? '/admin/repositories' : `/repositories/${repository.id}` %>"><%= t('← Back') %></a>
+          <a class="back-link" href="<%= isAdmin ? '/admin/repositories' : `/repositories/${repository.id}` %>"><%= t('← Back') %></a>
           <span class="eyebrow"><%= t('REPOSITORY PERMISSIONS') %></span>
           <h1><%= t('{{name}} access', { name: repository.name }) %></h1>
           <p><%= t('Grant each user only the repository actions they need. The owner and administrators always retain every permission.') %></p>
