@@ -35,6 +35,7 @@ import { setFlash } from '../utils.js';
 const ENROLLMENT_MAX_AGE_MS = 10 * 60 * 1000;
 const SECURITY_PASSWORD_WINDOW_MS = 10 * 60 * 1000;
 const SECURITY_PASSWORD_MAX_ATTEMPTS = 5;
+const MAX_SECURITY_PASSWORD_BYTES = 1024;
 
 function parseTransports(value) {
   try {
@@ -199,7 +200,9 @@ export function createSettingsRouter(db, config) {
         return res.redirect('/settings#security-verification');
       }
       const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.currentUser.id);
-      const valid = user && await bcrypt.compare(String(req.body.password || ''), user.password_hash);
+      const password = String(req.body.password || '');
+      const passwordWithinLimit = Buffer.byteLength(password, 'utf8') <= MAX_SECURITY_PASSWORD_BYTES;
+      const valid = user && passwordWithinLimit && await bcrypt.compare(password, user.password_hash);
       if (!valid) {
         setFlash(req, 'error', req.t('The password is incorrect.'));
         return res.redirect('/settings#security-verification');

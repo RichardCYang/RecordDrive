@@ -60,6 +60,8 @@ export function loadConfig(overrides = {}) {
   const maxRepositoryFiles = Number.parseInt(env.MAX_REPOSITORY_FILES || '10000', 10);
   const maxTotalFiles = Number.parseInt(env.MAX_TOTAL_FILES || '100000', 10);
   const maxSessionsPerUser = Number.parseInt(env.MAX_SESSIONS_PER_USER || '10', 10);
+  const sessionIdleHours = Number.parseInt(env.SESSION_IDLE_HOURS || '12', 10);
+  const sessionAbsoluteHours = Number.parseInt(env.SESSION_ABSOLUTE_HOURS || '168', 10);
 
   return {
     port: Number.isFinite(httpPort) ? httpPort : 3000,
@@ -112,6 +114,12 @@ export function loadConfig(overrides = {}) {
     maxSessionsPerUser: Number.isFinite(maxSessionsPerUser) && maxSessionsPerUser > 0
       ? Math.min(maxSessionsPerUser, 100)
       : 10,
+    sessionIdleHours: Number.isFinite(sessionIdleHours) && sessionIdleHours > 0
+      ? Math.min(sessionIdleHours, 24 * 30)
+      : 12,
+    sessionAbsoluteHours: Number.isFinite(sessionAbsoluteHours) && sessionAbsoluteHours > 0
+      ? Math.min(sessionAbsoluteHours, 24 * 365)
+      : 168,
     dbPath: resolveFromCwd(env.DB_PATH || './data/recorddrive.db'),
     uploadRoot: resolveFromCwd(env.UPLOAD_ROOT || './data/uploads')
   };

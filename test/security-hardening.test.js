@@ -522,3 +522,193 @@ test('rejects nested upload fields and cleans files that exceed storage or file-
   const repositoryRoot = path.join(config.uploadRoot, String(repositoryId));
   assert.equal(fs.readdirSync(repositoryRoot).length, 1);
 });
+
+test('fails closed when stored TLS settings cannot be parsed or decrypted', (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-tls-fail-closed-'));
+  const config = testConfig(tempRoot);
+  const db = createDatabase(config);
+  t.after(() => {
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  saveTlsSettings(db, { httpsEnabled: true, passphrase: 'ProtectedTlsPassphrase!' }, config);
+  const mismatchedConfig = {
+    ...config,
+    mfaEncryptionKey: 'different-hardening-test-key-with-more-than-thirty-two-characters'
+  };
+  assert.throws(
+    () => loadTlsSettings(db, mismatchedConfig),
+    /Stored TLS settings could not be parsed or decrypted/
+  );
+  assert.throws(
+    () => createApplication({ config: mismatchedConfig, db }),
+    /Stored TLS settings could not be parsed or decrypted/
+  );
+
+  db.prepare(`
+    UPDATE app_settings SET setting_value = ? WHERE setting_key = 'network.tls'
+  `).run('{"httpsEnabled":');
+  assert.throws(
+    () => loadTlsSettings(db, config),
+    /Stored TLS settings could not be parsed or decrypted/
+  );
+});
+
+test('requires upload CSRF validation before file data and supports quota-aware multi-file streaming', async (t) => {
+  resetAuthenticationRateLimits();
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-upload-stream-hardening-'));
+  const config = {
+    ...testConfig(tempRoot),
+    maxRepositoryStorageMb: 0.001,
+    maxTotalStorageMb: 0.002,
+    maxRepositoryFiles: 10,
+    maxTotalFiles: 20
+  };
+  const app = createApplication({ config });
+  const db = app.locals.db;
+  const passwordHash = bcrypt.hashSync('StreamingOwnerPassword123!', 12);
+  const userId = Number(db.prepare(`
+    INSERT INTO users (username, display_name, password_hash, role)
+    VALUES (?, ?, ?, 'USER')
+  `).run('stream.owner', 'Streaming Owner', passwordHash).lastInsertRowid);
+  const repositoryId = Number(db.prepare(`
+    INSERT INTO repositories (name, description, created_by)
+    VALUES (?, '', ?)
+  `).run('Streaming Repository', userId).lastInsertRowid);
+  const agent = request.agent(app);
+
+  t.after(() => {
+    resetAuthenticationRateLimits();
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  const loginPage = await agent.get('/login').expect(200);
+  await agent.post('/login').type('form').send({
+    _csrf: csrfFrom(loginPage.text),
+    username: 'stream.owner',
+    password: 'StreamingOwnerPassword123!'
+  }).expect(302);
+
+  const repositoryPage = await agent.get(`/repositories/${repositoryId}`).expect(200);
+  const token = csrfFrom(repositoryPage.text);
+  await agent
+    .post(`/repositories/${repositoryId}/upload`)
+    .attach('files', Buffer.alloc(64, 0x61), 'file-before-token.txt')
+    .field('_csrf', token)
+    .expect(403);
+
+  const repositoryRoot = path.join(config.uploadRoot, String(repositoryId));
+  assert.equal(fs.existsSync(repositoryRoot), false);
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM files WHERE repository_id = ?').get(repositoryId).count, 0);
+
+  const validPage = await agent.get(`/repositories/${repositoryId}`).expect(200);
+  await agent
+    .post(`/repositories/${repositoryId}/upload`)
+    .field('_csrf', csrfFrom(validPage.text))
+    .attach('files', Buffer.alloc(400, 0x62), 'first.bin')
+    .attach('files', Buffer.alloc(400, 0x63), 'second.bin')
+    .expect(302);
+
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM files WHERE repository_id = ?').get(repositoryId).count, 2);
+  assert.equal(fs.readdirSync(repositoryRoot).length, 2);
+});
+
+test('marks production authentication cookies as secure', async (t) => {
+  resetAuthenticationRateLimits();
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-secure-cookie-hardening-'));
+  const config = {
+    ...testConfig(tempRoot),
+    nodeEnv: 'production',
+    isProduction: true,
+    trustProxy: 1
+  };
+  const app = createApplication({ config });
+  const db = app.locals.db;
+
+  t.after(() => {
+    resetAuthenticationRateLimits();
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  const page = await request(app)
+    .get('/login')
+    .set('X-Forwarded-Proto', 'https')
+    .expect(200);
+  const cookieHeader = page.headers['set-cookie']
+    .map((value) => value.split(';', 1)[0])
+    .join('; ');
+  const response = await request(app)
+    .post('/login')
+    .set('X-Forwarded-Proto', 'https')
+    .set('Cookie', cookieHeader)
+    .type('form')
+    .send({
+      _csrf: csrfFrom(page.text),
+      username: 'admin',
+      password: 'TestPassword123!'
+    })
+    .expect(302);
+  const sessionCookie = response.headers['set-cookie']
+    .find((value) => value.startsWith('recorddrive.sid='));
+  assert.ok(sessionCookie);
+  assert.match(sessionCookie, /; Secure(?:;|$)/);
+});
+
+test('enforces a server-side absolute session lifetime', async (t) => {
+  resetAuthenticationRateLimits();
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-absolute-session-hardening-'));
+  const config = {
+    ...testConfig(tempRoot),
+    sessionIdleHours: 12,
+    sessionAbsoluteHours: 1
+  };
+  const app = createApplication({ config });
+  const db = app.locals.db;
+  const agent = request.agent(app);
+
+  t.after(() => {
+    resetAuthenticationRateLimits();
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  await passwordLogin(agent);
+  const row = db.prepare('SELECT sid, sess FROM sessions').get();
+  const storedSession = JSON.parse(row.sess);
+  assert.ok(Number.isFinite(Number(storedSession.sessionCreatedAt)));
+  storedSession.sessionCreatedAt = Date.now() - (2 * 60 * 60 * 1000);
+  db.prepare('UPDATE sessions SET sess = ? WHERE sid = ?').run(JSON.stringify(storedSession), row.sid);
+
+  await agent.get('/').expect(302).expect('Location', '/login?returnTo=%2F');
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions WHERE sid = ?').get(row.sid).count, 0);
+});
+
+test('rejects storage paths that could expose data or alter protected directories', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-storage-config-hardening-'));
+  try {
+    const base = testConfig(tempRoot);
+    assert.throws(
+      () => createApplication({
+        config: { ...base, uploadRoot: path.resolve('public', 'uploads') }
+      }),
+      /UPLOAD_ROOT cannot be inside/
+    );
+    assert.throws(
+      () => createApplication({
+        config: { ...base, dbPath: path.resolve('public', 'recorddrive.db') }
+      }),
+      /DB_PATH cannot be inside/
+    );
+    assert.throws(
+      () => createApplication({
+        config: { ...base, uploadRoot: path.parse(tempRoot).root }
+      }),
+      /UPLOAD_ROOT cannot be a filesystem root/
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});

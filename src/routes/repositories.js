@@ -15,13 +15,16 @@ import {
 import { deleteRepository } from '../repository-service.js';
 import {
   createFileAccessTracker,
-  ensureSecureRepositoryDirectory,
   openStoredFile,
   readInitialAccessTimeMs,
   resolveStoredFilePath,
   restoreRepositoryInitialAccessTimes
 } from '../file-access-time.js';
 import { filePreviewKind, safeOriginalName, setFlash } from '../utils.js';
+import {
+  createQuotaAwareUploadStorage,
+  UploadQuotaError
+} from '../upload-storage.js';
 import {
   createXlsxPreview,
   createZipPreview,
@@ -52,8 +55,9 @@ function previewErrorMessage(req, error) {
   return messages[error.code] || req.t('The file preview could not be generated.');
 }
 
-function cleanupUploadedFiles(files = []) {
+function cleanupUploadedFiles(files = [], storage = null) {
   for (const file of files) {
+    storage?.releaseReservation(file);
     try {
       if (file?.path) fs.rmSync(file.path, { force: true });
     } catch {
@@ -77,13 +81,6 @@ async function withTrackedFileAccess(tracker, operation) {
       );
     }
     throw error;
-  }
-}
-
-class UploadQuotaError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = 'UploadQuotaError';
   }
 }
 
@@ -259,18 +256,7 @@ export function createRepositoriesRouter(db, config) {
   const requireDelete = createRepositoryPermissionMiddleware(db, 'delete', config);
   const requireManager = createRepositoryManagerMiddleware(db, config);
 
-  const storage = multer.diskStorage({
-    destination(req, file, callback) {
-      try {
-        callback(null, ensureSecureRepositoryDirectory(config, req.repository.id));
-      } catch (error) {
-        callback(error);
-      }
-    },
-    filename(req, file, callback) {
-      callback(null, crypto.randomUUID());
-    }
-  });
+  const storage = createQuotaAwareUploadStorage(db, config);
 
   const upload = multer({
     storage,
@@ -287,7 +273,7 @@ export function createRepositoriesRouter(db, config) {
   });
   const parseUpload = upload.array('files', config.maxFilesPerUpload);
   const uploadFiles = (req, res, next) => parseUpload(req, res, (error) => {
-    if (error) cleanupUploadedFiles(req.files);
+    if (error) cleanupUploadedFiles(req.files, storage);
     next(error);
   });
 
@@ -498,7 +484,7 @@ export function createRepositoriesRouter(db, config) {
     (req, res, next) => {
       try {
         if (!isValidCsrf(req)) {
-          cleanupUploadedFiles(req.files);
+          cleanupUploadedFiles(req.files, storage);
           return res.status(403).render('error', {
             title: req.t('Request could not be verified'),
             statusCode: 403,
@@ -535,9 +521,10 @@ export function createRepositoriesRouter(db, config) {
             );
           }
           db.exec('COMMIT');
+          storage.commitReservations(req.files);
         } catch (error) {
           if (db.isTransaction) db.exec('ROLLBACK');
-          cleanupUploadedFiles(req.files);
+          cleanupUploadedFiles(req.files, storage);
           throw error;
         }
 

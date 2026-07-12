@@ -114,8 +114,7 @@ export function loadTlsSettings(db, config = {}) {
     delete stored.passphraseEncrypted;
     return normalizeTlsSettings(stored, config);
   } catch (error) {
-    console.warn(`TLS settings could not be parsed or decrypted and defaults will be used: ${error.message}`);
-    return createDefaultTlsSettings(config);
+    throw new Error('Stored TLS settings could not be parsed or decrypted.', { cause: error });
   }
 }
 

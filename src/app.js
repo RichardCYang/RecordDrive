@@ -23,16 +23,54 @@ import { createRepositoriesRouter } from './routes/repositories.js';
 import { fileKind, filePreviewKind, formatBytes, formatDate } from './utils.js';
 import { languageMiddleware } from './i18n.js';
 import { createSettingsRouter } from './routes/settings.js';
+import { UploadCsrfError, UploadQuotaError } from './upload-storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
 
+function isSameOrDescendant(parentPath, candidatePath) {
+  const relative = path.relative(path.resolve(parentPath), path.resolve(candidatePath));
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function validateStorageConfiguration(config) {
+  const uploadRoot = path.resolve(config.uploadRoot);
+  const databasePath = path.resolve(config.dbPath);
+  const databaseDirectory = path.dirname(databasePath);
+  const filesystemRoot = path.parse(uploadRoot).root;
+  const protectedDirectories = [
+    path.join(projectRoot, '.git'),
+    path.join(projectRoot, 'public'),
+    path.join(projectRoot, 'src'),
+    path.join(projectRoot, 'views')
+  ];
+
+  if (uploadRoot === filesystemRoot || isSameOrDescendant(uploadRoot, projectRoot)) {
+    throw new Error('UPLOAD_ROOT cannot be a filesystem root, the project root, or a parent of the project.');
+  }
+  if (databaseDirectory === path.parse(databaseDirectory).root
+    || isSameOrDescendant(databaseDirectory, projectRoot)) {
+    throw new Error('DB_PATH cannot use a filesystem root, the project root, or a parent of the project as its directory.');
+  }
+  for (const protectedDirectory of protectedDirectories) {
+    if (isSameOrDescendant(protectedDirectory, uploadRoot)) {
+      throw new Error('UPLOAD_ROOT cannot be inside a source, static, view, or Git metadata directory.');
+    }
+    if (isSameOrDescendant(protectedDirectory, databasePath)) {
+      throw new Error('DB_PATH cannot be inside a source, static, view, or Git metadata directory.');
+    }
+  }
+}
+
 export function createApplication(options = {}) {
   const config = options.config || loadConfig(options.env);
+  validateStorageConfiguration(config);
   const db = options.db || createDatabase(config);
   if (config.adminAccessDisabled) purgeAdministratorSessions(db);
   const runtimeControl = options.runtimeControl || {};
   const networkSettings = loadTlsSettings(db, config);
+  const sessionIdleMs = (Number(config.sessionIdleHours) || 12) * 60 * 60 * 1000;
+  const sessionAbsoluteMs = (Number(config.sessionAbsoluteHours) || 168) * 60 * 60 * 1000;
   const app = express();
 
   app.disable('x-powered-by');
@@ -68,30 +106,68 @@ export function createApplication(options = {}) {
   app.use(session({
     name: 'recorddrive.sid',
     secret: config.sessionSecret,
-    store: new SQLiteSessionStore(db),
+    store: new SQLiteSessionStore(db, { defaultTtlMs: sessionIdleMs }),
     resave: false,
     saveUninitialized: false,
     rolling: true,
     cookie: {
       httpOnly: true,
       sameSite: 'strict',
-      secure: 'auto',
+      secure: config.isProduction ? true : 'auto',
       priority: 'high',
-      maxAge: 1000 * 60 * 60 * 12
+      maxAge: sessionIdleMs
     }
   }));
 
   app.use((req, res, next) => {
-    const userId = Number(req.session.userId);
+    const hasAuthenticatedState = Boolean(
+      req.session?.userId
+      || req.session?.pendingMfa?.userId
+      || req.session?.authenticationFlow?.userId
+    );
+    if (!hasAuthenticatedState) return next();
+
+    const fallbackCreatedAt = Number(
+      req.session.sessionCreatedAt
+      || req.session.authenticatedAt
+      || req.session.pendingMfa?.createdAt
+      || req.session.authenticationFlow?.createdAt
+      || Date.now()
+    );
+    if (!Number.isFinite(Number(req.session.sessionCreatedAt))) {
+      req.session.sessionCreatedAt = fallbackCreatedAt;
+    }
+    if (Date.now() - fallbackCreatedAt <= sessionAbsoluteMs) return next();
+
+    return req.session.regenerate((error) => {
+      if (error) return next(error);
+      res.clearCookie('recorddrive.sid', {
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: config.isProduction,
+        priority: 'high'
+      });
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+        if (req.is('application/json') || req.path.includes('/passkeys/')) {
+          return res.status(401).json({ error: req.t('Your session has expired. Sign in again.') });
+        }
+        return res.redirect('/login');
+      }
+      return next();
+    });
+  });
+
+  app.use((req, res, next) => {
+    const userId = Number(req.session?.userId);
     req.currentUser = Number.isInteger(userId)
       ? db.prepare('SELECT id, username, display_name, role, created_at FROM users WHERE id = ?').get(userId)
       : null;
 
-    if (userId && !req.currentUser) delete req.session.userId;
+    if (userId && !req.currentUser && req.session) delete req.session.userId;
     res.locals.currentUser = req.currentUser;
     if (req.currentUser) res.set('Cache-Control', 'private, no-store');
-    res.locals.flash = req.session.flash || null;
-    delete req.session.flash;
+    res.locals.flash = req.session?.flash || null;
+    if (req.session) delete req.session.flash;
     res.locals.formatBytes = formatBytes;
     res.locals.formatDate = (value) => formatDate(value, req.language);
     res.locals.fileKind = fileKind;
@@ -135,6 +211,22 @@ export function createApplication(options = {}) {
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
 
+    if (error instanceof UploadCsrfError) {
+      return res.status(403).render('error', {
+        title: req.t('Request could not be verified'),
+        statusCode: 403,
+        message: req.t('The security token is invalid or has expired. Refresh the page and try again.')
+      });
+    }
+
+    if (error instanceof UploadQuotaError) {
+      return res.status(413).render('error', {
+        title: req.t('Upload failed'),
+        statusCode: 413,
+        message: req.t(error.message)
+      });
+    }
+
     if (error instanceof multer.MulterError) {
       let message = req.t('An error occurred while uploading the file.');
       if (error.code === 'LIMIT_FILE_SIZE') {
@@ -142,9 +234,10 @@ export function createApplication(options = {}) {
       } else if (error.code === 'LIMIT_FILE_COUNT') {
         message = req.t('You can upload up to {{count}} files at a time.', { count: config.maxFilesPerUpload });
       }
-      return res.status(400).render('error', {
+      const statusCode = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      return res.status(statusCode).render('error', {
         title: req.t('Upload failed'),
-        statusCode: 400,
+        statusCode,
         message
       });
     }

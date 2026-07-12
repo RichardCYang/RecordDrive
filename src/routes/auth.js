@@ -79,6 +79,7 @@ function clearPendingAuthentication(req, options = {}) {
 
   delete req.session.userId;
   delete req.session.authenticatedAt;
+  delete req.session.sessionCreatedAt;
   delete req.session.pendingMfa;
   delete req.session.returnTo;
   delete req.session.mfaAttempts;
@@ -121,8 +122,10 @@ function completeLogin(req, res, next, db, config, user, returnTo, options = {})
   clearMfaAttempts(user.id);
   return req.session.regenerate((error) => {
     if (error) return next(error);
+    const authenticatedAt = Date.now();
     req.session.userId = user.id;
-    req.session.authenticatedAt = Date.now();
+    req.session.authenticatedAt = authenticatedAt;
+    req.session.sessionCreatedAt = authenticatedAt;
     return saveLimitedAuthenticationSession(req, next, db, config, user.id, () => {
       logActivity(db, {
         actorId: user.id,
@@ -202,10 +205,12 @@ export function createAuthRouter(db, config) {
 
       return req.session.regenerate((error) => {
         if (error) return next(error);
+        const createdAt = Date.now();
+        req.session.sessionCreatedAt = createdAt;
         req.session.pendingMfa = {
           userId: user.id,
           returnTo,
-          createdAt: Date.now()
+          createdAt
         };
         return saveLimitedAuthenticationSession(req, next, db, config, user.id, () => {
           return res.redirect('/login/mfa');
