@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="<%= language %>">
+<head><%- include('partials/head') %></head>
+<body>
+  <%- include('partials/nav') %>
+  <main class="page-main">
+    <div class="shell settings-shell">
+      <%- include('partials/flash') %>
+      <section class="page-hero compact-hero">
+        <div>
+          <a class="back-link" href="/repositories/<%= repository.id %>"><%= t('← Back') %></a>
+          <span class="eyebrow"><%= t('REPOSITORY SETTINGS') %></span>
+          <h1><%= t('{{name}} settings', { name: repository.name }) %></h1>
+          <p><%= t('Control how RecordDrive handles file system access times for this repository.') %></p>
+        </div>
+        <a class="button button-secondary" href="/repositories/<%= repository.id %>"><%= t('Open repository') %></a>
+      </section>
+
+      <div class="settings-content-stack">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow"><%= t('FILE METADATA') %></span>
+              <h2><%= t('File access time') %></h2>
+            </div>
+            <strong class="status-pill <%= repository.update_file_access_time ? 'status-success' : 'status-neutral' %>">
+              <%= repository.update_file_access_time ? t('Access time updates are enabled') : t('Access time updates are disabled') %>
+            </strong>
+          </div>
+          <div class="settings-panel-body">
+            <form action="/repositories/<%= repository.id %>/settings" method="post" class="stack-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <label class="field">
+                <span><%= t('Access time behavior') %></span>
+                <select name="fileAccessTimePolicy" required>
+                  <option value="enabled" <%= repository.update_file_access_time ? 'selected' : '' %>><%= t('Use') %></option>
+                  <option value="disabled" <%= repository.update_file_access_time ? '' : 'selected' %>><%= t('Do not use') %></option>
+                </select>
+                <small><%= t('Choose whether a web download or supported preview updates the stored file access time.') %></small>
+              </label>
+              <button class="button button-primary" type="submit"><%= t('Save repository settings') %></button>
+            </form>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow"><%= t('BEHAVIOR') %></span>
+              <h2><%= t('How this setting works') %></h2>
+            </div>
+          </div>
+          <div class="settings-panel-body">
+            <div class="security-overview-grid">
+              <div class="security-overview-item">
+                <span><%= t('Use') %></span>
+                <strong><%= t('Update on web access') %></strong>
+                <small><%= t('Downloads and supported previews set the file access time to the current web access time.') %></small>
+              </div>
+              <div class="security-overview-item">
+                <span><%= t('Do not use') %></span>
+                <strong><%= t('Preserve the initial value') %></strong>
+                <small><%= t('RecordDrive restores the access time captured when the file was first stored and keeps it unchanged after web access.') %></small>
+              </div>
+              <div class="security-overview-item">
+                <span><%= t('Who can change it') %></span>
+                <strong><%= t('Owner or administrator') %></strong>
+                <small><%= t('Shared users cannot view or modify repository settings.') %></small>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>

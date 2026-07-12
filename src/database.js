@@ -3,6 +3,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
 import { purgeAdministratorSessions } from './admin-access.js';
+import { readInitialAccessTimeMs, resolveStoredFilePath } from './file-access-time.js';
 
 export function createDatabase(config) {
   fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
@@ -32,6 +33,7 @@ export function createDatabase(config) {
       name TEXT NOT NULL UNIQUE COLLATE NOCASE,
       description TEXT NOT NULL DEFAULT '',
       created_by INTEGER,
+      update_file_access_time INTEGER NOT NULL DEFAULT 1 CHECK (update_file_access_time IN (0, 1)),
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     );
@@ -60,6 +62,7 @@ export function createDatabase(config) {
       mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
       size INTEGER NOT NULL DEFAULT 0,
       uploaded_by INTEGER,
+      initial_access_time_ms REAL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE CASCADE,
       FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
@@ -140,6 +143,43 @@ export function createDatabase(config) {
   }
   if (!userColumns.has('totp_last_used_step')) {
     db.exec('ALTER TABLE users ADD COLUMN totp_last_used_step INTEGER;');
+  }
+
+  const repositoryColumns = new Set(
+    db.prepare('PRAGMA table_info(repositories)').all().map((column) => column.name)
+  );
+  if (!repositoryColumns.has('update_file_access_time')) {
+    db.exec(`
+      ALTER TABLE repositories
+      ADD COLUMN update_file_access_time INTEGER NOT NULL DEFAULT 1
+      CHECK (update_file_access_time IN (0, 1));
+    `);
+  }
+
+  const fileColumns = new Set(
+    db.prepare('PRAGMA table_info(files)').all().map((column) => column.name)
+  );
+  if (!fileColumns.has('initial_access_time_ms')) {
+    db.exec('ALTER TABLE files ADD COLUMN initial_access_time_ms REAL;');
+  }
+
+  const filesWithoutInitialAccessTime = db.prepare(`
+    SELECT id, repository_id, stored_name
+    FROM files
+    WHERE initial_access_time_ms IS NULL
+  `).all();
+  const saveInitialAccessTime = db.prepare(`
+    UPDATE files SET initial_access_time_ms = ? WHERE id = ?
+  `);
+  for (const file of filesWithoutInitialAccessTime) {
+    try {
+      const filePath = resolveStoredFilePath(config, file.repository_id, file.stored_name);
+      if (fs.existsSync(filePath)) {
+        saveInitialAccessTime.run(readInitialAccessTimeMs(filePath), file.id);
+      }
+    } catch {
+      // Leave unavailable file records unchanged so startup can continue.
+    }
   }
 
   if (!config.adminAccessDisabled) {

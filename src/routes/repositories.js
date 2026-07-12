@@ -14,17 +14,14 @@ import {
   permissionPayload
 } from '../repository-access.js';
 import { deleteRepository } from '../repository-service.js';
+import {
+  createFileAccessTracker,
+  readInitialAccessTimeMs,
+  resolveStoredFilePath,
+  restoreRepositoryInitialAccessTimes
+} from '../file-access-time.js';
 import { filePreviewKind, safeOriginalName, setFlash } from '../utils.js';
 import { createXlsxPreview, createZipPreview, FilePreviewError } from '../file-preview.js';
-
-function safeStoredPath(config, repositoryId, storedName) {
-  const repositoryRoot = path.resolve(config.uploadRoot, String(repositoryId));
-  const candidate = path.resolve(repositoryRoot, storedName);
-  if (!candidate.startsWith(`${repositoryRoot}${path.sep}`)) {
-    throw new Error('The requested file path is not allowed.');
-  }
-  return candidate;
-}
 
 function inlineContentDisposition(filename) {
   const originalName = String(filename || 'preview.pdf');
@@ -55,6 +52,34 @@ function cleanupUploadedFiles(files = []) {
       // Ignore cleanup failures so the original error is preserved.
     }
   }
+}
+
+async function withTrackedFileAccess(tracker, operation) {
+  try {
+    const result = await operation();
+    tracker.complete();
+    return result;
+  } catch (error) {
+    try {
+      tracker.complete();
+    } catch (completionError) {
+      throw new AggregateError(
+        [error, completionError],
+        'The file operation and access time update both failed.'
+      );
+    }
+    throw error;
+  }
+}
+
+function finishStreamedFileAccess(tracker, error, res, next) {
+  try {
+    tracker.complete();
+  } catch (completionError) {
+    console.error(`File access time update failed: ${completionError.message}`);
+    if (!error) error = completionError;
+  }
+  if (error && !res.headersSent) next(error);
 }
 
 function permissionNames(permissions) {
@@ -219,6 +244,48 @@ export function createRepositoriesRouter(db, config) {
     });
   });
 
+  router.get('/:repositoryId/settings', requireManager, (req, res) => {
+    return res.render('repository-settings', {
+      title: req.t('Repository settings'),
+      repository: req.repository
+    });
+  });
+
+  router.post('/:repositoryId/settings', requireManager, (req, res, next) => {
+    const policy = String(req.body.fileAccessTimePolicy || '');
+    if (!['enabled', 'disabled'].includes(policy)) {
+      setFlash(req, 'error', req.t('Select a valid file access time option.'));
+      return res.redirect(`/repositories/${req.repository.id}/settings`);
+    }
+
+    const enabled = policy === 'enabled';
+    const previousValue = Number(req.repository.update_file_access_time);
+    try {
+      db.prepare(`
+        UPDATE repositories SET update_file_access_time = ? WHERE id = ?
+      `).run(Number(enabled), req.repository.id);
+
+      if (!enabled) {
+        restoreRepositoryInitialAccessTimes(db, config, req.repository.id);
+      }
+
+      logActivity(db, {
+        actorId: req.currentUser.id,
+        action: 'UPDATE_REPOSITORY_FILE_ACCESS_TIME',
+        targetType: 'REPOSITORY',
+        targetLabel: `${req.repository.name} [${policy}]`,
+        repositoryId: req.repository.id
+      });
+      setFlash(req, 'success', req.t('Repository file access time setting saved.'));
+      return res.redirect(`/repositories/${req.repository.id}/settings`);
+    } catch (error) {
+      db.prepare(`
+        UPDATE repositories SET update_file_access_time = ? WHERE id = ?
+      `).run(previousValue, req.repository.id);
+      return next(error);
+    }
+  });
+
   router.post('/:repositoryId/permissions', requireManager, (req, res) => {
     const userId = Number.parseInt(req.body.userId, 10);
     const user = validatePermissionTarget(db, req.repository, userId);
@@ -353,8 +420,9 @@ export function createRepositoriesRouter(db, config) {
 
         const insertFile = db.prepare(`
           INSERT INTO files (
-            id, repository_id, original_name, stored_name, mime_type, size, uploaded_by
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            id, repository_id, original_name, stored_name, mime_type, size, uploaded_by,
+            initial_access_time_ms
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         try {
@@ -367,7 +435,8 @@ export function createRepositoriesRouter(db, config) {
               file.filename,
               file.mimetype || 'application/octet-stream',
               file.size,
-              req.currentUser.id
+              req.currentUser.id,
+              readInitialAccessTimeMs(file.path)
             );
           }
           db.exec('COMMIT');
@@ -404,7 +473,7 @@ export function createRepositoriesRouter(db, config) {
     }
 
     try {
-      const absolutePath = safeStoredPath(config, req.repository.id, file.stored_name);
+      const absolutePath = resolveStoredFilePath(config, req.repository.id, file.stored_name);
       if (!fs.existsSync(absolutePath)) {
         return res.status(410).json({
           error: req.t('The file record exists, but its data could not be found on disk.')
@@ -415,21 +484,30 @@ export function createRepositoriesRouter(db, config) {
       res.set('Cache-Control', 'private, no-store');
 
       if (previewKind === 'pdf') {
+        const tracker = createFileAccessTracker(db, req.repository, file, absolutePath);
         res.type('application/pdf');
         res.set('Content-Disposition', inlineContentDisposition(file.original_name));
         return res.sendFile(absolutePath, (error) => {
-          if (error && !res.headersSent) next(error);
+          finishStreamedFileAccess(tracker, error, res, next);
         });
       }
 
       if (previewKind === 'xlsx') {
-        const stats = fs.statSync(absolutePath);
-        const preview = await createXlsxPreview(absolutePath, stats, req.query.sheet);
+        const tracker = createFileAccessTracker(db, req.repository, file, absolutePath);
+        const preview = await withTrackedFileAccess(tracker, async () => {
+          const stats = fs.statSync(absolutePath);
+          return createXlsxPreview(absolutePath, stats, req.query.sheet);
+        });
         return res.json(preview);
       }
 
       if (previewKind === 'zip') {
-        return res.json(await createZipPreview(absolutePath));
+        const tracker = createFileAccessTracker(db, req.repository, file, absolutePath);
+        const preview = await withTrackedFileAccess(
+          tracker,
+          () => createZipPreview(absolutePath)
+        );
+        return res.json(preview);
       }
 
       return res.status(415).json({ error: req.t('Preview is not available for this file type.') });
@@ -456,7 +534,7 @@ export function createRepositoriesRouter(db, config) {
     }
 
     try {
-      const absolutePath = safeStoredPath(config, req.repository.id, file.stored_name);
+      const absolutePath = resolveStoredFilePath(config, req.repository.id, file.stored_name);
       if (!fs.existsSync(absolutePath)) {
         return res.status(410).render('error', {
           title: req.t('File data missing'),
@@ -464,8 +542,9 @@ export function createRepositoriesRouter(db, config) {
           message: req.t('The file record exists, but its data could not be found on disk.')
         });
       }
+      const tracker = createFileAccessTracker(db, req.repository, file, absolutePath);
       return res.download(absolutePath, file.original_name, (error) => {
-        if (error && !res.headersSent) next(error);
+        finishStreamedFileAccess(tracker, error, res, next);
       });
     } catch (error) {
       return next(error);
@@ -483,7 +562,7 @@ export function createRepositoriesRouter(db, config) {
         return res.redirect(`/repositories/${req.repository.id}`);
       }
 
-      const absolutePath = safeStoredPath(config, req.repository.id, file.stored_name);
+      const absolutePath = resolveStoredFilePath(config, req.repository.id, file.stored_name);
       fs.rmSync(absolutePath, { force: true });
       db.prepare('DELETE FROM files WHERE id = ?').run(file.id);
 
