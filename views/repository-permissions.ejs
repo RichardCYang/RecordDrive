@@ -26,7 +26,7 @@
           <span><strong><%= t('View') %></strong><small><%= t('Open the repository and see file metadata.') %></small></span>
           <span><strong><%= t('Upload') %></strong><small><%= t('Add files through the upload endpoint.') %></small></span>
           <span><strong><%= t('Download') %></strong><small><%= t('Download stored file contents.') %></small></span>
-          <span><strong><%= t('Delete') %></strong><small><%= t('Delete files and permanently delete the repository.') %></small></span>
+          <span><strong><%= t('Delete') %></strong><small><%= t('Delete stored files.') %></small></span>
         </div>
       </section>
 
@@ -50,7 +50,7 @@
                 <label><input type="checkbox" name="canView" value="1"><span><strong><%= t('View') %></strong><small><%= t('Open and browse') %></small></span></label>
                 <label><input type="checkbox" name="canUpload" value="1"><span><strong><%= t('Upload') %></strong><small><%= t('Add new files') %></small></span></label>
                 <label><input type="checkbox" name="canDownload" value="1"><span><strong><%= t('Download') %></strong><small><%= t('Retrieve file data') %></small></span></label>
-                <label class="permission-danger"><input type="checkbox" name="canDelete" value="1"><span><strong><%= t('Delete') %></strong><small><%= t('Files and repository') %></small></span></label>
+                <label class="permission-danger"><input type="checkbox" name="canDelete" value="1"><span><strong><%= t('Delete') %></strong><small><%= t('Files only') %></small></span></label>
               </fieldset>
               <button class="button button-primary button-block" type="submit"><%= t('Save permission grant') %></button>
             </form>

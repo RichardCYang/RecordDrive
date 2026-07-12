@@ -72,7 +72,7 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
               </a>
             <% } %>
-            <% if (repositoryPermissions.delete) { %>
+            <% if (repositoryPermissions.canManage) { %>
               <form action="/repositories/<%= repository.id %>/delete" method="post" data-confirm="<%= t('Permanently delete this repository and every stored file? This action cannot be undone.') %>">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <button class="explorer-icon-action explorer-icon-danger" type="submit" title="<%= t('Delete repository') %>" aria-label="<%= t('Delete repository') %>">

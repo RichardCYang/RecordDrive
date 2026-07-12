@@ -24,47 +24,13 @@ import { fileKind, filePreviewKind, formatBytes, formatDate } from './utils.js';
 import { languageMiddleware } from './i18n.js';
 import { createSettingsRouter } from './routes/settings.js';
 import { UploadCsrfError, UploadQuotaError } from './upload-storage.js';
+import { normalizeAndValidateStorageConfiguration } from './storage-path-security.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
 
-function isSameOrDescendant(parentPath, candidatePath) {
-  const relative = path.relative(path.resolve(parentPath), path.resolve(candidatePath));
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-}
-
-function validateStorageConfiguration(config) {
-  const uploadRoot = path.resolve(config.uploadRoot);
-  const databasePath = path.resolve(config.dbPath);
-  const databaseDirectory = path.dirname(databasePath);
-  const filesystemRoot = path.parse(uploadRoot).root;
-  const protectedDirectories = [
-    path.join(projectRoot, '.git'),
-    path.join(projectRoot, 'public'),
-    path.join(projectRoot, 'src'),
-    path.join(projectRoot, 'views')
-  ];
-
-  if (uploadRoot === filesystemRoot || isSameOrDescendant(uploadRoot, projectRoot)) {
-    throw new Error('UPLOAD_ROOT cannot be a filesystem root, the project root, or a parent of the project.');
-  }
-  if (databaseDirectory === path.parse(databaseDirectory).root
-    || isSameOrDescendant(databaseDirectory, projectRoot)) {
-    throw new Error('DB_PATH cannot use a filesystem root, the project root, or a parent of the project as its directory.');
-  }
-  for (const protectedDirectory of protectedDirectories) {
-    if (isSameOrDescendant(protectedDirectory, uploadRoot)) {
-      throw new Error('UPLOAD_ROOT cannot be inside a source, static, view, or Git metadata directory.');
-    }
-    if (isSameOrDescendant(protectedDirectory, databasePath)) {
-      throw new Error('DB_PATH cannot be inside a source, static, view, or Git metadata directory.');
-    }
-  }
-}
-
 export function createApplication(options = {}) {
-  const config = options.config || loadConfig(options.env);
-  validateStorageConfiguration(config);
+  const config = normalizeAndValidateStorageConfiguration(options.config || loadConfig(options.env));
   const db = options.db || createDatabase(config);
   if (config.adminAccessDisabled) purgeAdministratorSessions(db);
   const runtimeControl = options.runtimeControl || {};
@@ -76,6 +42,7 @@ export function createApplication(options = {}) {
   app.disable('x-powered-by');
   app.set('view engine', 'ejs');
   app.set('views', path.join(projectRoot, 'views'));
+  app.set('json escape', true);
   if (config.trustProxy !== undefined && config.trustProxy !== false) {
     app.set('trust proxy', config.trustProxy);
   }
@@ -95,6 +62,11 @@ export function createApplication(options = {}) {
       }
     }
   }));
+  app.use((req, res, next) => {
+    if (!config.isProduction || req.secure) return next();
+    res.set('Cache-Control', 'no-store');
+    return res.status(426).type('text/plain').send('HTTPS is required in production.');
+  });
   app.use(express.static(path.join(projectRoot, 'public'), {
     maxAge: config.isProduction ? '7d' : 0,
     etag: true

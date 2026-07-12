@@ -51,23 +51,23 @@ A repository owner or administrator can grant any combination of the following p
 | `View` | Open the repository and view file metadata |
 | `Upload` | Add files through the upload endpoint |
 | `Download` | Download stored file contents |
-| `Delete` | Delete files and permanently delete the repository |
+| `Delete` | Delete stored files; repository deletion remains limited to the owner and administrators |
 
 Permissions are checked independently on every server request. A user with no `View` permission cannot discover or open another user's repository through the dashboard or a direct repository URL. A permission such as `Download` or `Upload` can technically be granted without `View`, but that user will not see the repository in the dashboard.
 
 ## Security behavior
 
 - Access is denied by default unless the requester is an administrator, the repository owner, or has the required explicit permission.
-- Repository access is checked on every view, upload, download, file deletion, repository deletion, and permission-management request.
+- Repository access is checked on every view, upload, download, file deletion, repository deletion, and permission-management request. Repository deletion is restricted to the owner and administrators.
 - Unauthorized repository requests return a generic not-found response to avoid exposing repository existence.
 - Uploaded files receive generated storage names and are stored outside the public web directory.
-- Stored files are opened with symbolic-link following disabled, and repository/database storage paths reject symbolic links.
+- Stored files are opened with symbolic-link following disabled. Storage paths are canonicalized, symbolic-link ancestors are rejected during use, and repository/database paths reject symbolic links.
 - File names shown to users are normalized and length-limited.
 - File size, per-request file count, repository storage, and total storage limits are configurable. Upload CSRF validation and quota checks occur before and during disk writes, and multipart field nesting is disabled.
-- Production session cookies require HTTPS, and authenticated sessions have both rolling idle expiration and a server-enforced absolute lifetime. CSRF protection, Helmet headers, bcrypt password hashing, and login/MFA rate limiting are enabled.
+- Production rejects non-HTTPS application requests before static files, body parsing, sessions, or authentication are reached. Session cookies require HTTPS, and authenticated sessions have both rolling idle expiration and a server-enforced absolute lifetime. CSRF protection, Helmet headers, bcrypt password hashing, and login/MFA rate limiting are enabled.
 - TOTP secrets, saved TLS passphrases, and one-time recovery-code display data are protected with authenticated encryption.
 - Administrators can enable native HTTPS, validate Posh-ACME certificate files, redirect HTTP requests, and reload renewed certificates without interrupting existing TLS connections. Corrupt or undecryptable saved TLS settings stop startup instead of silently disabling HTTPS.
-- Startup rejects database and upload paths that point at filesystem roots, project parents, static files, source files, views, or Git metadata.
+- Startup resolves storage paths through existing filesystem ancestors and rejects filesystem roots, project parents, static files, source files, views, Git metadata, symbolic-link final components, and any database path inside the upload root.
 
 ## Two-step verification
 
@@ -152,7 +152,7 @@ Change the administrator password and `SESSION_SECRET` before exposing the servi
 | `TLS_PASSPHRASE` | Empty | Initial private key or PFX passphrase |
 | `TLS_AUTO_RELOAD` | `true` | Automatically reload renewed certificate files |
 | `TLS_RELOAD_INTERVAL_MINUTES` | `5` | Certificate file change check interval |
-| `NODE_ENV` | `development` | Enables production error behavior and static asset caching |
+| `NODE_ENV` | `development` | Enables production validation, secure transport enforcement, production error behavior, and static asset caching |
 | `TRUST_PROXY` | `false` | Explicit Express proxy trust setting; use a hop count or comma-separated trusted addresses/subnets only when required |
 | `SESSION_SECRET` | Example value | Secret used to sign session cookies |
 | `ADMIN_ACCESS_DISABLED` | `false` | Disables administrator creation, login, sessions, privileges, and `/admin` routes when set to `true`, `on`, `yes`, or `1` |
@@ -173,8 +173,8 @@ Change the administrator password and `SESSION_SECRET` before exposing the servi
 | `MAX_SESSIONS_PER_USER` | `10` | Maximum active authenticated or pending-MFA sessions retained per account |
 | `SESSION_IDLE_HOURS` | `12` | Rolling inactivity lifetime for a server-side session |
 | `SESSION_ABSOLUTE_HOURS` | `168` | Maximum authenticated session lifetime regardless of activity |
-| `DB_PATH` | `./data/recorddrive.db` | SQLite database path |
-| `UPLOAD_ROOT` | `./data/uploads` | Uploaded file storage directory |
+| `DB_PATH` | `./data/recorddrive.db` | SQLite database path; it must remain outside `UPLOAD_ROOT` |
+| `UPLOAD_ROOT` | `./data/uploads` | Uploaded file storage directory; it must not contain `DB_PATH` |
 
 Every environment other than `development` and `test` uses production validation. Startup rejects a weak session secret, a weak or bcrypt-truncated bootstrap administrator password, and a separately configured MFA encryption key shorter than 32 UTF-8 bytes.
 
@@ -266,6 +266,7 @@ RecordDrive/
 │   ├── repository-access.js
 │   ├── repository-service.js
 │   ├── session-store.js
+│   ├── storage-path-security.js
 │   ├── upload-storage.js
 │   ├── middleware/
 │   └── routes/
@@ -279,7 +280,7 @@ RecordDrive/
 
 ## Deployment notes
 
-Use either the native HTTPS listener or a trusted HTTPS reverse proxy with `NODE_ENV=production`. Production authentication cookies are always marked `Secure`, so plain HTTP authentication is intentionally unsupported. Proxy trust is disabled by default; set `TRUST_PROXY` only when the exact proxy topology is known, because forwarded client and protocol headers are otherwise attacker-controlled. Universal trust values such as `true` are rejected. Keep secrets outside source control, protect the persistent data volume and certificate files with filesystem permissions, and maintain regular backups.
+Use either the native HTTPS listener or a trusted HTTPS reverse proxy with `NODE_ENV=production`. The application returns HTTP 426 for every request that Express does not recognize as HTTPS, and this check runs before static serving, body parsing, sessions, and authentication. Production authentication cookies are also always marked `Secure`. Proxy trust is disabled by default; set `TRUST_PROXY` only when the exact proxy topology is known, because forwarded client and protocol headers are otherwise attacker-controlled. Universal trust values such as `true` are rejected. Do not expose the application listener directly when it is configured to trust a reverse proxy. Keep secrets outside source control, protect the persistent data volume and certificate files with filesystem permissions, and maintain regular backups.
 
 Browser upload forms already place `_csrf` before file parts. Custom multipart clients must do the same or send the token in the `X-CSRF-Token` header so the request can be authenticated before any file bytes are opened on disk.
 

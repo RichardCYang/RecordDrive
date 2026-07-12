@@ -677,7 +677,7 @@ export function createRepositoriesRouter(db, config) {
     }
   });
 
-  router.post('/:repositoryId/delete', requireDelete, (req, res, next) => {
+  router.post('/:repositoryId/delete', requireManager, (req, res, next) => {
     try {
       deleteRepository(db, config, req.repository, req.currentUser.id);
       setFlash(req, 'success', req.t('Deleted the {{name}} repository and its files.', { name: req.repository.name }));

@@ -289,6 +289,17 @@ test('supports personal repositories and independent per-user permissions', asyn
     .expect(404);
 
   const delegatedRepositoryId = await createRepository(ownerAgent, 'Delegated Deletion Repository');
+  const delegatedOwnerPage = await ownerAgent.get(`/repositories/${delegatedRepositoryId}`).expect(200);
+  await ownerAgent
+    .post(`/repositories/${delegatedRepositoryId}/upload`)
+    .field('_csrf', csrfFrom(delegatedOwnerPage.text))
+    .attach('files', Buffer.from('Delegated file deletion contents'), 'delegated-delete.txt')
+    .expect(302);
+  const delegatedFile = db.prepare(`
+    SELECT * FROM files WHERE repository_id = ? AND original_name = ?
+  `).get(delegatedRepositoryId, 'delegated-delete.txt');
+  assert.ok(delegatedFile);
+
   await grantPermissions(ownerAgent, delegatedRepositoryId, deleteDelegate.id, {
     view: true,
     delete: true
@@ -297,11 +308,28 @@ test('supports personal repositories and independent per-user permissions', asyn
   await login(deleteAgent, deleteDelegate.username, 'DeletePassword123!');
   const delegatedPage = await deleteAgent.get(`/repositories/${delegatedRepositoryId}`).expect(200);
   assert.match(delegatedPage.text, /data-selected-delete/);
+  assert.doesNotMatch(delegatedPage.text, /aria-label="Delete repository"/);
   const deleteCsrf = csrfFrom(delegatedPage.text);
+  await deleteAgent
+    .post(`/repositories/${delegatedRepositoryId}/files/${delegatedFile.id}/delete`)
+    .type('form')
+    .send({ _csrf: deleteCsrf })
+    .expect(302)
+    .expect('Location', `/repositories/${delegatedRepositoryId}`);
+  assert.equal(db.prepare('SELECT 1 FROM files WHERE id = ?').get(delegatedFile.id), undefined);
+
   await deleteAgent
     .post(`/repositories/${delegatedRepositoryId}/delete`)
     .type('form')
     .send({ _csrf: deleteCsrf })
+    .expect(404);
+  assert.ok(db.prepare('SELECT 1 FROM repositories WHERE id = ?').get(delegatedRepositoryId));
+
+  const delegatedOwnerDeletePage = await ownerAgent.get(`/repositories/${delegatedRepositoryId}`).expect(200);
+  await ownerAgent
+    .post(`/repositories/${delegatedRepositoryId}/delete`)
+    .type('form')
+    .send({ _csrf: csrfFrom(delegatedOwnerDeletePage.text) })
     .expect(302)
     .expect('Location', '/');
   assert.equal(db.prepare('SELECT 1 FROM repositories WHERE id = ?').get(delegatedRepositoryId), undefined);

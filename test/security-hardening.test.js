@@ -633,6 +633,16 @@ test('marks production authentication cookies as secure', async (t) => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
+  const plainLogin = await request(app).get('/login').expect(426);
+  assert.equal(plainLogin.text, 'HTTPS is required in production.');
+  assert.equal(plainLogin.headers['set-cookie'], undefined);
+  await request(app).get('/styles.css').expect(426);
+  await request(app)
+    .post('/login')
+    .type('form')
+    .send({ username: 'admin', password: 'TestPassword123!' })
+    .expect(426);
+
   const page = await request(app)
     .get('/login')
     .set('X-Forwarded-Proto', 'https')
@@ -708,6 +718,52 @@ test('rejects storage paths that could expose data or alter protected directorie
       }),
       /UPLOAD_ROOT cannot be a filesystem root/
     );
+
+    const nestedUploadRoot = path.join(tempRoot, 'nested-uploads');
+    const databaseInsideUploadRoot = path.join(nestedUploadRoot, '1', 'recorddrive.db');
+    assert.throws(
+      () => createApplication({
+        config: {
+          ...base,
+          uploadRoot: nestedUploadRoot,
+          dbPath: databaseInsideUploadRoot
+        }
+      }),
+      /DB_PATH cannot be inside UPLOAD_ROOT/
+    );
+    assert.throws(
+      () => createDatabase({
+        ...base,
+        uploadRoot: nestedUploadRoot,
+        dbPath: databaseInsideUploadRoot
+      }),
+      /DB_PATH cannot be inside UPLOAD_ROOT/
+    );
+
+    const projectAlias = path.join(tempRoot, 'project-alias');
+    try {
+      fs.symlinkSync(path.resolve('.'), projectAlias, process.platform === 'win32' ? 'junction' : 'dir');
+      assert.throws(
+        () => createApplication({
+          config: {
+            ...base,
+            uploadRoot: path.join(projectAlias, 'public', 'linked-uploads')
+          }
+        }),
+        /UPLOAD_ROOT cannot be inside/
+      );
+      assert.throws(
+        () => createApplication({
+          config: {
+            ...base,
+            dbPath: path.join(projectAlias, 'public', 'linked-recorddrive.db')
+          }
+        }),
+        /DB_PATH cannot be inside/
+      );
+    } catch (error) {
+      if (!['EPERM', 'EACCES', 'ENOSYS'].includes(error.code)) throw error;
+    }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

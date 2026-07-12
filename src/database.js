@@ -4,11 +4,20 @@ import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
 import { purgeAdministratorSessions } from './admin-access.js';
 import { ensureSecureUploadRoot, openStoredFile, readInitialAccessTimeMs } from './file-access-time.js';
+import { normalizeAndValidateStorageConfiguration } from './storage-path-security.js';
+
+function comparablePath(targetPath) {
+  const resolved = path.resolve(targetPath);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
 
 function requireSecureDatabasePath(databaseDirectory, databasePath) {
   const directoryStats = fs.lstatSync(databaseDirectory, { throwIfNoEntry: false });
   if (!directoryStats || directoryStats.isSymbolicLink() || !directoryStats.isDirectory()) {
     throw new Error('The database directory must be a real directory and cannot be a symbolic link.');
+  }
+  if (comparablePath(fs.realpathSync(databaseDirectory)) !== comparablePath(databaseDirectory)) {
+    throw new Error('The database directory must use a canonical path without symbolic-link ancestors.');
   }
 
   const databaseStats = fs.lstatSync(databasePath, { throwIfNoEntry: false });
@@ -27,7 +36,8 @@ function restrictPermissions(targetPath, mode, options = {}) {
   }
 }
 
-export function createDatabase(config) {
+export function createDatabase(providedConfig) {
+  const config = normalizeAndValidateStorageConfiguration(providedConfig);
   const databaseDirectory = path.dirname(config.dbPath);
   fs.mkdirSync(databaseDirectory, { recursive: true, mode: 0o700 });
   requireSecureDatabasePath(databaseDirectory, config.dbPath);

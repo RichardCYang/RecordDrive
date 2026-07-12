@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import process from 'node:process';
 
 const ACCESS_TIME_TOLERANCE_MS = 0.5;
 const MAX_STORED_NAME_BYTES = 255;
@@ -34,11 +35,19 @@ function lstatIfPresent(targetPath) {
   return fs.lstatSync(targetPath, { throwIfNoEntry: false });
 }
 
+function comparablePath(targetPath) {
+  const resolved = path.resolve(targetPath);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
 function requireSecureDirectory(directoryPath, label) {
   const stats = lstatIfPresent(directoryPath);
   if (!stats) throw new Error(`${label} does not exist.`);
   if (stats.isSymbolicLink()) throw new Error(`${label} cannot be a symbolic link.`);
   if (!stats.isDirectory()) throw new Error(`${label} must be a directory.`);
+  if (comparablePath(fs.realpathSync(directoryPath)) !== comparablePath(directoryPath)) {
+    throw new Error(`${label} must use a canonical path without symbolic-link ancestors.`);
+  }
   return stats;
 }
 

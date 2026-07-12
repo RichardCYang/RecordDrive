@@ -4,83 +4,90 @@ Review date: 2026-07-12
 
 ## Scope
 
-This review covered the Node.js application source, middleware order, authentication and MFA flows, session persistence, multipart parsing, upload and download paths, preview processing, SQLite access, TLS configuration, deployment files, dependency metadata, automated tests, and the complete Git metadata retained in `.git`.
+This review covered the supplied Node.js application, Express middleware order, authentication and MFA state transitions, session storage, CSRF enforcement, repository authorization, multipart upload streaming, file download and deletion paths, XLSX and ZIP preview processing, SQLite use, TLS and reverse-proxy behavior, dependency metadata, automated tests, deployment files, and the retained Git metadata in `.git`.
 
-The supplied working tree already contained extensive security hardening. Those controls were retained, and the current review concentrated on remaining fail-open behavior, resource exhaustion before validation, dangerous deployment-path configurations, and session lifetime controls.
+The supplied project already contained substantial security hardening. This review preserved those controls and focused on remaining high-impact failure modes that could expose credentials, destroy service data, bypass path policy through filesystem aliases, or grant excessive destructive authorization.
 
-## Remediated findings in this review
+## Remediated findings
 
-### High: Upload bytes reached disk before CSRF and quota enforcement
+### High: Production accepted application requests over plaintext HTTP
 
-The previous Multer `diskStorage` flow opened and wrote uploaded files before the route could validate the multipart CSRF field. Repository and service storage quotas were also checked only after all request files had been written. An authenticated uploader with little remaining quota, or a forged multipart request, could therefore consume substantial temporary disk space before rejection. Repeated or concurrent requests could pressure the filesystem even when database-tracked quotas eventually rejected every upload.
+Production session cookies were marked `Secure`, but the application still rendered the login page and parsed authentication requests over plaintext HTTP. A deployment with native HTTPS disabled, a missing redirect, or an incorrectly configured reverse proxy could therefore transmit passwords, TOTP codes, recovery keys, CSRF tokens, and uploaded data without transport encryption even though the resulting session cookie might not persist.
 
-A custom quota-aware Multer storage engine now validates the CSRF token before opening a destination file. Browser forms send the hidden token before file parts, and non-browser clients can send `X-CSRF-Token`. The storage engine reserves file-count capacity, accounts for bytes on every streamed chunk, stops the stream as soon as a repository, service, or per-file limit would be exceeded, removes partial files, and releases reservations on every error path. Files are created with random names, exclusive creation, owner-only mode, and `O_NOFOLLOW` where available. The immediate SQLite transaction and final authoritative quota check remain in place as a second layer against races and multi-process writers.
+Production now rejects every request that Express does not recognize as HTTPS with HTTP 426 and an English plain-text response. The guard runs after security headers but before static serving, body parsers, language processing, sessions, CSRF, and authentication. Native HTTP-to-HTTPS redirection continues to work at the network-listener layer when enabled. Reverse-proxy deployments must configure a constrained `TRUST_PROXY` value and must not expose the trusted application listener directly.
 
-### High: Saved TLS settings failed open to HTTP defaults
+### High: A database path inside the upload root could be deleted with a repository
 
-When a saved TLS row was malformed or could not be decrypted, the application logged a warning and silently returned environment defaults. A damaged database value, lost encryption key, or incorrect key rotation could therefore disable previously configured HTTPS and allow the service to restart with an unintended transport configuration.
+The previous storage validation did not reject `DB_PATH` inside `UPLOAD_ROOT`. For example, a database configured as `<upload-root>/1/recorddrive.db` could be recursively removed when repository `1` was deleted. The same configuration could also place SQLite journal files inside repository-managed storage.
 
-Saved TLS settings now fail closed. Parsing or authenticated-decryption failure stops application startup with a generic English error that does not expose secret material. Valid saved passphrases remain encrypted with purpose-bound AES-256-GCM protection.
+Startup now rejects any database path that is equal to or below the upload root. The validation is used by both application creation and direct database creation, so callers cannot bypass it by invoking the database module separately.
 
-### High: Storage paths could expose data or change broad filesystem permissions
+### High: Symbolic-link ancestors bypassed protected storage-path checks
 
-`DB_PATH` and `UPLOAD_ROOT` were configurable absolute paths. A dangerous value could place the SQLite database or uploaded files under the static public directory, inside source or Git metadata, at a filesystem root, or at a parent of the project. Startup permission hardening could then make broad `chmod` changes, while static serving could disclose databases or uploaded content.
+Storage paths were compared lexically. A path such as `/temporary/project-link/public/uploads`, where `project-link` resolved to the application directory, could pass the original check even though the effective location was inside the public static directory. The same pattern could target source, views, Git metadata, or other protected paths.
 
-Startup now rejects filesystem roots, the project root and its parents, and paths inside `public`, `src`, `views`, or `.git`. Validation runs before database or upload directory creation and before permission changes.
+Storage paths are now resolved through the nearest existing filesystem ancestor before policy checks. Final symbolic-link components remain forbidden. After directories are created, their real paths must match the validated canonical paths, and the upload root and repository directories are rechecked during file operations. This closes the ancestor-alias bypass while retaining support for paths whose final components do not exist at startup.
 
-### Medium: Production session cookies could be emitted without `Secure`
+### High: Shared file-delete permission also allowed repository deletion
 
-The session cookie previously used Express Session's automatic transport mode in every environment. A production instance reached over plain HTTP could issue an authentication cookie without the `Secure` attribute.
+A shared user granted the `Delete` capability could delete individual files and also permanently delete the entire repository. This combined a routine content-management permission with an ownership-level destructive action and violated least privilege.
 
-Production cookies now always use `Secure`, while development and test retain automatic behavior. Native HTTPS or an explicitly trusted HTTPS reverse proxy is therefore required for production authentication. Existing `HttpOnly`, `SameSite=Strict`, high-priority, non-default cookie-name, and server-side storage protections remain enabled.
+The `Delete` grant now applies only to stored files. Repository deletion requires repository-manager access, which is limited to the repository owner and enabled administrators. The repository page no longer displays the repository-delete control to a shared user, and the server independently rejects direct deletion requests with the same non-enumerating not-found behavior used by other unauthorized repository operations.
 
-### Medium: Rolling sessions had no absolute lifetime
+### Low: JSON responses did not enable Express character escaping
 
-The session cookie used a rolling 12-hour idle lifetime. Continuous activity could keep a stolen session valid indefinitely.
+Express JSON character escaping was not enabled. Current JSON responses are consumed as JSON rather than embedded as executable HTML, but enabling escaping provides an additional defense against unsafe future embedding of user-controlled values.
 
-`SESSION_IDLE_HOURS` now controls the rolling idle lifetime and `SESSION_ABSOLUTE_HOURS` controls a server-enforced maximum lifetime regardless of activity. Authentication and pending-MFA session creation timestamps are persisted, legacy sessions are migrated from existing trusted timestamps, and expired sessions are regenerated or rejected before authorization and CSRF middleware continue.
-
-### Medium: Security-password confirmation accepted unbounded bcrypt input
-
-The main login route bounded password bytes before bcrypt, but the password-confirmation route used for security settings did not. Large form values could cause avoidable allocation and hashing work.
-
-Security-password confirmation now rejects inputs over 1,024 UTF-8 bytes before bcrypt comparison while preserving the existing attempt limiter.
+The application now enables Express `json escape`, causing `<`, `>`, and `&` to be emitted as Unicode escape sequences in JSON responses.
 
 ## Previously hardened controls verified
 
 The retained code already provided the following material protections:
 
-- Anonymous login CSRF tokens do not create server-side sessions, and per-account session counts are bounded.
-- Password login, TOTP, recovery-code, and WebAuthn flows have independent rate limiting and session regeneration.
-- Repository authorization is checked per operation, with not-found responses used to reduce repository enumeration.
-- Stored names are generated by the application, original names are normalized, and stored files are opened through validated repository paths and file descriptors.
-- Symbolic-link database, upload-root, repository-directory, and stored-file paths are rejected; regular-file checks use `fstat`.
-- Database files, upload directories, and uploaded files receive owner-only permissions where supported.
-- Spreadsheet and ZIP previews have compressed-size, expansion, entry, text, metadata, and concurrency limits.
-- TLS passphrases, TOTP secrets, and temporary recovery-code displays use authenticated encryption.
-- Production secrets, bootstrap credentials, proxy trust, WebAuthn origin, and runtime floors receive explicit validation.
-- Helmet, a restrictive Content Security Policy, custom error pages, disabled `X-Powered-By`, strict CSRF checks, safe internal redirects, and non-cacheable authenticated responses are enabled.
+- Anonymous login CSRF tokens do not create server-side sessions, and active authentication sessions are bounded per account.
+- Password, TOTP, recovery-code, and WebAuthn flows use rate limiting, session regeneration, bounded input, and explicit state transitions.
+- Session cookies use a non-default name, `HttpOnly`, `SameSite=Strict`, high priority, production `Secure`, rolling idle expiration, and a server-enforced absolute lifetime.
+- Repository permissions are checked independently on every operation, and unauthorized repository access returns a generic not-found response.
+- Multipart CSRF validation occurs before destination files are opened. Upload storage enforces per-file, per-request, repository, and service limits while streaming, removes partial files, and uses random exclusive names with owner-only permissions.
+- Stored file names and repository identifiers are validated. File opens use `O_NOFOLLOW` where available and verify regular files with `fstat`.
+- Database files, upload directories, repository directories, and uploaded files receive owner-only modes where supported.
+- XLSX and ZIP previews enforce compressed-size, expansion, entry-count, metadata, output-text, and concurrency limits.
+- TOTP secrets, saved TLS passphrases, and temporary recovery-code display bundles use authenticated encryption.
+- Saved TLS settings fail closed when parsing or decryption fails.
+- Production secrets, bootstrap credentials, proxy trust, WebAuthn origin, and supported Node.js runtime floors receive explicit validation.
+- Helmet, a restrictive Content Security Policy, disabled `X-Powered-By`, safe internal redirects, bounded body parsers, CSRF checks, and non-cacheable authenticated responses are enabled.
 
-## Dependency and history review
+## Dependency and supply-chain review
 
-`npm ci --ignore-scripts` completed successfully. `npm audit --json` reported zero known vulnerabilities in the installed production and development dependency graph at review time, and `npm outdated --json` reported no available direct dependency updates under the declared ranges.
+`npm ci --ignore-scripts` completed successfully. `npm audit --omit=dev --json` reported zero known vulnerabilities across 247 production dependencies and 266 total installed dependencies at review time.
 
-Multer is pinned at 2.2.0, which is newer than the 2.1.1 patched release for the March 2026 uncontrolled-recursion denial-of-service advisory. Deprecated transitive packages remain under ExcelJS's archive dependencies, but they did not produce a known-vulnerability finding in the audit. They should still be removed when ExcelJS publishes a compatible dependency refresh.
+Multer is pinned to 2.2.0, which contains the fix for malformed or incomplete multipart requests leaving orphaned files. The package engine floor is Node.js 22.23.0, 24.17.0, or 26.3.1 within those release lines, matching the security-patched runtime floors declared by the project. The Docker image uses Node.js 24.18.0.
 
-The retained Git history was scanned for common private-key, cloud-key, GitHub-token, OpenAI-key, and long secret-assignment patterns. Only documented sample values were found. The `.git` directory, refs, objects, logs, configuration, and current uncommitted working-tree state remain present in the final archive.
+The available analysis runtime was Node.js 22.16.0, which is below the declared production floor. All tests passed there, but deployment must use a supported patched runtime such as the provided Docker image or a version satisfying `package.json`.
 
-## Validation
+The retained Git history was scanned for common private-key blocks, cloud credentials, GitHub tokens, OpenAI-style keys, and long secret assignments. Only documented sample values were found. Because `.git` intentionally remains in the deliverable, the archive must still be treated as source history and stored only in a trusted location.
 
-The final test suite contains 30 passing integration and regression tests. New coverage verifies pre-write upload CSRF enforcement, quota-aware multi-file streaming, quota cleanup, fail-closed TLS settings, production `Secure` session cookies, absolute session expiration, and rejection of dangerous database and upload paths.
+## Validation performed
 
-Validation also includes syntax checking for every JavaScript file, a clean dependency installation with lifecycle scripts disabled, production and full dependency audits, direct dependency update checks, static searches for command execution and unescaped template output, Git integrity checks, archive traversal and symbolic-link checks, and final ZIP integrity verification.
+- All 30 Node.js integration and regression tests pass.
+- New regression coverage verifies plaintext production rejection before static and authentication processing, secure cookies behind an explicitly trusted HTTPS proxy, canonical storage-path enforcement, protected-directory alias rejection, database/upload-root separation, file-only delegated deletion, and owner-only repository deletion.
+- Every JavaScript source and test file passes `node --check`.
+- Production dependency audit reports zero known vulnerabilities.
+- Static searches found no child-process execution, shell command construction, dynamic code evaluation, or server-side URL-fetch functionality.
+- SQL fragments built dynamically are limited to application-controlled allowlisted clauses; user data remains bound through SQLite parameters.
+- Unescaped EJS output is limited to intentional partial includes; user-controlled values use escaped output or safe DOM text assignment.
+- Git integrity and archive integrity are checked before packaging, and `.git` is retained.
 
 ## Residual operational risks
 
-Uploaded files are not malware-scanned. High-exposure deployments should quarantine and scan content before it becomes downloadable and should move complex document preview work into sandboxed workers with CPU, memory, and wall-clock limits.
+Uploaded files are not malware-scanned. Internet-facing deployments should quarantine and scan uploads before download and should run complex document preview processing in isolated workers with CPU, memory, file, and wall-clock limits.
 
-Rate-limit state and in-flight upload reservations are process-local. Multi-instance deployments require shared rate limiting, shared quota coordination, a networked database, and shared object storage. The final SQLite transaction prevents same-database quota races, but filesystem or volume quotas are still required to account for unrelated files, database growth, logs, backups, and out-of-band modifications.
+Rate-limit state and in-flight upload reservations are process-local. Multi-instance deployments require shared rate limiting, coordinated quotas, shared sessions, a networked database, and shared object storage. Filesystem or volume quotas remain necessary for database growth, logs, backups, temporary files, and out-of-band writes.
 
-Activity logs have no built-in retention policy, and large repository, user, or administrative listings can still increase response and database work within configured record limits. Add retention, pagination, request timeouts, reverse-proxy body limits, and service-level monitoring for internet-facing deployments.
+A reverse proxy must strip untrusted forwarding headers, set the authoritative protocol header, and be the only network path to an application listener configured with `TRUST_PROXY`. A hop-count configuration is unsafe when clients can reach the application directly through a shorter path.
 
-Protect the SQLite database, upload volume, encryption keys, certificates, backups, environment files, and retained Git history with strict host-level access controls. A source archive that includes `.git` should not be published to an untrusted location because history can contain deleted source and operational metadata even when no secret was detected in this review.
+Storage-path checks materially reduce accidental exposure and destructive overlap, but they do not replace host permissions. An attacker who can rename validated parent directories or alter mount topology as the service account can still create filesystem time-of-check/time-of-use conditions. Keep the application directory, database parent, and upload parent non-writable by untrusted users.
+
+Activity logs do not have a built-in retention policy, and large repository, user, or administrative listings can increase response and database work. Add retention, pagination, request timeouts, reverse-proxy body limits, monitoring, backup testing, and recovery procedures for production deployments.
+
+Protect the database, upload volume, encryption keys, certificates, environment files, backups, and retained Git history with strict operating-system access controls. Do not publish the final archive to an untrusted location because Git history can retain deleted source and operational metadata.
