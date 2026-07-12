@@ -149,7 +149,7 @@ test('enabling the flag invalidates an active administrator session and removes 
   assert.equal(access.canManage, false);
 
   await agent.get('/').expect(403);
-  await agent.get('/').expect(302).expect('Location', '/login');
+  await agent.get('/').expect(302).expect('Location', '/login?returnTo=%2F');
 
   const storedSessions = db.prepare('SELECT sess FROM sessions').all().map(({ sess }) => JSON.parse(sess));
   assert.equal(storedSessions.some((session) => Number(session.userId) === Number(administrator.id)), false);

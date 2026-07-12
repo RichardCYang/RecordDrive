@@ -8,6 +8,12 @@ This review covered the Node.js application source, route and middleware orderin
 
 ## Remediated findings
 
+### High: Unauthenticated session-store exhaustion
+
+The login CSRF middleware previously wrote a token into every new Express session. Protected anonymous GET requests also stored a return path in the session. Because either write initialized the session, unauthenticated requests to `/login`, `/health`, missing pages, and protected routes could continuously insert rows into SQLite despite `saveUninitialized: false`. An attacker could therefore consume database space and disk capacity without credentials.
+
+The login page now uses a short-lived, HMAC-signed, HttpOnly, SameSite=Strict double-submit CSRF cookie that does not create a server-side session. Protected GET requests carry a sanitized internal return path in the login query and hidden form field instead of the session. Server-side sessions are created only for authenticated or pending-MFA state, and each account is limited to a configurable number of active sessions. Regression tests verify that repeated anonymous requests leave the session table empty and that older authenticated sessions are pruned.
+
 ### High: Multipart CSRF bypass
 
 The global CSRF middleware previously skipped every `multipart/form-data` request. Only the upload route performed a later token check, so an attacker could submit multipart requests to unrelated state-changing endpoints and bypass CSRF validation.
@@ -30,7 +36,7 @@ XLSX files now receive archive metadata preflight checks for entry count, total 
 
 An authorized uploader could repeatedly fill the storage volume because only per-request file size and file count were limited.
 
-Repository and service-wide storage quotas are now configurable and enforced inside an immediate SQLite transaction. Rejected uploads are removed from disk and are not inserted into the database. Operating-system or volume quotas remain recommended for defense in depth.
+Repository and service-wide byte and file-count quotas are now configurable and enforced inside an immediate SQLite transaction. File-count limits prevent zero-byte or tiny-file floods from exhausting filesystem inodes and SQLite rows while remaining below byte quotas. Rejected uploads are removed from disk and are not inserted into the database. Operating-system or volume quotas remain recommended for defense in depth.
 
 ### Medium: Multipart field nesting and parser limits
 
@@ -74,8 +80,8 @@ The retained Git history was scanned for common private-key, cloud-key, GitHub-t
 
 ## Validation
 
-The test suite contains 22 passing integration and regression tests. Added coverage includes nested multipart rejection, quota cleanup, production-mode secret validation, symbolic-link storage rejection, encrypted TLS passphrase storage, encrypted temporary recovery-code bundles, and XLSX response text limits. Syntax checks, dependency installation, dependency audit, Git whitespace checks, and archive integrity checks are also part of the final validation.
+The test suite contains 25 passing integration and regression tests. Added coverage includes anonymous session-store exhaustion, per-account session pruning, nested multipart rejection, byte and file-count quota cleanup, production-mode secret validation, symbolic-link storage rejection, encrypted TLS passphrase storage, encrypted temporary recovery-code bundles, and XLSX response text limits. Syntax checks, dependency installation, dependency audit, Git whitespace checks, and archive integrity checks are also part of the final validation.
 
 ## Residual operational risks
 
-Uploaded files are not malware-scanned. High-exposure deployments should add quarantine and scanning before files become downloadable, and should move complex document preview generation to a sandboxed worker with CPU, memory, and wall-clock limits. Rate-limit state is process-local, so multi-instance deployments require a shared limiter. Database-tracked quotas do not replace filesystem quotas and cannot account for unrelated files or an out-of-band modified volume. Protect the SQLite database, upload volume, encryption keys, certificates, backups, and the retained Git history with strict host-level access controls.
+Uploaded files are not malware-scanned. High-exposure deployments should add quarantine and scanning before files become downloadable, and should move complex document preview generation to a sandboxed worker with CPU, memory, and wall-clock limits. Rate-limit state is process-local, so multi-instance deployments require a shared limiter. Database-tracked byte and file-count quotas do not replace filesystem quotas and cannot account for unrelated files or an out-of-band modified volume. Protect the SQLite database, upload volume, encryption keys, certificates, backups, and the retained Git history with strict host-level access controls.

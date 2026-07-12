@@ -167,6 +167,9 @@ Change the administrator password and `SESSION_SECRET` before exposing the servi
 | `MAX_FILES_PER_UPLOAD` | `10` | Maximum files accepted in one upload request |
 | `MAX_REPOSITORY_STORAGE_MB` | `10240` | Maximum stored file bytes per repository; `0` disables this quota |
 | `MAX_TOTAL_STORAGE_MB` | `102400` | Maximum stored file bytes across the service; `0` disables this quota |
+| `MAX_REPOSITORY_FILES` | `10000` | Maximum file records per repository; `0` disables this quota |
+| `MAX_TOTAL_FILES` | `100000` | Maximum file records across the service; `0` disables this quota |
+| `MAX_SESSIONS_PER_USER` | `10` | Maximum active authenticated or pending-MFA sessions retained per account |
 | `DB_PATH` | `./data/recorddrive.db` | SQLite database path |
 | `UPLOAD_ROOT` | `./data/uploads` | Uploaded file storage directory |
 

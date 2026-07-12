@@ -1,3 +1,5 @@
+import { safeInternalPath } from '../utils.js';
+
 const LOGIN_WINDOW_MS = 10 * 60 * 1000;
 const MFA_WINDOW_MS = 10 * 60 * 1000;
 const MAX_LOGIN_FAILURES_PER_IP = 20;
@@ -76,7 +78,8 @@ function renderLoginLimit(req, res, retrySeconds) {
     error: req.t('Too many sign-in attempts. Try again in about {{minutes}} minute(s).', {
       minutes: Math.ceil(retrySeconds / 60)
     }),
-    username: req.body?.username || ''
+    username: req.body?.username || '',
+    returnTo: safeInternalPath(req.body?.returnTo, '/')
   });
 }
 

@@ -41,7 +41,8 @@ export function requireAuth(req, res, next) {
   }
   if (!req.currentUser) {
     if (req.method === 'GET' || req.method === 'HEAD') {
-      req.session.returnTo = safeInternalPath(req.originalUrl, '/');
+      const returnTo = safeInternalPath(req.originalUrl, '/');
+      return res.redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
     }
     return res.redirect('/login');
   }

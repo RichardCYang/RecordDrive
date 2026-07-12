@@ -36,7 +36,8 @@ export function purgeAdministratorSessions(db) {
     const referencedUserIds = [
       storedSession?.userId,
       storedSession?.pendingMfa?.userId,
-      storedSession?.webAuthnAuthentication?.userId
+      storedSession?.webAuthnAuthentication?.userId,
+      storedSession?.authenticationFlow?.userId
     ].map(Number);
 
     if (referencedUserIds.some((userId) => administratorIds.has(userId))) {

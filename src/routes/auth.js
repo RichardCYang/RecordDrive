@@ -21,6 +21,7 @@ import {
   verifyAndConsumeTotp
 } from '../security-service.js';
 import { safeInternalPath } from '../utils.js';
+import { pruneUserSessions } from '../session-store.js';
 
 const MFA_CHALLENGE_MAX_AGE_MS = 10 * 60 * 1000;
 const MAX_LOGIN_PASSWORD_BYTES = 1024;
@@ -35,10 +36,24 @@ function parseTransports(value) {
   }
 }
 
+function preserveAuthenticationFlow(req, userId, createdAt = Date.now()) {
+  const normalizedUserId = Number(userId);
+  if (!Number.isSafeInteger(normalizedUserId) || normalizedUserId < 1) {
+    delete req.session.authenticationFlow;
+    return;
+  }
+  req.session.authenticationFlow = {
+    userId: normalizedUserId,
+    createdAt: Number(createdAt) || Date.now()
+  };
+}
+
 function getPendingMfa(req, db, config) {
   const pending = req.session.pendingMfa;
   if (!pending || Date.now() - Number(pending.createdAt || 0) > MFA_CHALLENGE_MAX_AGE_MS) {
+    if (pending) preserveAuthenticationFlow(req, pending.userId, pending.createdAt);
     delete req.session.pendingMfa;
+    delete req.session.returnTo;
     delete req.session.webAuthnAuthentication;
     return null;
   }
@@ -48,27 +63,51 @@ function getPendingMfa(req, db, config) {
     WHERE id = ?
   `).get(pending.userId);
   if (!user || isBlockedAdministrator(config, user)) {
-    clearPendingAuthentication(req);
+    clearPendingAuthentication(req, { preserveUserReference: true });
     return null;
   }
   return { pending, user, state: getMfaState(db, user.id) };
 }
 
-function clearPendingAuthentication(req) {
+function clearPendingAuthentication(req, options = {}) {
+  const referencedUserId = req.session.pendingMfa?.userId
+    ?? req.session.userId
+    ?? req.session.authenticationFlow?.userId;
+  const referencedAt = req.session.pendingMfa?.createdAt
+    ?? req.session.authenticatedAt
+    ?? req.session.authenticationFlow?.createdAt;
+
   delete req.session.userId;
   delete req.session.authenticatedAt;
   delete req.session.pendingMfa;
+  delete req.session.returnTo;
   delete req.session.mfaAttempts;
   delete req.session.webAuthnAuthentication;
+  delete req.session.authenticationFlow;
+  if (options.preserveUserReference) preserveAuthenticationFlow(req, referencedUserId, referencedAt);
 }
 
 function rejectLogin(req, res, username = '', options = {}) {
   const message = req.t('The username or password is incorrect.');
+  const returnTo = safeInternalPath(options.returnTo ?? req.body?.returnTo, '/');
   if (options.json === true) return res.status(401).json({ error: message });
   return res.status(401).render('login', {
     title: req.t('Sign in'),
     error: message,
-    username
+    username,
+    returnTo
+  });
+}
+
+function saveLimitedAuthenticationSession(req, next, db, config, userId, onSaved) {
+  return req.session.save((saveError) => {
+    if (saveError) return next(saveError);
+    try {
+      pruneUserSessions(db, userId, req.sessionID, config.maxSessionsPerUser);
+      return onSaved();
+    } catch (error) {
+      return next(error);
+    }
   });
 }
 
@@ -84,15 +123,17 @@ function completeLogin(req, res, next, db, config, user, returnTo, options = {})
     if (error) return next(error);
     req.session.userId = user.id;
     req.session.authenticatedAt = Date.now();
-    logActivity(db, {
-      actorId: user.id,
-      action: 'LOGIN',
-      targetType: 'USER',
-      targetLabel: user.username
+    return saveLimitedAuthenticationSession(req, next, db, config, user.id, () => {
+      logActivity(db, {
+        actorId: user.id,
+        action: 'LOGIN',
+        targetType: 'USER',
+        targetLabel: user.username
+      });
+      const redirect = safeInternalPath(returnTo, '/');
+      if (json) return res.json({ verified: true, redirect });
+      return res.redirect(redirect);
     });
-    const redirect = safeInternalPath(returnTo, '/');
-    if (json) return res.json({ verified: true, redirect });
-    return res.redirect(redirect);
   });
 }
 
@@ -131,7 +172,8 @@ export function createAuthRouter(db, config) {
     return res.render('login', {
       title: req.t('Sign in'),
       error: null,
-      username: ''
+      username: '',
+      returnTo: safeInternalPath(req.query.returnTo, '/')
     });
   });
 
@@ -146,12 +188,12 @@ export function createAuthRouter(db, config) {
 
       if (!user || !passwordWithinLimit || !passwordMatches || isBlockedAdministrator(config, user)) {
         recordLoginFailure(req, username);
-        clearPendingAuthentication(req);
+        clearPendingAuthentication(req, { preserveUserReference: true });
         return rejectLogin(req, res, username);
       }
 
       clearLoginAttempts(username);
-      const returnTo = safeInternalPath(req.session.returnTo, '/');
+      const returnTo = safeInternalPath(req.body.returnTo ?? req.session.returnTo, '/');
       const mfaState = getMfaState(db, user.id);
 
       if (!mfaState.enabled) {
@@ -165,7 +207,9 @@ export function createAuthRouter(db, config) {
           returnTo,
           createdAt: Date.now()
         };
-        return res.redirect('/login/mfa');
+        return saveLimitedAuthenticationSession(req, next, db, config, user.id, () => {
+          return res.redirect('/login/mfa');
+        });
       });
     } catch (error) {
       return next(error);

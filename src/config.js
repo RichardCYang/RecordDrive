@@ -57,6 +57,9 @@ export function loadConfig(overrides = {}) {
   const reloadIntervalMinutes = Number.parseInt(env.TLS_RELOAD_INTERVAL_MINUTES || '5', 10);
   const maxRepositoryStorageMb = Number.parseInt(env.MAX_REPOSITORY_STORAGE_MB || '10240', 10);
   const maxTotalStorageMb = Number.parseInt(env.MAX_TOTAL_STORAGE_MB || '102400', 10);
+  const maxRepositoryFiles = Number.parseInt(env.MAX_REPOSITORY_FILES || '10000', 10);
+  const maxTotalFiles = Number.parseInt(env.MAX_TOTAL_FILES || '100000', 10);
+  const maxSessionsPerUser = Number.parseInt(env.MAX_SESSIONS_PER_USER || '10', 10);
 
   return {
     port: Number.isFinite(httpPort) ? httpPort : 3000,
@@ -100,6 +103,15 @@ export function loadConfig(overrides = {}) {
     maxTotalStorageMb: Number.isFinite(maxTotalStorageMb) && maxTotalStorageMb >= 0
       ? Math.min(maxTotalStorageMb, 1024 * 1024)
       : 102400,
+    maxRepositoryFiles: Number.isFinite(maxRepositoryFiles) && maxRepositoryFiles >= 0
+      ? Math.min(maxRepositoryFiles, 10_000_000)
+      : 10000,
+    maxTotalFiles: Number.isFinite(maxTotalFiles) && maxTotalFiles >= 0
+      ? Math.min(maxTotalFiles, 100_000_000)
+      : 100000,
+    maxSessionsPerUser: Number.isFinite(maxSessionsPerUser) && maxSessionsPerUser > 0
+      ? Math.min(maxSessionsPerUser, 100)
+      : 10,
     dbPath: resolveFromCwd(env.DB_PATH || './data/recorddrive.db'),
     uploadRoot: resolveFromCwd(env.UPLOAD_ROOT || './data/uploads')
   };

@@ -93,20 +93,39 @@ function configuredQuotaBytes(value) {
   return megabytes * 1024 * 1024;
 }
 
+function configuredQuotaCount(value) {
+  const count = Number(value);
+  if (!Number.isSafeInteger(count) || count <= 0) return Number.POSITIVE_INFINITY;
+  return count;
+}
+
 function enforceUploadQuotas(db, config, repositoryId, uploadedFiles) {
   const uploadedBytes = uploadedFiles.reduce((total, file) => total + Number(file.size || 0), 0);
-  const repositoryBytes = Number(db.prepare(`
-    SELECT COALESCE(SUM(size), 0) AS size FROM files WHERE repository_id = ?
-  `).get(repositoryId).size || 0);
-  const totalBytes = Number(db.prepare(`
-    SELECT COALESCE(SUM(size), 0) AS size FROM files
-  `).get().size || 0);
+  const uploadedCount = uploadedFiles.length;
+  const repositoryUsage = db.prepare(`
+    SELECT COUNT(*) AS count, COALESCE(SUM(size), 0) AS size
+    FROM files WHERE repository_id = ?
+  `).get(repositoryId);
+  const totalUsage = db.prepare(`
+    SELECT COUNT(*) AS count, COALESCE(SUM(size), 0) AS size
+    FROM files
+  `).get();
+  const repositoryBytes = Number(repositoryUsage.size || 0);
+  const totalBytes = Number(totalUsage.size || 0);
+  const repositoryCount = Number(repositoryUsage.count || 0);
+  const totalCount = Number(totalUsage.count || 0);
 
   if (repositoryBytes + uploadedBytes > configuredQuotaBytes(config.maxRepositoryStorageMb)) {
     throw new UploadQuotaError('The repository storage quota would be exceeded.');
   }
   if (totalBytes + uploadedBytes > configuredQuotaBytes(config.maxTotalStorageMb)) {
     throw new UploadQuotaError('The server storage quota would be exceeded.');
+  }
+  if (repositoryCount + uploadedCount > configuredQuotaCount(config.maxRepositoryFiles)) {
+    throw new UploadQuotaError('The repository file count quota would be exceeded.');
+  }
+  if (totalCount + uploadedCount > configuredQuotaCount(config.maxTotalFiles)) {
+    throw new UploadQuotaError('The server file count quota would be exceeded.');
   }
 }
 

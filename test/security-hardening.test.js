@@ -44,6 +44,9 @@ function testConfig(tempRoot) {
     adminDisplayName: 'Test Administrator',
     maxFileSizeMb: 5,
     maxFilesPerUpload: 3,
+    maxRepositoryFiles: 100,
+    maxTotalFiles: 1000,
+    maxSessionsPerUser: 10,
     dbPath: path.join(tempRoot, 'recorddrive.db'),
     uploadRoot: path.join(tempRoot, 'uploads')
   };
@@ -62,6 +65,126 @@ async function passwordLogin(agent, expectedLocation = '/') {
     .expect(302)
     .expect('Location', expectedLocation);
 }
+
+test('does not persist anonymous sessions and preserves safe post-login redirects', async (t) => {
+  resetAuthenticationRateLimits();
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-anonymous-session-hardening-'));
+  const config = testConfig(tempRoot);
+  const app = createApplication({ config });
+  const db = app.locals.db;
+
+  t.after(() => {
+    resetAuthenticationRateLimits();
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const loginPage = await request(app).get('/login').expect(200);
+    assert.ok(loginPage.headers['set-cookie'].some((value) => value.startsWith('recorddrive.csrf=')));
+    assert.equal(loginPage.headers['set-cookie'].some((value) => value.startsWith('recorddrive.sid=')), false);
+    await request(app).get('/health').expect(200);
+    await request(app).get('/missing-page').expect(404);
+  }
+
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions').get().count, 0);
+
+  const agent = request.agent(app);
+  const protectedResponse = await agent
+    .get('/repositories/123?sort=name-asc')
+    .expect(302)
+    .expect('Location', '/login?returnTo=%2Frepositories%2F123%3Fsort%3Dname-asc');
+  const loginPage = await agent.get(protectedResponse.headers.location).expect(200);
+  assert.match(loginPage.text, /name="returnTo" value="\/repositories\/123\?sort=name-asc"/);
+
+  await agent
+    .post('/login')
+    .type('form')
+    .send({
+      _csrf: csrfFrom(loginPage.text),
+      returnTo: '/repositories/123?sort=name-asc',
+      username: 'admin',
+      password: 'TestPassword123!'
+    })
+    .expect(302)
+    .expect('Location', '/repositories/123?sort=name-asc');
+
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions').get().count, 1);
+});
+
+test('limits active authentication sessions per user', async (t) => {
+  resetAuthenticationRateLimits();
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-session-limit-hardening-'));
+  const config = { ...testConfig(tempRoot), maxSessionsPerUser: 2 };
+  const app = createApplication({ config });
+  const db = app.locals.db;
+  const agents = [];
+
+  t.after(() => {
+    resetAuthenticationRateLimits();
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  for (let index = 0; index < 4; index += 1) {
+    const agent = request.agent(app);
+    agents.push(agent);
+    await passwordLogin(agent);
+  }
+
+  const administrator = db.prepare("SELECT id FROM users WHERE username = 'admin'").get();
+  const activeAdministratorSessions = db.prepare('SELECT sess FROM sessions').all()
+    .map(({ sess }) => JSON.parse(sess))
+    .filter((storedSession) => Number(storedSession.userId) === Number(administrator.id));
+  assert.equal(activeAdministratorSessions.length, 2);
+
+  await agents[0].get('/').expect(302).expect('Location', '/login?returnTo=%2F');
+  await agents.at(-1).get('/').expect(200);
+});
+
+test('limits failed authentication flows that originated from pending MFA sessions', async (t) => {
+  resetAuthenticationRateLimits();
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-mfa-session-limit-hardening-'));
+  const config = { ...testConfig(tempRoot), maxSessionsPerUser: 2 };
+  const app = createApplication({ config });
+  const db = app.locals.db;
+  const secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+  const administrator = db.prepare("SELECT id FROM users WHERE username = 'admin'").get();
+  db.prepare(`
+    UPDATE users
+    SET totp_enabled = 1, totp_secret_encrypted = ?, totp_last_used_step = NULL
+    WHERE id = ?
+  `).run(encryptTotpSecret(secret, config), administrator.id);
+
+  t.after(() => {
+    resetAuthenticationRateLimits();
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  for (let index = 0; index < 4; index += 1) {
+    const agent = request.agent(app);
+    await passwordLogin(agent, '/login/mfa');
+    const mfaPage = await agent.get('/login/mfa').expect(200);
+    await agent
+      .post('/login')
+      .type('form')
+      .send({
+        _csrf: csrfFrom(mfaPage.text),
+        username: 'admin',
+        password: 'IncorrectPassword123!'
+      })
+      .expect(401);
+  }
+
+  const referencedSessions = db.prepare('SELECT sess FROM sessions').all()
+    .map(({ sess }) => JSON.parse(sess))
+    .filter((storedSession) => {
+      return Number(storedSession.authenticationFlow?.userId) === Number(administrator.id);
+    });
+  assert.equal(referencedSessions.length, 2);
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions').get().count, 2);
+});
 
 test('rejects multipart CSRF bypasses outside the upload route', async (t) => {
   resetAuthenticationRateLimits();
@@ -148,6 +271,16 @@ test('sanitizes internal redirects and parses proxy trust explicitly', () => {
     TRUST_PROXY: 'loopback, 10.0.0.0/8'
   });
   assert.deepEqual(trusted.trustProxy, ['loopback', '10.0.0.0/8']);
+
+  const resourceLimits = loadConfig({
+    NODE_ENV: 'test',
+    MAX_REPOSITORY_FILES: '17',
+    MAX_TOTAL_FILES: '53',
+    MAX_SESSIONS_PER_USER: '3'
+  });
+  assert.equal(resourceLimits.maxRepositoryFiles, 17);
+  assert.equal(resourceLimits.maxTotalFiles, 53);
+  assert.equal(resourceLimits.maxSessionsPerUser, 3);
   assert.throws(() => loadConfig({
     NODE_ENV: 'production',
     SESSION_SECRET: 'production-session-secret-with-more-than-thirty-two-characters',
@@ -318,13 +451,15 @@ test('caps spreadsheet preview text output', async () => {
   assert.ok(values.every((value) => Buffer.byteLength(value, 'utf8') <= 4096));
 });
 
-test('rejects nested upload fields and cleans files that exceed storage quotas', async (t) => {
+test('rejects nested upload fields and cleans files that exceed storage or file-count quotas', async (t) => {
   resetAuthenticationRateLimits();
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-upload-limits-'));
   const config = {
     ...testConfig(tempRoot),
-    maxRepositoryStorageMb: 0.0001,
-    maxTotalStorageMb: 0.0002
+    maxRepositoryStorageMb: 5,
+    maxTotalStorageMb: 10,
+    maxRepositoryFiles: 1,
+    maxTotalFiles: 2
   };
   const app = createApplication({ config });
   const db = app.locals.db;
@@ -362,10 +497,28 @@ test('rejects nested upload fields and cleans files that exceed storage quotas',
   await agent
     .post(`/repositories/${repositoryId}/upload`)
     .field('_csrf', csrfFrom(repositoryPage.text))
-    .attach('files', Buffer.alloc(512, 0x61), 'over-quota.txt')
+    .attach('files', Buffer.from('a'), 'first.txt')
+    .expect(302);
+
+  const countLimitedPage = await agent.get(`/repositories/${repositoryId}`).expect(200);
+  await agent
+    .post(`/repositories/${repositoryId}/upload`)
+    .field('_csrf', csrfFrom(countLimitedPage.text))
+    .attach('files', Buffer.from('b'), 'count-limited.txt')
     .expect(413);
 
-  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM files WHERE repository_id = ?').get(repositoryId).count, 0);
+  config.maxRepositoryFiles = 10;
+  config.maxTotalFiles = 10;
+  config.maxRepositoryStorageMb = 0.0001;
+  config.maxTotalStorageMb = 0.0002;
+  const storageLimitedPage = await agent.get(`/repositories/${repositoryId}`).expect(200);
+  await agent
+    .post(`/repositories/${repositoryId}/upload`)
+    .field('_csrf', csrfFrom(storageLimitedPage.text))
+    .attach('files', Buffer.alloc(512, 0x61), 'storage-limited.txt')
+    .expect(413);
+
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM files WHERE repository_id = ?').get(repositoryId).count, 1);
   const repositoryRoot = path.join(config.uploadRoot, String(repositoryId));
-  assert.deepEqual(fs.existsSync(repositoryRoot) ? fs.readdirSync(repositoryRoot) : [], []);
+  assert.equal(fs.readdirSync(repositoryRoot).length, 1);
 });
