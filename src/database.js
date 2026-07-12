@@ -148,6 +148,7 @@ export function createDatabase(providedConfig) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_files_repository_id ON files(repository_id);
+    CREATE INDEX IF NOT EXISTS idx_repositories_created_by ON repositories(created_by);
     CREATE INDEX IF NOT EXISTS idx_repository_permissions_user_id ON repository_permissions(user_id);
 
     CREATE TABLE IF NOT EXISTS activity_logs (
@@ -210,6 +211,8 @@ export function createDatabase(providedConfig) {
   
   `);
 
+
+  db.exec('DELETE FROM recovery_codes WHERE used_at IS NOT NULL;');
 
   const userColumns = new Set(
     db.prepare('PRAGMA table_info(users)').all().map((column) => column.name)

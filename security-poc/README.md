@@ -1,29 +1,66 @@
 # Security PoC Guide
 
-All PoCs operate only on temporary local files. They do not contact a remote service.
+All PoCs use temporary local databases and files. They do not target a remote service.
 
-## Activity-log resource exhaustion
-
-Run the patched project with a small retention limit:
+## Patched repository-creation boundary
 
 ```bash
-MAX_ACTIVITY_LOG_ENTRIES=1000 ATTEMPTS=25000 node security-poc/activity-log-growth.mjs
+ATTEMPTS=1000 \
+MAX_REPOSITORIES_PER_USER=50 \
+MAX_TOTAL_REPOSITORIES=100 \
+node security-poc/repository-growth.mjs
 ```
 
-The retained row count must remain at or below the configured limit. To reproduce the original weakness, export Git commit `40ea9e3` to a temporary directory, install its dependencies, and run the same script with `PROJECT_ROOT` pointing to that directory and without `MAX_ACTIVITY_LOG_ENTRIES`.
+Expected result: 50 accepted requests, 950 rejected requests, 50 retained repository rows, and `"bounded": true`.
+
+## Patched recovery-code cleanup
+
+```bash
+CYCLES=5000 node security-poc/recovery-code-retention.mjs
+```
+
+Expected result: one active row, zero retained consumed rows, and `"bounded": true`.
+
+## Patched activity-log retention
+
+```bash
+MAX_ACTIVITY_LOG_ENTRIES=1000 \
+ATTEMPTS=25000 \
+node security-poc/activity-log-growth.mjs
+```
+
+The retained row count must remain at or below the configured limit.
 
 ## CVE-2026-31988 dependency check
-
-Run against the installed project dependency:
 
 ```bash
 node security-poc/yauzl-cve-2026-31988.cjs .
 ```
 
-The project uses yauzl 3.4.0 and must report `safe`. For comparison in an isolated temporary npm project, yauzl 3.2.0 reports an `ERR_OUT_OF_RANGE` exception for the same malformed NTFS timestamp extra field. Do not deploy the vulnerable comparison package.
+The installed yauzl 3.4.0 must report `"status":"safe"` for the malformed NTFS timestamp fixture.
 
 ## Automated regression suite
 
 ```bash
 npm run test:security
+```
+
+## Reproducing the supplied baseline safely
+
+Use an isolated Git worktree and never expose it as a network service:
+
+```bash
+git worktree add ../recorddrive-baseline bef76f38b656e9f75057c0085bd34f1be75510d6
+cp security-poc/repository-growth.mjs ../recorddrive-baseline/security-poc/
+cp security-poc/recovery-code-retention.mjs ../recorddrive-baseline/security-poc/
+cd ../recorddrive-baseline
+npm ci --ignore-scripts
+EXPECT_BOUNDED=false ATTEMPTS=1000 node security-poc/repository-growth.mjs
+EXPECT_BOUNDED=false CYCLES=5000 node security-poc/recovery-code-retention.mjs
+```
+
+The baseline commands are intentionally local resource-consumption demonstrations. Use only disposable temporary storage. Remove the worktree after validation:
+
+```bash
+git worktree remove ../recorddrive-baseline --force
 ```

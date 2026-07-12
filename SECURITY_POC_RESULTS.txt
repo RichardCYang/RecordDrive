@@ -1,45 +1,78 @@
 RecordDrive Security PoC Results
 Review date: 2026-07-12
+Supplied baseline Git commit: bef76f38b656e9f75057c0085bd34f1be75510d6
+Patched validation runtime: Node.js 24.18.0
 
-1. Activity-log resource exhaustion baseline
-   Source: Git commit 40ea9e3 before the new retention fix
-   Attempts: 25,000
-   Retained activity rows: 25,000
-   SQLite page growth: 2,469,888 bytes
-   Result: VULNERABLE. Every generated audit record remained stored without a boundary.
+1. RD-2026-002 baseline: unbounded authenticated repository creation
+   Path: authenticated POST /repositories with valid session and CSRF token
+   Attempts: 1,000
+   Accepted: 1,000
+   Rejected: 0
+   Repository rows: 1,000
+   SQLite allocated bytes: 368,640
+   Elapsed: 1,956 ms
+   Result: VULNERABLE. Persistent repository records had no per-user or service-wide boundary.
 
-2. Activity-log resource exhaustion after remediation
+2. RD-2026-002 patched validation
+   Configuration: MAX_REPOSITORIES_PER_USER=50, MAX_TOTAL_REPOSITORIES=100
+   Attempts: 1,000
+   Accepted: 50
+   Rejected: 950
+   Repository rows: 50
+   Limit message visible: true
+   SQLite allocated bytes: 122,880
+   Elapsed: 1,775 ms
+   Result: PASS. Creation stopped at the configured per-user limit.
+
+3. RD-2026-003 baseline: retained consumed recovery-code rows
+   Path: createRecoveryCodes() and consumeRecoveryCode() used by the MFA flow
+   Consume-and-regenerate cycles: 5,000
+   Total rows: 5,001
+   Active rows: 1
+   Retained consumed rows: 5,000
+   SQLite allocated bytes: 1,261,568
+   Elapsed: 1,840 ms
+   Result: VULNERABLE. Consumed rows accumulated without cleanup.
+
+4. RD-2026-003 patched validation
+   Consume-and-regenerate cycles: 5,000
+   Total rows: 1
+   Active rows: 1
+   Retained consumed rows: 0
+   SQLite allocated bytes: 114,688
+   Elapsed: 1,542 ms
+   Result: PASS. Successful consumption deleted the row and one-time reuse remained blocked.
+
+5. Previously remediated activity-log retention
    Configuration: MAX_ACTIVITY_LOG_ENTRIES=1000
    Attempts: 25,000
    Retained activity rows: 962
    SQLite page growth: 110,592 bytes
-   Result: PASS. The newest records remained available and the row count stayed below the configured limit.
+   Result: PASS. Existing RD-2026-001 remediation remains effective.
 
-3. CVE-2026-31988 package-level comparison
-   Crafted input: ZIP archive containing a four-byte malformed NTFS timestamp extra field
-   yauzl 3.2.0: RangeError, ERR_OUT_OF_RANGE, comparison process exit status 2
-   Project yauzl 3.4.0: Safe completion, DOS timestamp fallback returned
-   Result: NOT AFFECTED. The installed project version is fixed, and the application preview path completed safely.
+6. CVE-2026-31988 installed dependency check
+   Crafted input: ZIP containing the malformed NTFS timestamp extra field
+   Installed yauzl: 3.4.0
+   Result: SAFE
+   Modified time fallback: 1980-01-01T00:00:00.000Z
+   Conclusion: NOT AFFECTED.
 
-4. Automated security regression suite
-   Command: npm run test:security
-   Tests: 2
-   Passed: 2
-   Failed: 0
-
-5. Full regression suite
-   Command: npm test
-   Tests: 32
-   Passed: 32
-   Failed: 0
-
-6. Dependency audit
-   Command: npm audit --omit=dev --json
+7. Dependency and lockfile checks
+   npm audit --omit=dev: 0 known vulnerabilities
    Production dependencies: 247
-   Total installed dependencies: 266
-   Known vulnerabilities: 0
+   Development dependencies: 20
+   Total dependencies: 266
+   npm outdated direct dependencies: 0
+   npm ls problems: 0
+   Original environment-specific lockfile resolved URLs: 93
+   Patched non-canonical lockfile resolved URLs: 0
+   Missing lockfile integrity fields: 0
+   CycloneDX SBOM components: 266
+   npm audit signatures: INCONCLUSIVE due EAI_AGAIN resolving tuf-repo-cdn.sigstore.dev
 
-7. Source and repository checks
-   Dangerous API pattern scan: no child-process execution, eval, new Function, or vm.run matches
-   Git secret-pattern history scan: 0 matches for selected private-key and common token patterns
-   Git integrity: git fsck --full completed without errors
+8. Automated regression validation on Node.js 24.18.0
+   npm run check: PASS
+   npm run test:security: 4 passed, 0 failed
+   npm test: 34 passed, 0 failed
+   git diff --check: PASS
+   git fsck --full: PASS

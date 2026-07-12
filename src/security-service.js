@@ -187,8 +187,7 @@ export function consumeRecoveryCode(db, userId, code, config) {
   if (normalized.length !== 12) return false;
   const hash = hashRecoveryCode(normalized, config);
   const result = db.prepare(`
-    UPDATE recovery_codes
-    SET used_at = CURRENT_TIMESTAMP
+    DELETE FROM recovery_codes
     WHERE user_id = ? AND code_hash = ? AND used_at IS NULL
   `).run(userId, hash);
   return result.changes === 1;

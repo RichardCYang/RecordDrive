@@ -168,6 +168,8 @@ Change the administrator password and `SESSION_SECRET` before exposing the servi
 | `MAX_FILES_PER_UPLOAD` | `10` | Maximum files accepted in one upload request |
 | `MAX_REPOSITORY_STORAGE_MB` | `10240` | Maximum stored file bytes per repository; `0` disables this quota |
 | `MAX_TOTAL_STORAGE_MB` | `102400` | Maximum stored file bytes across the service; `0` disables this quota |
+| `MAX_REPOSITORIES_PER_USER` | `1000` | Maximum repository records owned by one regular user |
+| `MAX_TOTAL_REPOSITORIES` | `10000` | Maximum repository records across the service |
 | `MAX_REPOSITORY_FILES` | `10000` | Maximum file records per repository; `0` disables this quota |
 | `MAX_TOTAL_FILES` | `100000` | Maximum file records across the service; `0` disables this quota |
 | `MAX_ACTIVITY_LOG_ENTRIES` | `100000` | Maximum retained audit-log records; the oldest records are removed in bounded batches |

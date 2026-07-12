@@ -84,6 +84,53 @@ async function withTrackedFileAccess(tracker, operation) {
   }
 }
 
+class RepositoryCreationError extends Error {
+  constructor(code) {
+    super(code);
+    this.name = 'RepositoryCreationError';
+    this.code = code;
+  }
+}
+
+function configuredRepositoryLimit(value, fallback) {
+  const count = Number(value);
+  if (!Number.isSafeInteger(count) || count <= 0) return fallback;
+  return count;
+}
+
+function createRepositoryRecord(db, config, { name, description, userId }) {
+  const perUserLimit = configuredRepositoryLimit(config.maxRepositoriesPerUser, 1000);
+  const totalLimit = configuredRepositoryLimit(config.maxTotalRepositories, 10000);
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (db.prepare('SELECT 1 FROM repositories WHERE name = ?').get(name)) {
+      throw new RepositoryCreationError('DUPLICATE_NAME');
+    }
+
+    const userCount = Number(db.prepare(`
+      SELECT COUNT(*) AS count FROM repositories WHERE created_by = ?
+    `).get(userId).count);
+    if (userCount >= perUserLimit) {
+      throw new RepositoryCreationError('USER_LIMIT');
+    }
+
+    const totalCount = Number(db.prepare('SELECT COUNT(*) AS count FROM repositories').get().count);
+    if (totalCount >= totalLimit) {
+      throw new RepositoryCreationError('TOTAL_LIMIT');
+    }
+
+    const result = db.prepare(`
+      INSERT INTO repositories (name, description, created_by) VALUES (?, ?, ?)
+    `).run(name, description, userId);
+    db.exec('COMMIT');
+    return Number(result.lastInsertRowid);
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
 function configuredQuotaBytes(value) {
   const megabytes = Number(value);
   if (!Number.isFinite(megabytes) || megabytes <= 0) return Number.POSITIVE_INFINITY;
@@ -291,15 +338,23 @@ export function createRepositoriesRouter(db, config) {
       setFlash(req, 'error', req.t('The description must be 300 characters or fewer.'));
       return res.redirect('/');
     }
-    if (db.prepare('SELECT 1 FROM repositories WHERE name = ?').get(name)) {
-      setFlash(req, 'error', req.t('A repository with that name already exists.'));
+    let repositoryId;
+    try {
+      repositoryId = createRepositoryRecord(db, config, {
+        name,
+        description,
+        userId: req.currentUser.id
+      });
+    } catch (error) {
+      if (!(error instanceof RepositoryCreationError)) throw error;
+      const messages = {
+        DUPLICATE_NAME: req.t('A repository with that name already exists.'),
+        USER_LIMIT: req.t('The maximum number of repositories for this account has been reached.'),
+        TOTAL_LIMIT: req.t('The server repository limit has been reached.')
+      };
+      setFlash(req, 'error', messages[error.code] || req.t('An error occurred while processing the request.'));
       return res.redirect('/');
     }
-
-    const result = db.prepare(`
-      INSERT INTO repositories (name, description, created_by) VALUES (?, ?, ?)
-    `).run(name, description, req.currentUser.id);
-    const repositoryId = Number(result.lastInsertRowid);
 
     logActivity(db, {
       actorId: req.currentUser.id,

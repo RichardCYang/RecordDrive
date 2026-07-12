@@ -1,57 +1,176 @@
 # RecordDrive Security Audit and Remediation Report
 
-Review date: 2026-07-12  
-Baseline Git commit: `40ea9e39b08f76704295a5923e637013e46c4a53`  
-Application: RecordDrive 2.0.1  
-Scope: Supplied Node.js file-server source, retained Git history, runtime configuration, authentication, authorization, sessions, CSRF, upload and download paths, archive and spreadsheet previews, SQLite storage, TLS handling, dependencies, tests, and deployment files.
+Review date: 2026-07-12
+Supplied baseline Git commit: `bef76f38b656e9f75057c0085bd34f1be75510d6`
+Application: RecordDrive 2.0.1
+Scope: Supplied Node.js file-server source, retained Git history, authentication and MFA, authorization, sessions, CSRF, file upload and download, preview parsers, SQLite persistence, TLS configuration, dependencies, lockfile provenance, deployment files, and automated tests.
 
 ## Executive summary
 
-The supplied project already contained substantial security hardening. The review confirmed one additional application-specific availability weakness: authenticated actions could append audit records indefinitely because `activity_logs` had no retention boundary. A low-privileged repository owner could repeatedly invoke legitimate state-changing operations and cause persistent SQLite growth until the database volume was exhausted.
+The supplied project already contained extensive security hardening and a previous remediation for bounded activity-log retention. This review confirmed two additional application-specific availability weaknesses and one supply-chain portability defect:
 
-The weakness was reproduced against the supplied baseline, remediated with bounded retention, and re-tested. The fix does not remove current functionality: it preserves the newest audit records, trims only records older than the configured boundary, and supports an operator-defined limit.
+1. An authenticated regular user could create repository records without a per-account or service-wide upper bound.
+2. Consumed MFA recovery-code rows were retained indefinitely, allowing persistent database growth through repeated code consumption and regeneration.
+3. The supplied `package-lock.json` pinned 93 dependency tarballs to an environment-specific internal registry host, reducing build portability and making independent origin verification unnecessarily dependent on that proxy.
 
-No known vulnerable production dependency was reported by npm at review time. Actual third-party CVEs relevant to the installed upload and ZIP-preview packages were independently checked. The supplied versions are patched and the application includes additional defensive limits.
+Both application findings were reproduced against the unmodified supplied Git baseline using real application or security-service paths. They were remediated, and the same PoCs now demonstrate bounded behavior. The lockfile was normalized to the official npm registry without changing package versions, tarball paths, or integrity hashes. Existing data and repository functionality remain intact; repository limits apply only to new records, and only already-consumed recovery-code rows are removed.
 
-## Confirmed and remediated finding
+No CVE identifier is assigned to either private application-specific finding. Inventing a CVE would be inaccurate. The findings are mapped to existing CWE entries, while actual third-party CVEs relevant to installed packages were checked separately.
 
-### RD-2026-001: Unbounded audit-log persistence could exhaust database storage
+## Confirmed finding RD-2026-002: Unbounded authenticated repository creation
 
-**Severity:** Medium  
-**Impact:** Availability  
-**Required access:** Authenticated account able to perform a repeatable audited operation  
-**Primary CWE:** CWE-770, Allocation of Resources Without Limits or Throttling  
-**Parent category:** CWE-400, Uncontrolled Resource Consumption  
-**CVE:** None assigned. This is a private application-specific finding and must not be given an invented CVE identifier.
+**Severity:** Medium
+**Impact:** Persistent database and metadata storage exhaustion; eventual availability loss
+**Required access:** Authenticated regular user
+**Primary CWE:** CWE-770, Allocation of Resources Without Limits or Throttling
+**Related CWE:** CWE-400, Uncontrolled Resource Consumption
+**CVE:** None assigned; this is an application-specific finding.
 
-#### Root cause
+### Root cause
 
-`logActivity()` inserted a new row into `activity_logs` for every audited operation. No row limit, age limit, archival policy, or deletion mechanism existed. File quotas did not cover SQLite growth, so repeatedly uploading and deleting small files, changing repository settings, or changing permissions could grow the database independently of the file-storage quotas.
+`POST /repositories` validated the repository name and duplicate names but imposed no limit on the number of repository records owned by an account or stored across the service. A repository record allocates persistent SQLite rows and causes related index and audit-log growth even when no files are uploaded. File-byte and file-count quotas therefore did not bound this resource.
 
-#### PoC validation before the fix
+### Baseline PoC
 
-The PoC exported Git commit `40ea9e3`, created an isolated temporary database, and called the same `logActivity()` function used by authenticated routes.
+The PoC used an authenticated `supertest` agent, a valid CSRF token, and the real `POST /repositories` route against an isolated database created from the supplied baseline.
 
 ```text
-Attempts: 25,000
-Retained activity rows: 25,000
-SQLite page growth: 2,469,888 bytes
+Attempts: 1,000
+Accepted requests: 1,000
+Rejected requests: 0
+Repository rows: 1,000
+SQLite allocated bytes: 368,640
+Elapsed: 1,956 ms
+Bounded: false
 ```
 
-Every generated record remained stored. Repeating the operation continued to increase the database, demonstrating persistent resource allocation without a boundary.
+### Remediation
 
-#### Remediation
+- Added validated `MAX_REPOSITORIES_PER_USER` and `MAX_TOTAL_REPOSITORIES` settings.
+- Default limits are 1,000 repositories per regular user and 10,000 repositories across the service.
+- Invalid, zero, or negative values fail to secure defaults; configuration values have defensive maximum caps.
+- Duplicate-name, per-user quota, global quota, and insertion checks now execute inside one SQLite `BEGIN IMMEDIATE` transaction, preventing concurrent requests from bypassing a check-then-insert boundary.
+- Added an index on `repositories.created_by` for bounded owner-count queries.
+- Existing repository records are never deleted by this fix. Only new creation is rejected after a limit is reached.
+- Activity records are written only for successful repository creation.
 
-The following controls were added:
+### Patched PoC
 
-- `MAX_ACTIVITY_LOG_ENTRIES` defines the maximum retained audit-record target and defaults to `100000`.
-- Startup counts existing records and removes the oldest excess rows before serving requests.
-- Runtime inserts track the retained row count and remove the oldest records in bounded batches when the configured limit is reached.
-- The most recent records remain available; only the oldest records are aged out.
-- Invalid, zero, or negative configuration values fail to the secure default rather than disabling retention.
-- The configured maximum is capped at 10,000,000 records to prevent an accidental effectively-unbounded setting.
+```text
+Configuration: MAX_REPOSITORIES_PER_USER=50, MAX_TOTAL_REPOSITORIES=100
+Attempts: 1,000
+Accepted requests: 50
+Rejected requests: 950
+Repository rows: 50
+Limit message visible: true
+SQLite allocated bytes: 122,880
+Elapsed: 1,775 ms
+Bounded: true
+```
 
-#### PoC validation after the fix
+## Confirmed finding RD-2026-003: Consumed MFA recovery-code rows retained indefinitely
+
+**Severity:** Medium
+**Impact:** Persistent database growth; eventual availability degradation when repeatedly exercised
+**Required access:** Account able to configure MFA, consume a recovery code, and regenerate recovery codes
+**Primary CWE:** CWE-459, Incomplete Cleanup
+**Related CWE:** CWE-770 and CWE-400 as the resource-exhaustion consequence
+**CVE:** None assigned; this is an application-specific finding.
+
+### Root cause
+
+A successful recovery-code use changed `used_at` but retained the row. Recovery-code regeneration counted only unused rows, so it could continue creating new rows while every consumed row remained permanently stored. The behavior preserved one-time use but omitted cleanup of data no longer needed for authentication.
+
+### Baseline PoC
+
+The PoC called the same `createRecoveryCodes()` and `consumeRecoveryCode()` functions used by the MFA flow against an isolated SQLite database created from the supplied baseline.
+
+```text
+Consume-and-regenerate cycles: 5,000
+Total recovery-code rows: 5,001
+Active rows: 1
+Retained consumed rows: 5,000
+SQLite allocated bytes: 1,261,568
+Elapsed: 1,840 ms
+Bounded: false
+```
+
+### Remediation
+
+- A successfully consumed recovery code is now deleted atomically instead of being marked and retained.
+- The delete predicate still requires `used_at IS NULL`; a second use fails, preserving one-time semantics.
+- Database startup removes legacy rows that already have `used_at` populated.
+- Active unused codes are not removed.
+
+### Patched PoC
+
+```text
+Consume-and-regenerate cycles: 5,000
+Total recovery-code rows: 1
+Active rows: 1
+Retained consumed rows: 0
+SQLite allocated bytes: 114,688
+Elapsed: 1,542 ms
+Bounded: true
+```
+
+## Supply-chain finding: Environment-specific lockfile tarball origins
+
+**Classification:** Supply-chain portability and independent-verification defect; not assigned a CVE
+**Original state:** 93 `resolved` entries referenced an environment-specific internal registry proxy
+**Patched state:** 0 non-`registry.npmjs.org` `resolved` entries
+
+The exact package versions and every existing `integrity` hash were preserved. Only the origin prefix was changed to the canonical public npm registry while retaining the same package tarball paths. A clean `npm ci --ignore-scripts --registry=https://registry.npmjs.org` completed successfully after the change.
+
+Post-remediation lockfile validation:
+
+```text
+Installed package entries: 266
+Non-canonical resolved URLs: 0
+Missing integrity fields: 0
+npm ls problems: 0
+CycloneDX SBOM version: 1.5
+SBOM components: 266
+```
+
+The generated `SECURITY_SBOM.cdx.json` uses canonical public-registry distribution URLs and contains no environment-specific internal host names.
+
+## Actual CVE applicability validation
+
+### CVE-2026-31988: yauzl malformed NTFS timestamp denial of service
+
+- Advisory affected version: yauzl 3.2.0
+- Fixed version: 3.2.1
+- Project version: yauzl 3.4.0
+- Status: Not affected
+
+A crafted ZIP containing the malformed NTFS timestamp structure described by the advisory was processed through the installed package and RecordDrive's ZIP-preview path. The installed version completed safely and returned the DOS timestamp fallback:
+
+```text
+{"version":"3.4.0","status":"safe","modifiedAt":"1980-01-01T00:00:00.000Z"}
+```
+
+### CVE-2026-5079: Multer deeply nested multipart field denial of service
+
+- Advisory affected versions: Multer 1.x before 2.2.0 and 3.0.0-alpha.1
+- Fixed versions: 2.2.0 and 3.0.0-alpha.2
+- Project version: Multer 2.2.0
+- Status: Not affected
+
+The project also configures `fieldNestingDepth: 0` and strict field, part, header, file-count, and file-size limits. Integration coverage sends a nested multipart field and verifies rejection without retained upload data.
+
+### CVE-2026-5038: Multer incomplete cleanup of aborted uploads
+
+- Advisory affected versions: Multer 2.x before 2.2.0
+- Fixed version: 2.2.0
+- Project version: Multer 2.2.0
+- Status: Not affected
+
+The custom upload storage additionally removes partial files when streaming, CSRF validation, multipart parsing, or quota enforcement fails. Existing tests verify cleanup behavior.
+
+## Previously remediated finding revalidated
+
+The supplied baseline already contained RD-2026-001, bounded audit-log retention mapped to CWE-770/CWE-400. Its PoC remains passing:
 
 ```text
 Configuration: MAX_ACTIVITY_LOG_ENTRIES=1000
@@ -60,131 +179,97 @@ Retained activity rows: 962
 SQLite page growth: 110,592 bytes
 ```
 
-The retained count remained below the configured limit. Automated tests also verified that startup trims an existing oversized database, the oldest records are removed, the newest record remains, and continued inserts stay bounded.
-
-## Actual CVE applicability validation
-
-### CVE-2026-31988: yauzl NTFS timestamp parser denial of service
-
-- Affected package version: yauzl 3.2.0
-- Fixed version: 3.2.1
-- CWE assigned by the advisory: CWE-193, Off-by-one Error
-- Project version: yauzl 3.4.0
-- Application status: Not affected
-
-A crafted ZIP with a malformed four-byte NTFS timestamp extra field was processed against an isolated yauzl 3.2.0 installation. Calling `entry.getLastModDate()` reproduced a `RangeError` with `ERR_OUT_OF_RANGE`. The same input completed safely with the project's yauzl 3.4.0 and through RecordDrive's actual ZIP-preview path. The application also wraps timestamp parsing defensively so a malformed date does not terminate preview processing.
-
-### CVE-2026-5079: Multer deeply nested multipart field denial of service
-
-- Affected versions: Multer 1.x and versions earlier than 2.2.0 in the 2.x line
-- Patched version: 2.2.0
-- CWE assigned by the advisory: CWE-400
-- Project version: Multer 2.2.0
-- Application status: Not affected
-
-The project uses the patched version and explicitly configures `fieldNestingDepth: 0`, one field, bounded field names, bounded field values, bounded parts, bounded header pairs, bounded file count, and bounded file size. Existing integration coverage sends a nested multipart field and verifies rejection without retaining a file.
-
-### CVE-2026-5038: Multer incomplete cleanup of aborted uploads
-
-- Affected versions: Multer versions earlier than 2.2.0 in the 2.x line
-- Patched version: 2.2.0
-- CWE assigned by the advisory: CWE-459, Incomplete Cleanup
-- Project version: Multer 2.2.0
-- Application status: Not affected
-
-The project uses the patched version. Its custom storage engine also deletes partial files when streaming, quota enforcement, CSRF validation, or multipart parsing fails. Integration tests verify that rejected uploads do not leave orphan files.
-
-### Node.js runtime security floor
-
-Node.js 24.17.0 was a security release addressing multiple 2026 CVEs. The project requires Node.js `^22.23.0 || ^24.17.0 || ^26.3.1`, and the Dockerfile uses Node.js 24.18.0. The available review runtime was Node.js 22.16.0, below the declared production floor. Tests passed on that runtime, but production deployment must use a version allowed by `package.json`; the supplied Docker image satisfies this requirement.
-
-## Previously hardened high-impact controls independently verified
-
-The following controls were reviewed and exercised by existing regression tests:
-
-- Production rejects plaintext application requests before static serving, body parsing, sessions, CSRF, or authentication processing.
-- Session cookies use `HttpOnly`, `SameSite=Strict`, high priority, production `Secure`, rolling idle expiration, and a server-side absolute lifetime.
-- Anonymous CSRF protection does not create persistent server-side sessions.
-- Password, TOTP, recovery-code, and passkey flows use bounded state, session regeneration, replay protection, and rate limiting.
-- Repository permissions are independently evaluated for view, upload, download, and file deletion.
-- Repository deletion requires owner or enabled-administrator manager access and is not granted by delegated file-delete permission.
-- Multipart CSRF validation occurs before destination-file creation.
-- Uploads use randomized exclusive file names, owner-only modes, streaming quotas, partial-file cleanup, and `O_NOFOLLOW` where supported.
-- Database and upload paths reject protected directories, filesystem roots, symbolic-link components, symbolic-link ancestors, and database placement inside the upload root.
-- Stored-file opens validate repository identifiers and stored names, use descriptor-based checks, and reject non-regular files.
-- XLSX and ZIP previews enforce compressed size, expansion, entry count, metadata, output, and concurrency limits.
-- TLS passphrases, TOTP secrets, and temporary recovery-code bundles use authenticated encryption.
-- EJS user values are escaped, Express JSON escaping is enabled, and browser DOM updates use safe text assignment.
-- SQL user data is bound through SQLite parameters; dynamically selected clauses are application-controlled allowlists.
-- No child-process execution, shell construction, dynamic code evaluation, or server-side URL-fetch feature was found.
-
-## Dependency and supply-chain results
+## Dependency and supply-chain validation
 
 ```text
-npm audit --omit=dev
+npm audit --omit=dev --json
 Production dependencies: 247
-Total installed dependencies: 266
+Development dependencies: 20
+Total dependencies: 266
 Known vulnerabilities: 0
+
+npm outdated --json
+Outdated direct dependencies: 0
+
+npm ls --all
+Dependency-tree problems: 0
 ```
 
-Direct security-relevant versions verified:
+`npm audit` reports known advisories available from the configured registry; it does not prove the absence of undisclosed defects. Direct advisory review and application-path PoCs were therefore performed for security-relevant packages.
+
+`npm audit signatures` could not be completed because the execution environment failed DNS resolution for the Sigstore TUF endpoint (`EAI_AGAIN` for `tuf-repo-cdn.sigstore.dev`). This is an inconclusive network limitation, not evidence of a valid or invalid signature. Signature verification should be rerun in a network environment that can reach npm signing-key and Sigstore endpoints.
+
+The retained Git history was scanned for selected private-key blocks and common AWS, GitHub, Slack, and similar token patterns; no matches were found. `git fsck --full` completed without errors.
+
+## Runtime and regression validation
+
+The Dockerfile uses Node.js 24.18.0. Validation was repeated with Node.js 24.18.0 rather than relying only on the host's older Node.js 22.16.0 runtime.
 
 ```text
-ejs 6.0.1
-express 5.2.1
-multer 2.2.0
-yauzl 3.4.0
+Node.js: 24.18.0
+npm run check: passed
+npm run test:security: 4 passed, 0 failed
+npm test: 34 passed, 0 failed
+git diff --check: passed
 ```
 
-`npm ci --ignore-scripts` completed successfully. Git history was scanned for selected private-key blocks and common cloud or token patterns; no matches were found. `git fsck --full` completed without errors.
+The Node.js 24.18.0 test runtime was installed through the npm `node` distribution package because direct binary download was restricted by the analysis environment. Its reported runtime version was verified, but the official Node.js tarball checksum could not be compared to that npm-distributed binary. Production should continue using the Dockerfile's official Node.js image or another trusted Node.js distribution satisfying `package.json`.
 
-## Test results
+## High-impact controls reviewed without a confirmed new vulnerability
 
-```text
-npm run test:security
-2 passed, 0 failed
+- Authentication and MFA state, one-time code behavior, passkey options, rate limits, and session regeneration
+- Administrator-access disablement and privilege invalidation
+- Repository ownership and independent view/upload/download/delete permission enforcement
+- CSRF handling, including multipart requests before destination-file creation
+- Upload byte, file-count, repository, service, and in-flight reservation quotas
+- Random exclusive file names, partial-file cleanup, owner-only modes, and `O_NOFOLLOW` use where supported
+- Canonical path validation, traversal rejection, symbolic-link rejection, and protected-directory boundaries
+- ZIP, XLSX, and PDF preview limits and output caps
+- Parameterized SQLite statements and application-controlled SQL allowlists
+- Escaped EJS output, JSON escaping, safe DOM text assignment, Helmet, and restrictive CSP
+- TLS secret handling and authenticated encryption of TOTP secrets and temporary recovery-code bundles
+- No child-process execution, shell construction, dynamic code evaluation, or server-side URL-fetch feature was found
 
-npm test
-32 passed, 0 failed
+No additional item in these areas met the evidence threshold for a confirmed vulnerability. Potentially suspicious patterns were not reported as vulnerabilities unless a reachable impact could be reproduced.
 
-node --check src/app.js
-Passed
+## Files changed or added in this review
 
-git diff --check
-Passed
-```
+- `.env.example`
+- `README.md`
+- `package-lock.json`
+- `src/config.js`
+- `src/database.js`
+- `src/i18n.js`
+- `src/routes/repositories.js`
+- `src/security-service.js`
+- `test/security-poc.test.js`
+- `security-poc/repository-growth.mjs`
+- `security-poc/recovery-code-retention.mjs`
+- `security-poc/README.md`
+- `SECURITY_AUDIT_2026-07-12.md`
+- `SECURITY_REVIEW.md`
+- `SECURITY_POC_RESULTS.txt`
+- `SECURITY_SBOM.cdx.json`
 
-The security PoC suite includes the activity-log retention regression and the crafted ZIP used to validate CVE-2026-31988 handling in the real preview code path.
-
-## Files changed or added
-
-- `src/config.js`: added validated `MAX_ACTIVITY_LOG_ENTRIES` configuration.
-- `src/database.js`: added startup and runtime audit-log retention.
-- `.env.example`: documented the retention setting.
-- `README.md`: documented the retention setting.
-- `SECURITY_REVIEW.md`: recorded the new finding and updated validation and residual-risk text.
-- `package.json`: added `npm run test:security`.
-- `test/security-poc.test.js`: added deterministic security regression tests.
-- `security-poc/activity-log-growth.mjs`: added a local temporary-database PoC.
-- `security-poc/yauzl-cve-2026-31988.cjs`: added a local crafted-ZIP dependency comparison PoC.
-- `security-poc/README.md`: added safe reproduction instructions.
-- `SECURITY_POC_RESULTS.txt`: recorded the executed PoC and validation results.
+The `.git` directory and its original history are retained as explicitly required.
 
 ## Residual operational risks
 
-- Uploaded content is not malware-scanned. Internet-facing deployments should quarantine and scan files before release and isolate complex document parsing in constrained worker processes.
-- Rate-limit state and in-flight quota reservations are process-local. Multi-instance deployments need coordinated rate limiting, shared quotas, shared sessions, networked data storage, and object storage.
-- Repository, user, and administrative listings are not paginated and can become expensive at very large scale.
-- Audit retention deliberately removes the oldest records. Environments requiring longer forensic history should export logs to an append-only external system before records age out.
-- Host filesystem permissions and volume quotas remain necessary. Application path checks cannot protect against an attacker who already controls mount topology or writable parent directories as the service account.
-- The retained `.git` directory contains full source history and must be protected as sensitive development material.
+- Uploaded content is not malware-scanned. Internet-facing deployments should quarantine and scan uploads and isolate complex preview parsers with CPU, memory, file, and wall-clock limits.
+- Rate limits, sessions, and in-flight upload reservations are process-local. Multi-instance deployments require coordinated shared controls.
+- Large repository, user, file, and administrative listings still need pagination and operational request timeouts for very large deployments.
+- Database, audit, backup, temporary-file, and out-of-band filesystem growth still require host or volume quotas and monitoring.
+- The Docker base image is version-tagged rather than digest-pinned. A deployment pipeline should resolve and approve a platform-specific digest, scan the final image, and refresh that digest through a controlled update process.
+- A container-image vulnerability scanner was not available in this analysis environment.
+- Retained Git history can contain deleted source and metadata. The final archive must remain in a trusted location.
 
 ## Authoritative references
 
-- CWE-770: https://cwe.mitre.org/data/definitions/770.html
-- CWE-400: https://cwe.mitre.org/data/definitions/400.html
-- CVE-2026-31988: https://nvd.nist.gov/vuln/detail/CVE-2026-31988
-- yauzl fix commit: https://github.com/thejoshwolfe/yauzl/commit/c4695215b05c6adffda613b9051a2a85429b33fe
-- CVE-2026-5079 advisory: https://github.com/expressjs/multer/security/advisories/GHSA-72gw-mp4g-v24j
-- CVE-2026-5038 advisory: https://github.com/expressjs/multer/security/advisories/GHSA-3p4h-7m6x-2hcm
-- Node.js 24.17.0 security release: https://nodejs.org/en/blog/release/v24.17.0
+- MITRE CWE-770: https://cwe.mitre.org/data/definitions/770.html
+- MITRE CWE-459: https://cwe.mitre.org/data/definitions/459.html
+- Multer CVE-2026-5079 advisory: https://github.com/expressjs/multer/security/advisories/GHSA-72gw-mp4g-v24j
+- Multer CVE-2026-5038 advisory: https://github.com/advisories/GHSA-3p4h-7m6x-2hcm
+- yauzl CVE-2026-31988 advisory: https://github.com/advisories/GHSA-gmq8-994r-jv83
+- npm dependency-audit documentation: https://docs.npmjs.com/auditing-package-dependencies-for-security-vulnerabilities/
+- npm registry-signature verification: https://docs.npmjs.com/verifying-registry-signatures/
+- Node.js 24.18.0 release: https://nodejs.org/en/blog/release/v24.18.0
