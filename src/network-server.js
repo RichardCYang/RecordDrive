@@ -7,6 +7,37 @@ import {
   validateTlsSettings
 } from './tls-settings.js';
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
+const DEFAULT_HEADERS_TIMEOUT_MS = 60 * 1000;
+
+function normalizedTimeout(value, fallback, { allowZero = true } = {}) {
+  const timeout = Number(value);
+  if (!Number.isSafeInteger(timeout)) return fallback;
+  if (allowZero ? timeout < 0 : timeout <= 0) return fallback;
+  return timeout;
+}
+
+export function createHttpServerOptions(config, extraOptions = {}) {
+  const requestTimeout = normalizedTimeout(
+    config?.httpRequestTimeoutMs,
+    DEFAULT_REQUEST_TIMEOUT_MS
+  );
+  const configuredHeadersTimeout = normalizedTimeout(
+    config?.httpHeadersTimeoutMs,
+    DEFAULT_HEADERS_TIMEOUT_MS,
+    { allowZero: false }
+  );
+  const headersTimeout = requestTimeout > 0
+    ? Math.min(configuredHeadersTimeout, requestTimeout)
+    : configuredHeadersTimeout;
+
+  return {
+    ...extraOptions,
+    requestTimeout,
+    headersTimeout
+  };
+}
+
 function listen(server, port, host) {
   return new Promise((resolve, reject) => {
     const onError = (error) => {
@@ -78,13 +109,19 @@ export async function startNetworkServers(app) {
 
   try {
     if (settings.httpsEnabled) {
-      httpsServer = https.createServer(buildTlsOptions(settings), app);
+      httpsServer = https.createServer(
+        createHttpServerOptions(config, buildTlsOptions(settings)),
+        app
+      );
       await listen(httpsServer, settings.httpsPort, settings.httpsHost);
       servers.push(httpsServer);
       certificateSignature = certificateFileSignature(settings);
       console.log(`RecordDrive HTTPS server is listening on https://${displayHost(settings.httpsHost)}:${settings.httpsPort}.`);
 
-      httpServer = http.createServer(settings.redirectHttpToHttps ? createRedirectHandler(settings) : app);
+      httpServer = http.createServer(
+        createHttpServerOptions(config),
+        settings.redirectHttpToHttps ? createRedirectHandler(settings) : app
+      );
       await listen(httpServer, settings.httpPort, settings.httpHost);
       servers.push(httpServer);
       if (settings.redirectHttpToHttps) {
@@ -93,7 +130,7 @@ export async function startNetworkServers(app) {
         console.log(`RecordDrive HTTP server is listening on http://${displayHost(settings.httpHost)}:${settings.httpPort}.`);
       }
     } else {
-      httpServer = http.createServer(app);
+      httpServer = http.createServer(createHttpServerOptions(config), app);
       await listen(httpServer, settings.httpPort, settings.httpHost);
       servers.push(httpServer);
       console.log(`RecordDrive HTTP server is listening on http://${displayHost(settings.httpHost)}:${settings.httpPort}.`);
@@ -142,17 +179,22 @@ export async function startNetworkServers(app) {
   }
 
   runtimeControl.reloadTlsCertificate = reloadTlsCertificate;
-  runtimeControl.getNetworkState = () => ({
-    httpsEnabled: settings.httpsEnabled,
-    redirectHttpToHttps: settings.redirectHttpToHttps,
-    httpHost: settings.httpHost,
-    httpPort: settings.httpPort,
-    httpsHost: settings.httpsHost,
-    httpsPort: settings.httpsPort,
-    certificateMode: settings.certificateMode,
-    autoReloadCertificate: settings.autoReloadCertificate,
-    reloadIntervalMinutes: settings.reloadIntervalMinutes
-  });
+  runtimeControl.getNetworkState = () => {
+    const applicationServer = httpsServer || httpServer;
+    return {
+      httpsEnabled: settings.httpsEnabled,
+      redirectHttpToHttps: settings.redirectHttpToHttps,
+      httpHost: settings.httpHost,
+      httpPort: settings.httpPort,
+      httpsHost: settings.httpsHost,
+      httpsPort: settings.httpsPort,
+      certificateMode: settings.certificateMode,
+      autoReloadCertificate: settings.autoReloadCertificate,
+      reloadIntervalMinutes: settings.reloadIntervalMinutes,
+      requestTimeoutMs: applicationServer?.requestTimeout,
+      headersTimeoutMs: applicationServer?.headersTimeout
+    };
+  };
   runtimeControl.close = async () => {
     if (reloadTimer) clearInterval(reloadTimer);
     await closeServers(servers);

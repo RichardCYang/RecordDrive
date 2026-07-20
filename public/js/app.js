@@ -44,8 +44,9 @@
       root.classList.remove('is-indeterminate');
     };
 
-    const setAction = (label, handler) => {
-      actionHandler = handler;
+    const setAction = (label, handler, disabled = false) => {
+      actionHandler = typeof handler === 'function' ? handler : null;
+      action.disabled = disabled;
       action.setAttribute('aria-label', label);
       action.title = label;
     };
@@ -102,6 +103,9 @@
         detail.textContent = detailText;
         percent.textContent = '…';
         bytes.textContent = '';
+        // Once the browser has handed off the full request body, aborting the XHR can
+        // sever the connection while the server is still receiving or committing it.
+        setAction(detailText, null, true);
       },
       complete(titleText, detailText = '') {
         busy = false;

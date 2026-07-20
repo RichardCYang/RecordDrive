@@ -111,6 +111,27 @@ function cleanupUploadedFiles(files = [], storage = null) {
   }
 }
 
+function isUploadConnectionAbort(req, error) {
+  const transportError = ['Request aborted', 'Request closed'].includes(error?.message)
+    || ['ECONNRESET', 'ERR_STREAM_PREMATURE_CLOSE', 'ERR_HTTP_REQUEST_TIMEOUT'].includes(error?.code);
+  return Boolean(transportError && (req.aborted || (req.destroyed && !req.complete)));
+}
+
+function logUploadConnectionAbort(req, error) {
+  const expectedBytes = Number(req.headers['content-length']);
+  const receivedFileBytes = Number(req.uploadReceivedBytes || 0);
+  const elapsedMs = Math.max(0, Date.now() - Number(req.uploadStartedAt || Date.now()));
+  const repositoryId = Number(req.repository?.id) || 'unknown';
+  const expectedText = Number.isSafeInteger(expectedBytes) && expectedBytes >= 0
+    ? String(expectedBytes)
+    : 'unknown';
+  console.warn(
+    `Upload connection closed before completion (repository=${repositoryId}, `
+    + `receivedFileBytes=${receivedFileBytes}, contentLength=${expectedText}, `
+    + `elapsedMs=${elapsedMs}, reason=${error.message || error.code || 'connection closed'}).`
+  );
+}
+
 async function withTrackedFileAccess(tracker, operation) {
   try {
     const result = await operation();
@@ -357,6 +378,8 @@ export function createRepositoriesRouter(db, config) {
   const storage = createQuotaAwareUploadStorage(db, config);
 
   const uploadFiles = (req, res, next) => {
+    req.uploadStartedAt = Date.now();
+    req.uploadReceivedBytes = 0;
     const quotaSettings = loadEffectiveQuotaSettings(db, config, req.repository);
     req.uploadQuotaSettings = quotaSettings;
     const uploadLimits = {
@@ -375,8 +398,14 @@ export function createRepositoriesRouter(db, config) {
     const parseUpload = multer({ storage, limits: uploadLimits })
       .array('files', quotaSettings.maxFilesPerUpload);
     parseUpload(req, res, (error) => {
-      if (error) cleanupUploadedFiles(req.files, storage);
-      next(error);
+      if (error) {
+        cleanupUploadedFiles(req.files, storage);
+        if (isUploadConnectionAbort(req, error)) {
+          logUploadConnectionAbort(req, error);
+          return;
+        }
+      }
+      return next(error);
     });
   };
 

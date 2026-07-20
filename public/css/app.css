@@ -1596,6 +1596,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--sky-400); backgr
   cursor: pointer;
 }
 .transfer-progress-action:hover { color: #24485f; background: #edf5f9; }
+.transfer-progress-action:disabled { cursor: default; opacity: .38; pointer-events: none; }
 .transfer-progress-track {
   height: 8px;
   margin-top: 13px;

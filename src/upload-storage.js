@@ -203,6 +203,7 @@ export function createQuotaAwareUploadStorage(db, config) {
             try {
               quotaCoordinator.grow(reservation.id, chunk.length);
               size += chunk.length;
+              req.uploadReceivedBytes = Number(req.uploadReceivedBytes || 0) + chunk.length;
               done(null, chunk);
             } catch (error) {
               done(error);

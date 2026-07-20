@@ -181,6 +181,8 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `TLS_RELOAD_INTERVAL_MINUTES` | `5` | Certificate file change check interval |
 | `NODE_ENV` | `development` | Enables production validation, secure transport enforcement, production error behavior, and static asset caching |
 | `TRUST_PROXY` | `false` | Explicit Express proxy trust setting; use a hop count or comma-separated trusted addresses/subnets only when required |
+| `HTTP_REQUEST_TIMEOUT_MS` | `3600000` | Maximum time to receive a complete HTTP request body; the 1-hour default replaces Node.js's 5-minute default for large uploads, and `0` disables the limit |
+| `HTTP_HEADERS_TIMEOUT_MS` | `60000` | Maximum time to receive complete HTTP headers; automatically clamped to `HTTP_REQUEST_TIMEOUT_MS` when that limit is enabled |
 | `SESSION_SECRET` | Example value | Secret used to sign session cookies |
 | `ADMIN_ACCESS_DISABLED` | `false` | Disables administrator creation, login, sessions, privileges, and `/admin` routes when set to `true`, `on`, `yes`, or `1` |
 | `ADMIN_USERNAME` | `admin` | Username for the first administrator when administrator access is enabled |
@@ -208,9 +210,11 @@ Every environment other than `development` and `test` uses production validation
 
 RecordDrive streams multipart file data directly to the configured upload filesystem. Open **Admin → Storage** to set the default per-file limit, files per upload, repository storage quota, service-wide storage quota, repository file-count limit, and service-wide file-count limit. Enter `0` for an unlimited size or file-count quota where the UI permits it.
 
+The native HTTP and HTTPS listeners allow up to one hour to receive a complete request by default (`HTTP_REQUEST_TIMEOUT_MS=3600000`). This avoids Node.js's built-in five-minute whole-request cutoff aborting a slow large upload after the browser has already handed off its request body. Increase the value for slower links or very large files. Use `0` only when a trusted reverse proxy enforces an appropriate request-body timeout, because an unlimited listener timeout weakens slow-request protection.
+
 Repository owners and administrators can open **Repository Settings** to override the default per-file limit and repository storage quota for that repository. Leaving a repository field blank inherits the current administrator default; entering `0` makes that repository value unlimited. Service-wide storage and file-count limits always continue to apply. Saved changes are read from SQLite for the next upload request, so no application restart is required.
 
-When RecordDrive is behind a reverse proxy, that proxy must also accept the request body. An NGINX example is provided at `docs/nginx-large-upload.conf.example`. Keep the application storage quotas enabled even when the proxy body-size check is disabled.
+When RecordDrive is behind a reverse proxy, that proxy must also accept the request body and keep both client-body and upstream timeouts aligned with `HTTP_REQUEST_TIMEOUT_MS`. An NGINX example is provided at `docs/nginx-large-upload.conf.example`. Keep the application storage quotas enabled even when the proxy body-size check is disabled.
 
 
 ## Repository storage location

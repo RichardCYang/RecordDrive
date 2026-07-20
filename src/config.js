@@ -14,6 +14,14 @@ function booleanFromEnv(value, fallback = false) {
   return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
 }
 
+function timeoutFromEnv(value, fallback, { allowZero = true } = {}) {
+  if (value === undefined || value === null || String(value).trim() === '') return fallback;
+  const parsed = Number(String(value).trim());
+  if (!Number.isSafeInteger(parsed)) return fallback;
+  if (allowZero ? parsed < 0 : parsed <= 0) return fallback;
+  return parsed;
+}
+
 function trustProxyFromEnv(value) {
   if (value === undefined || value === null || String(value).trim() === '') return false;
   const normalized = String(value).trim();
@@ -65,6 +73,15 @@ export function loadConfig(overrides = {}) {
   const maxActivityLogEntries = Number.parseInt(env.MAX_ACTIVITY_LOG_ENTRIES || '100000', 10);
   const sessionIdleHours = Number.parseInt(env.SESSION_IDLE_HOURS || '12', 10);
   const sessionAbsoluteHours = Number.parseInt(env.SESSION_ABSOLUTE_HOURS || '168', 10);
+  const httpRequestTimeoutMs = timeoutFromEnv(env.HTTP_REQUEST_TIMEOUT_MS, 60 * 60 * 1000);
+  const configuredHttpHeadersTimeoutMs = timeoutFromEnv(
+    env.HTTP_HEADERS_TIMEOUT_MS,
+    60 * 1000,
+    { allowZero: false }
+  );
+  const httpHeadersTimeoutMs = httpRequestTimeoutMs > 0
+    ? Math.min(configuredHttpHeadersTimeoutMs, httpRequestTimeoutMs)
+    : configuredHttpHeadersTimeoutMs;
 
   return {
     port: Number.isFinite(httpPort) ? httpPort : 3000,
@@ -86,6 +103,8 @@ export function loadConfig(overrides = {}) {
     nodeEnv,
     isProduction,
     trustProxy: trustProxyFromEnv(env.TRUST_PROXY),
+    httpRequestTimeoutMs,
+    httpHeadersTimeoutMs,
     sessionSecret,
     adminAccessDisabled,
     adminUsername: (env.ADMIN_USERNAME || 'admin').trim().toLowerCase(),

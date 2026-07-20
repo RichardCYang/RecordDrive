@@ -37,6 +37,8 @@ test('repository page exposes upload and download progress hooks', () => {
   const script = fs.readFileSync(path.join(projectRoot, 'public/js/app.js'), 'utf8');
   const view = fs.readFileSync(path.join(projectRoot, 'views/repository.ejs'), 'utf8');
   assert.match(script, /xhr\.upload\.addEventListener\('progress'/);
+  assert.match(script, /setAction\(detailText, null, true\)/);
+  assert.match(script, /action\.disabled = disabled/);
   assert.match(script, /response\.body\.getReader\(\)/);
   assert.match(script, /new Blob\(chunks/);
   assert.match(view, /data-transfer-progress/);
