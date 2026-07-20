@@ -10,7 +10,7 @@
         <div>
           <span class="eyebrow"><%= t('LOCAL FILESYSTEM') %></span>
           <h1><%= t('Repository storage settings') %></h1>
-          <p><%= t('Choose the local filesystem directory used for repository file contents. The path can be outside the RecordDrive project directory.') %></p>
+          <p><%= t('Manage database-backed upload limits and the local filesystem directory used for repository file contents.') %></p>
         </div>
       </section>
       <%- include('partials/admin-tabs') %>
@@ -32,6 +32,66 @@
           <small><%= metrics.files %> <%= metrics.files === 1 ? t('file') : t('files') %></small>
         </article>
       </section>
+
+      <form class="storage-settings-form quota-settings-form" action="/admin/storage/limits" method="post">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% if (limitFormError) { %>
+          <div class="alert alert-error storage-form-alert"><%= limitFormError %></div>
+        <% } %>
+
+        <section class="panel storage-panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow"><%= t('UPLOAD AND QUOTA LIMITS') %></span>
+              <h2><%= t('Server-wide defaults and hard limits') %></h2>
+            </div>
+            <strong class="status-pill status-success"><%= t('Database backed') %></strong>
+          </div>
+          <div class="storage-panel-body">
+            <p class="settings-section-copy"><%= t('These values are stored in SQLite and read for every new upload request. A repository owner may override only the per-file and repository-storage defaults.') %></p>
+            <div class="quota-settings-grid">
+              <label class="field">
+                <span><%= t('Default maximum size per file (MB)') %></span>
+                <input type="number" name="maxFileSizeMb" min="0" max="10240" step="any" required value="<%= quotaSettings.maxFileSizeMb %>">
+                <small><%= t('Enter 0 for unlimited. Repository owners can override this value.') %></small>
+              </label>
+              <label class="field">
+                <span><%= t('Maximum files per upload') %></span>
+                <input type="number" name="maxFilesPerUpload" min="1" max="100" step="1" required value="<%= quotaSettings.maxFilesPerUpload %>">
+                <small><%= t('Applies to every repository and cannot be overridden by owners.') %></small>
+              </label>
+              <label class="field">
+                <span><%= t('Default repository storage quota (MB)') %></span>
+                <input type="number" name="maxRepositoryStorageMb" min="0" max="1048576" step="any" required value="<%= quotaSettings.maxRepositoryStorageMb %>">
+                <small><%= t('Enter 0 for unlimited. Repository owners can override this value.') %></small>
+              </label>
+              <label class="field">
+                <span><%= t('Total service storage quota (MB)') %></span>
+                <input type="number" name="maxTotalStorageMb" min="0" max="1048576" step="any" required value="<%= quotaSettings.maxTotalStorageMb %>">
+                <small><%= t('Enter 0 for unlimited. This server-wide hard limit always applies.') %></small>
+              </label>
+              <label class="field">
+                <span><%= t('Maximum files per repository') %></span>
+                <input type="number" name="maxRepositoryFiles" min="0" max="10000000" step="1" required value="<%= quotaSettings.maxRepositoryFiles %>">
+                <small><%= t('Enter 0 for unlimited. This server-wide hard limit always applies.') %></small>
+              </label>
+              <label class="field">
+                <span><%= t('Maximum files across the service') %></span>
+                <input type="number" name="maxTotalFiles" min="0" max="100000000" step="1" required value="<%= quotaSettings.maxTotalFiles %>">
+                <small><%= t('Enter 0 for unlimited. This server-wide hard limit always applies.') %></small>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <div class="storage-action-bar">
+          <div>
+            <strong><%= t('Save and apply immediately') %></strong>
+            <span><%= t('No application restart is required. New uploads use the saved database values.') %></span>
+          </div>
+          <button class="button button-primary" type="submit"><%= t('Save upload limits') %></button>
+        </div>
+      </form>
 
       <form class="storage-settings-form" action="/admin/storage" method="post">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">

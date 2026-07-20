@@ -4,6 +4,7 @@ import path from 'node:path';
 import { Transform, pipeline } from 'node:stream';
 import { ensureSecureRepositoryDirectory } from './file-access-time.js';
 import { isValidCsrf } from './middleware/csrf.js';
+import { loadEffectiveQuotaSettings } from './quota-settings.js';
 
 const BYTES_PER_MEGABYTE = 1024 * 1024;
 
@@ -38,13 +39,13 @@ function configuredQuotaCount(value) {
   return count;
 }
 
-function uploadFileSizeLimit(config) {
-  return configuredQuotaBytes(config.maxFileSizeMb);
+function uploadFileSizeLimit(settings) {
+  return configuredQuotaBytes(settings.maxFileSizeMb);
 }
 
-export function uploadQuotaErrorMessage(req, error, config) {
-  if (error?.quota === 'FILE_SIZE' && Number(config.maxFileSizeMb) > 0) {
-    return req.t('Each file can be up to {{size}} MB.', { size: config.maxFileSizeMb });
+export function uploadQuotaErrorMessage(req, error, settings) {
+  if (error?.quota === 'FILE_SIZE' && Number(settings.maxFileSizeMb) > 0) {
+    return req.t('Each file can be up to {{size}} MB.', { size: settings.maxFileSizeMb });
   }
   return req.t(error?.message || 'The upload could not be completed. Please try again.');
 }
@@ -58,7 +59,7 @@ function removePath(filePath) {
   }
 }
 
-function createQuotaCoordinator(db, config) {
+function createQuotaCoordinator(db) {
   const reservations = new Map();
   const repositoryUsage = new Map();
   let totalUsage = { count: 0, size: 0 };
@@ -101,20 +102,20 @@ function createQuotaCoordinator(db, config) {
   }
 
   return {
-    reserve(repositoryId) {
+    reserve(repositoryId, limits) {
       const normalizedRepositoryId = Number(repositoryId);
       refreshUsage(normalizedRepositoryId);
       const committedRepositoryUsage = repositoryUsage.get(normalizedRepositoryId);
       const active = activeUsage(normalizedRepositoryId);
 
       if (committedRepositoryUsage.count + active.repositoryCount + 1
-        > configuredQuotaCount(config.maxRepositoryFiles)) {
+        > configuredQuotaCount(limits.maxRepositoryFiles)) {
         throw new UploadQuotaError(
           'The repository file count quota would be exceeded.',
           'REPOSITORY_FILE_COUNT'
         );
       }
-      if (totalUsage.count + active.totalCount + 1 > configuredQuotaCount(config.maxTotalFiles)) {
+      if (totalUsage.count + active.totalCount + 1 > configuredQuotaCount(limits.maxTotalFiles)) {
         throw new UploadQuotaError('The server file count quota would be exceeded.', 'TOTAL_FILE_COUNT');
       }
 
@@ -122,7 +123,8 @@ function createQuotaCoordinator(db, config) {
       reservations.set(id, {
         id,
         repositoryId: normalizedRepositoryId,
-        reservedBytes: 0
+        reservedBytes: 0,
+        limits
       });
       return { id };
     },
@@ -134,18 +136,18 @@ function createQuotaCoordinator(db, config) {
       const active = activeUsage(reservation.repositoryId);
       const nextFileSize = reservation.reservedBytes + additionalBytes;
 
-      if (nextFileSize > uploadFileSizeLimit(config)) {
+      if (nextFileSize > uploadFileSizeLimit(reservation.limits)) {
         throw new UploadQuotaError('The file size limit would be exceeded.', 'FILE_SIZE');
       }
       if (committedRepositoryUsage.size + active.repositoryBytes + additionalBytes
-        > configuredQuotaBytes(config.maxRepositoryStorageMb)) {
+        > configuredQuotaBytes(reservation.limits.maxRepositoryStorageMb)) {
         throw new UploadQuotaError(
           'The repository storage quota would be exceeded.',
           'REPOSITORY_STORAGE'
         );
       }
       if (totalUsage.size + active.totalBytes + additionalBytes
-        > configuredQuotaBytes(config.maxTotalStorageMb)) {
+        > configuredQuotaBytes(reservation.limits.maxTotalStorageMb)) {
         throw new UploadQuotaError('The server storage quota would be exceeded.', 'TOTAL_STORAGE');
       }
       reservation.reservedBytes = nextFileSize;
@@ -170,7 +172,7 @@ function createQuotaCoordinator(db, config) {
   };
 }
 export function createQuotaAwareUploadStorage(db, config) {
-  const quotaCoordinator = createQuotaCoordinator(db, config);
+  const quotaCoordinator = createQuotaCoordinator(db);
 
   return {
     _handleFile(req, file, callback) {
@@ -182,7 +184,10 @@ export function createQuotaAwareUploadStorage(db, config) {
       let reservation;
       let filePath = '';
       try {
-        reservation = quotaCoordinator.reserve(req.repository.id);
+        const limits = req.uploadQuotaSettings
+          || loadEffectiveQuotaSettings(db, config, req.repository.id);
+        req.uploadQuotaSettings = limits;
+        reservation = quotaCoordinator.reserve(req.repository.id, limits);
         const destination = ensureSecureRepositoryDirectory(config, req.repository.id);
         const filename = crypto.randomUUID();
         filePath = path.join(destination, filename);

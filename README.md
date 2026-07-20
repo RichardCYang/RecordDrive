@@ -69,7 +69,7 @@ Permissions are checked independently on every server request. A user with no `V
 - Uploaded files receive generated storage names and are stored outside the public web directory.
 - Stored files are opened with symbolic-link following disabled. Storage paths are canonicalized, symbolic-link ancestors are rejected during use, and repository/database paths reject symbolic links.
 - File names shown to users are normalized and length-limited.
-- File size, per-request file count, repository storage, and total storage limits are configurable. Upload CSRF validation and quota checks occur before and during disk writes, and multipart field nesting is disabled.
+- File size, per-request file count, repository storage, total storage, and file-count limits are stored in SQLite. Administrators can update server-wide values from **Admin → Storage**, while repository owners and administrators can set per-repository file-size and storage overrides. New upload requests use changes immediately. Upload CSRF validation and quota checks occur before and during disk writes, and multipart field nesting is disabled.
 - Production rejects non-HTTPS application requests before static files, body parsing, sessions, or authentication are reached. Session cookies require HTTPS, and authenticated sessions have both rolling idle expiration and a server-enforced absolute lifetime. CSRF protection, Helmet headers, bcrypt password hashing, and login/MFA rate limiting are enabled.
 - TOTP secrets, saved TLS passphrases, and one-time recovery-code display data are protected with authenticated encryption.
 - Administrators can enable native HTTPS, validate Posh-ACME certificate files, redirect HTTP requests, and reload renewed certificates without interrupting existing TLS connections. Corrupt or undecryptable saved TLS settings stop startup instead of silently disabling HTTPS.
@@ -191,14 +191,8 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `WEBAUTHN_RP_NAME` | `RecordDrive` | Friendly relying-party name displayed during passkey registration |
 | `WEBAUTHN_RP_ID` | Empty | Public host name used as the WebAuthn relying-party ID; required for production passkey use |
 | `WEBAUTHN_ORIGIN` | Empty | Exact public origin accepted for WebAuthn responses; required for production passkey use |
-| `MAX_FILE_SIZE_MB` | `0` | Maximum size of one uploaded file in megabytes; `0` disables only the per-file cap |
-| `MAX_FILES_PER_UPLOAD` | `10` | Maximum files accepted in one upload request |
-| `MAX_REPOSITORY_STORAGE_MB` | `10240` | Maximum stored file bytes per repository; `0` disables this quota |
-| `MAX_TOTAL_STORAGE_MB` | `102400` | Maximum stored file bytes across the service; `0` disables this quota |
 | `MAX_REPOSITORIES_PER_USER` | `1000` | Maximum repository records owned by one regular user |
 | `MAX_TOTAL_REPOSITORIES` | `10000` | Maximum repository records across the service |
-| `MAX_REPOSITORY_FILES` | `10000` | Maximum file records per repository; `0` disables this quota |
-| `MAX_TOTAL_FILES` | `100000` | Maximum file records across the service; `0` disables this quota |
 | `MAX_ACTIVITY_LOG_ENTRIES` | `100000` | Maximum retained audit-log records; the oldest records are removed in bounded batches |
 | `MAX_SESSIONS_PER_USER` | `10` | Maximum active authenticated or pending-MFA sessions retained per account |
 | `SESSION_IDLE_HOURS` | `12` | Rolling inactivity lifetime for a server-side session |
@@ -206,19 +200,15 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `DB_PATH` | `./data/recorddrive.db` | SQLite database path; it must remain outside `UPLOAD_ROOT` |
 | `UPLOAD_ROOT` | `./data/uploads` | Initial uploaded-file storage directory; the administrator can override it in **Admin → Storage**, and it must not contain `DB_PATH` |
 
+Upload and storage limits are not runtime environment settings. They are persisted in SQLite and edited through **Admin → Storage**. Legacy `MAX_FILE_SIZE_MB`, `MAX_FILES_PER_UPLOAD`, `MAX_REPOSITORY_STORAGE_MB`, `MAX_TOTAL_STORAGE_MB`, `MAX_REPOSITORY_FILES`, and `MAX_TOTAL_FILES` values are used only to seed missing database keys during an upgrade or first initialization; after the keys exist, the database is authoritative.
+
 Every environment other than `development` and `test` uses production validation. Startup rejects a weak session secret, a weak or bcrypt-truncated bootstrap administrator password, and a separately configured MFA encryption key shorter than 32 UTF-8 bytes.
 
 ## Large file uploads
 
-RecordDrive streams multipart file data directly to the configured upload filesystem. The default `MAX_FILE_SIZE_MB=0` removes the legacy 100 MB per-file ceiling, while `MAX_REPOSITORY_STORAGE_MB`, `MAX_TOTAL_STORAGE_MB`, `MAX_REPOSITORY_FILES`, and `MAX_TOTAL_FILES` continue to be enforced during the write. Set a positive `MAX_FILE_SIZE_MB` value when a separate per-file cap is required.
+RecordDrive streams multipart file data directly to the configured upload filesystem. Open **Admin → Storage** to set the default per-file limit, files per upload, repository storage quota, service-wide storage quota, repository file-count limit, and service-wide file-count limit. Enter `0` for an unlimited size or file-count quota where the UI permits it.
 
-For example, the following permits individual files up to the repository quota while retaining a 50 GB repository limit and a 500 GB service-wide limit:
-
-```dotenv
-MAX_FILE_SIZE_MB=0
-MAX_REPOSITORY_STORAGE_MB=51200
-MAX_TOTAL_STORAGE_MB=512000
-```
+Repository owners and administrators can open **Repository Settings** to override the default per-file limit and repository storage quota for that repository. Leaving a repository field blank inherits the current administrator default; entering `0` makes that repository value unlimited. Service-wide storage and file-count limits always continue to apply. Saved changes are read from SQLite for the next upload request, so no application restart is required.
 
 When RecordDrive is behind a reverse proxy, that proxy must also accept the request body. An NGINX example is provided at `docs/nginx-large-upload.conf.example`. Keep the application storage quotas enabled even when the proxy body-size check is disabled.
 

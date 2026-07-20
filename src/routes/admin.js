@@ -15,6 +15,11 @@ import {
   StorageSettingsError,
   updateRepositoryStorageSettings
 } from '../storage-settings.js';
+import {
+  loadGlobalQuotaSettings,
+  QuotaSettingsError,
+  updateGlobalQuotaSettings
+} from '../quota-settings.js';
 
 const USERNAME_PATTERN = /^[a-z0-9_.-]{3,32}$/;
 
@@ -67,10 +72,13 @@ function renderTlsPage(req, res, { settings, runtimeControl, formError = null, s
 
 function renderStoragePage(req, res, db, config, {
   formError = null,
+  limitFormError = null,
   statusCode = 200,
-  form = null
+  form = null,
+  limitForm = null
 } = {}) {
   const settings = loadRepositoryStorageSettings(db, config);
+  const storedQuotaSettings = loadGlobalQuotaSettings(db, config);
   const metrics = db.prepare(`
     SELECT
       (SELECT COUNT(*) FROM repositories) AS repositories,
@@ -87,7 +95,12 @@ function renderStoragePage(req, res, db, config, {
       migrationMode: form?.migrationMode === 'use-existing' ? 'use-existing' : 'move'
     },
     metrics,
-    formError
+    quotaSettings: {
+      ...storedQuotaSettings,
+      ...(limitForm || {})
+    },
+    formError,
+    limitFormError
   });
 }
 
@@ -232,6 +245,38 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
 
   router.get('/storage', (req, res) => {
     return renderStoragePage(req, res, db, config);
+  });
+
+  router.post('/storage/limits', (req, res, next) => {
+    const limitForm = {
+      maxFileSizeMb: String(req.body.maxFileSizeMb ?? '').trim(),
+      maxFilesPerUpload: String(req.body.maxFilesPerUpload ?? '').trim(),
+      maxRepositoryStorageMb: String(req.body.maxRepositoryStorageMb ?? '').trim(),
+      maxTotalStorageMb: String(req.body.maxTotalStorageMb ?? '').trim(),
+      maxRepositoryFiles: String(req.body.maxRepositoryFiles ?? '').trim(),
+      maxTotalFiles: String(req.body.maxTotalFiles ?? '').trim()
+    };
+
+    try {
+      const saved = updateGlobalQuotaSettings(db, limitForm, config);
+      logActivity(db, {
+        actorId: req.currentUser.id,
+        action: 'UPDATE_QUOTA_SETTINGS',
+        targetType: 'SYSTEM',
+        targetLabel: `file=${saved.maxFileSizeMb} MB, repository=${saved.maxRepositoryStorageMb} MB, total=${saved.maxTotalStorageMb} MB`
+      });
+      setFlash(req, 'success', req.t('Upload and storage limits were saved and are now active.'));
+      return res.redirect('/admin/storage');
+    } catch (error) {
+      if (error instanceof QuotaSettingsError) {
+        return renderStoragePage(req, res, db, config, {
+          limitFormError: req.t(error.message),
+          statusCode: error.statusCode,
+          limitForm
+        });
+      }
+      return next(error);
+    }
   });
 
   router.post('/storage', (req, res, next) => {

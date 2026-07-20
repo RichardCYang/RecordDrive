@@ -11,12 +11,80 @@
           <a class="back-link" href="/repositories/<%= repository.id %>"><%= t('← Back') %></a>
           <span class="eyebrow"><%= t('REPOSITORY SETTINGS') %></span>
           <h1><%= t('{{name}} settings', { name: repository.name }) %></h1>
-          <p><%= t('Control how RecordDrive handles file system access times for this repository.') %></p>
+          <p><%= t('Set repository-specific upload and storage limits. Changes apply to new uploads immediately.') %></p>
         </div>
         <a class="button button-secondary" href="/repositories/<%= repository.id %>"><%= t('Open repository') %></a>
       </section>
 
-      <div class="settings-content-stack">
+      <section class="storage-status-grid quota-status-grid">
+        <article class="storage-status-card">
+          <span class="metric-label"><%= t('Stored data') %></span>
+          <strong><%= formatBytes(usage.bytes) %></strong>
+          <small><%= usage.files %> <%= Number(usage.files) === 1 ? t('file') : t('files') %></small>
+        </article>
+        <article class="storage-status-card">
+          <span class="metric-label"><%= t('Active repository quota') %></span>
+          <strong><%= quotaSettings.effective.maxRepositoryStorageMb > 0 ? `${quotaSettings.effective.maxRepositoryStorageMb} MB` : t('Unlimited') %></strong>
+          <small><%= quotaSettings.overrides.maxRepositoryStorageMb === null ? t('Using the administrator default') : t('Repository override') %></small>
+        </article>
+        <article class="storage-status-card">
+          <span class="metric-label"><%= t('Active per-file limit') %></span>
+          <strong><%= quotaSettings.effective.maxFileSizeMb > 0 ? `${quotaSettings.effective.maxFileSizeMb} MB` : t('Unlimited') %></strong>
+          <small><%= quotaSettings.overrides.maxFileSizeMb === null ? t('Using the administrator default') : t('Repository override') %></small>
+        </article>
+      </section>
+
+      <form action="/repositories/<%= repository.id %>/settings" method="post" class="stack-form repository-settings-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow"><%= t('UPLOAD AND STORAGE') %></span>
+              <h2><%= t('Repository-specific limits') %></h2>
+            </div>
+            <strong class="status-pill status-success"><%= t('Applies immediately') %></strong>
+          </div>
+          <div class="settings-panel-body">
+            <div class="quota-settings-grid">
+              <label class="field">
+                <span><%= t('Maximum size per file (MB)') %></span>
+                <input
+                  type="number"
+                  name="maxFileSizeMb"
+                  min="0"
+                  max="10240"
+                  step="1"
+                  inputmode="numeric"
+                  value="<%= quotaSettings.overrides.maxFileSizeMb ?? '' %>"
+                  placeholder="<%= quotaSettings.global.maxFileSizeMb %>"
+                >
+                <small><%= t('Leave blank to use the administrator default of {{value}} MB. Enter 0 for unlimited.', { value: quotaSettings.global.maxFileSizeMb }) %></small>
+              </label>
+
+              <label class="field">
+                <span><%= t('Repository storage quota (MB)') %></span>
+                <input
+                  type="number"
+                  name="maxRepositoryStorageMb"
+                  min="0"
+                  max="1048576"
+                  step="1"
+                  inputmode="numeric"
+                  value="<%= quotaSettings.overrides.maxRepositoryStorageMb ?? '' %>"
+                  placeholder="<%= quotaSettings.global.maxRepositoryStorageMb %>"
+                >
+                <small><%= t('Leave blank to use the administrator default of {{value}} MB. Enter 0 for unlimited.', { value: quotaSettings.global.maxRepositoryStorageMb }) %></small>
+              </label>
+            </div>
+
+            <div class="storage-warning quota-warning">
+              <strong><%= t('Server-wide limits still apply') %></strong>
+              <span><%= t('An administrator can enforce total service storage and file-count limits. Lowering a quota below current usage does not delete files; it blocks new uploads until usage is below the limit.') %></span>
+            </div>
+          </div>
+        </section>
+
         <section class="panel">
           <div class="panel-header">
             <div>
@@ -28,49 +96,53 @@
             </strong>
           </div>
           <div class="settings-panel-body">
-            <form action="/repositories/<%= repository.id %>/settings" method="post" class="stack-form">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <label class="field">
-                <span><%= t('Access time behavior') %></span>
-                <select name="fileAccessTimePolicy" required>
-                  <option value="enabled" <%= repository.update_file_access_time ? 'selected' : '' %>><%= t('Use') %></option>
-                  <option value="disabled" <%= repository.update_file_access_time ? '' : 'selected' %>><%= t('Do not use') %></option>
-                </select>
-                <small><%= t('Choose whether a web download or supported preview updates the stored file access time.') %></small>
-              </label>
-              <button class="button button-primary" type="submit"><%= t('Save repository settings') %></button>
-            </form>
+            <label class="field">
+              <span><%= t('Access time behavior') %></span>
+              <select name="fileAccessTimePolicy" required>
+                <option value="enabled" <%= repository.update_file_access_time ? 'selected' : '' %>><%= t('Use') %></option>
+                <option value="disabled" <%= repository.update_file_access_time ? '' : 'selected' %>><%= t('Do not use') %></option>
+              </select>
+              <small><%= t('Choose whether a web download or supported preview updates the stored file access time.') %></small>
+            </label>
           </div>
         </section>
 
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <span class="eyebrow"><%= t('BEHAVIOR') %></span>
-              <h2><%= t('How this setting works') %></h2>
+        <div class="storage-action-bar">
+          <div>
+            <strong><%= t('Save and apply now') %></strong>
+            <span><%= t('The next upload request reads these values directly from the database.') %></span>
+          </div>
+          <button class="button button-primary" type="submit"><%= t('Save repository settings') %></button>
+        </div>
+      </form>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <span class="eyebrow"><%= t('ACCESS') %></span>
+            <h2><%= t('Who can change these settings') %></h2>
+          </div>
+        </div>
+        <div class="settings-panel-body">
+          <div class="security-overview-grid">
+            <div class="security-overview-item">
+              <span><%= t('Owner') %></span>
+              <strong><%= t('Repository control') %></strong>
+              <small><%= t('The repository owner can set custom file-size and storage limits at any time.') %></small>
+            </div>
+            <div class="security-overview-item">
+              <span><%= t('Administrator') %></span>
+              <strong><%= t('Full control') %></strong>
+              <small><%= t('Administrators can change both repository overrides and server-wide defaults.') %></small>
+            </div>
+            <div class="security-overview-item">
+              <span><%= t('Shared users') %></span>
+              <strong><%= t('No settings access') %></strong>
+              <small><%= t('Shared users cannot view or modify repository settings.') %></small>
             </div>
           </div>
-          <div class="settings-panel-body">
-            <div class="security-overview-grid">
-              <div class="security-overview-item">
-                <span><%= t('Use') %></span>
-                <strong><%= t('Update on web access') %></strong>
-                <small><%= t('Downloads and supported previews set the file access time to the current web access time.') %></small>
-              </div>
-              <div class="security-overview-item">
-                <span><%= t('Do not use') %></span>
-                <strong><%= t('Preserve the initial value') %></strong>
-                <small><%= t('RecordDrive restores the access time captured when the file was first stored and keeps it unchanged after web access.') %></small>
-              </div>
-              <div class="security-overview-item">
-                <span><%= t('Who can change it') %></span>
-                <strong><%= t('Owner or administrator') %></strong>
-                <small><%= t('Shared users cannot view or modify repository settings.') %></small>
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
+        </div>
+      </section>
     </div>
   </main>
   <%- include('partials/footer') %>

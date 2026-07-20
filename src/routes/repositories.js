@@ -33,6 +33,12 @@ import {
   previewFileSizeLimit
 } from '../file-preview.js';
 import {
+  loadEffectiveQuotaSettings,
+  loadRepositoryQuotaSettings,
+  QuotaSettingsError,
+  updateRepositoryQuotaSettings
+} from '../quota-settings.js';
+import {
   createRepositoryFolder,
   deleteRepositoryFolder,
   getRepositoryFolder,
@@ -182,7 +188,7 @@ function configuredQuotaCount(value) {
   return count;
 }
 
-function enforceUploadQuotas(db, config, repositoryId, uploadedFiles) {
+function enforceUploadQuotas(db, settings, repositoryId, uploadedFiles) {
   const uploadedBytes = uploadedFiles.reduce((total, file) => total + Number(file.size || 0), 0);
   const uploadedCount = uploadedFiles.length;
   const repositoryUsage = db.prepare(`
@@ -198,22 +204,22 @@ function enforceUploadQuotas(db, config, repositoryId, uploadedFiles) {
   const repositoryCount = Number(repositoryUsage.count || 0);
   const totalCount = Number(totalUsage.count || 0);
 
-  if (repositoryBytes + uploadedBytes > configuredQuotaBytes(config.maxRepositoryStorageMb)) {
+  if (repositoryBytes + uploadedBytes > configuredQuotaBytes(settings.maxRepositoryStorageMb)) {
     throw new UploadQuotaError(
       'The repository storage quota would be exceeded.',
       'REPOSITORY_STORAGE'
     );
   }
-  if (totalBytes + uploadedBytes > configuredQuotaBytes(config.maxTotalStorageMb)) {
+  if (totalBytes + uploadedBytes > configuredQuotaBytes(settings.maxTotalStorageMb)) {
     throw new UploadQuotaError('The server storage quota would be exceeded.', 'TOTAL_STORAGE');
   }
-  if (repositoryCount + uploadedCount > configuredQuotaCount(config.maxRepositoryFiles)) {
+  if (repositoryCount + uploadedCount > configuredQuotaCount(settings.maxRepositoryFiles)) {
     throw new UploadQuotaError(
       'The repository file count quota would be exceeded.',
       'REPOSITORY_FILE_COUNT'
     );
   }
-  if (totalCount + uploadedCount > configuredQuotaCount(config.maxTotalFiles)) {
+  if (totalCount + uploadedCount > configuredQuotaCount(settings.maxTotalFiles)) {
     throw new UploadQuotaError('The server file count quota would be exceeded.', 'TOTAL_FILE_COUNT');
   }
 }
@@ -350,25 +356,29 @@ export function createRepositoriesRouter(db, config) {
 
   const storage = createQuotaAwareUploadStorage(db, config);
 
-  const uploadLimits = {
-    files: config.maxFilesPerUpload,
-    fieldNameSize: 64,
-    fieldSize: 256,
-    fields: 2,
-    parts: config.maxFilesPerUpload + 2,
-    headerPairs: 100,
-    fieldNestingDepth: 0
-  };
-  if (Number(config.maxFileSizeMb) > 0) {
-    uploadLimits.fileSize = config.maxFileSizeMb * 1024 * 1024;
-  }
+  const uploadFiles = (req, res, next) => {
+    const quotaSettings = loadEffectiveQuotaSettings(db, config, req.repository);
+    req.uploadQuotaSettings = quotaSettings;
+    const uploadLimits = {
+      files: quotaSettings.maxFilesPerUpload,
+      fieldNameSize: 64,
+      fieldSize: 256,
+      fields: 2,
+      parts: quotaSettings.maxFilesPerUpload + 2,
+      headerPairs: 100,
+      fieldNestingDepth: 0
+    };
+    if (Number(quotaSettings.maxFileSizeMb) > 0) {
+      uploadLimits.fileSize = quotaSettings.maxFileSizeMb * 1024 * 1024;
+    }
 
-  const upload = multer({ storage, limits: uploadLimits });
-  const parseUpload = upload.array('files', config.maxFilesPerUpload);
-  const uploadFiles = (req, res, next) => parseUpload(req, res, (error) => {
-    if (error) cleanupUploadedFiles(req.files, storage);
-    next(error);
-  });
+    const parseUpload = multer({ storage, limits: uploadLimits })
+      .array('files', quotaSettings.maxFilesPerUpload);
+    parseUpload(req, res, (error) => {
+      if (error) cleanupUploadedFiles(req.files, storage);
+      next(error);
+    });
+  };
 
   router.use(requireAuth);
 
@@ -425,9 +435,17 @@ export function createRepositoriesRouter(db, config) {
   });
 
   router.get('/:repositoryId/settings', requireManager, (req, res) => {
+    const quotaSettings = loadRepositoryQuotaSettings(db, config, req.repository);
+    const usage = db.prepare(`
+      SELECT COUNT(*) AS files, COALESCE(SUM(size), 0) AS bytes
+      FROM files
+      WHERE repository_id = ?
+    `).get(req.repository.id);
     return res.render('repository-settings', {
       title: req.t('Repository settings'),
-      repository: req.repository
+      repository: req.repository,
+      quotaSettings,
+      usage
     });
   });
 
@@ -439,8 +457,17 @@ export function createRepositoriesRouter(db, config) {
     }
 
     const enabled = policy === 'enabled';
-    const previousValue = Number(req.repository.update_file_access_time);
+    const previous = {
+      updateFileAccessTime: Number(req.repository.update_file_access_time),
+      maxFileSizeMb: req.repository.max_file_size_mb,
+      maxRepositoryStorageMb: req.repository.max_storage_mb
+    };
+
     try {
+      const savedQuotas = updateRepositoryQuotaSettings(db, req.repository.id, {
+        maxFileSizeMb: req.body.maxFileSizeMb,
+        maxRepositoryStorageMb: req.body.maxRepositoryStorageMb
+      });
       db.prepare(`
         UPDATE repositories SET update_file_access_time = ? WHERE id = ?
       `).run(Number(enabled), req.repository.id);
@@ -451,17 +478,28 @@ export function createRepositoriesRouter(db, config) {
 
       logActivity(db, {
         actorId: req.currentUser.id,
-        action: 'UPDATE_REPOSITORY_FILE_ACCESS_TIME',
+        action: 'UPDATE_REPOSITORY_SETTINGS',
         targetType: 'REPOSITORY',
-        targetLabel: `${req.repository.name} [${policy}]`,
+        targetLabel: `${req.repository.name} [file=${savedQuotas.maxFileSizeMb ?? 'default'} MB, storage=${savedQuotas.maxRepositoryStorageMb ?? 'default'} MB, access=${policy}]`,
         repositoryId: req.repository.id
       });
-      setFlash(req, 'success', req.t('Repository file access time setting saved.'));
+      setFlash(req, 'success', req.t('Repository settings were saved and are now active.'));
       return res.redirect(`/repositories/${req.repository.id}/settings`);
     } catch (error) {
       db.prepare(`
-        UPDATE repositories SET update_file_access_time = ? WHERE id = ?
-      `).run(previousValue, req.repository.id);
+        UPDATE repositories
+        SET update_file_access_time = ?, max_file_size_mb = ?, max_storage_mb = ?
+        WHERE id = ?
+      `).run(
+        previous.updateFileAccessTime,
+        previous.maxFileSizeMb,
+        previous.maxRepositoryStorageMb,
+        req.repository.id
+      );
+      if (error instanceof QuotaSettingsError) {
+        setFlash(req, 'error', req.t(error.message));
+        return res.redirect(`/repositories/${req.repository.id}/settings`);
+      }
       return next(error);
     }
   });
@@ -636,6 +674,7 @@ export function createRepositoriesRouter(db, config) {
         (SELECT COUNT(*) FROM folders WHERE repository_id = ?) AS folder_count
     `).get(req.repository.id, req.repository.id, req.repository.id);
 
+    const quotaSettings = loadEffectiveQuotaSettings(db, config, req.repository);
     return res.render('repository', {
       title: currentFolder ? `${currentFolder.name} · ${req.repository.name}` : req.repository.name,
       repository: req.repository,
@@ -648,8 +687,9 @@ export function createRepositoriesRouter(db, config) {
       stats,
       search,
       sort: selectedSort,
-      maxFileSizeMb: config.maxFileSizeMb,
-      maxFilesPerUpload: config.maxFilesPerUpload
+      maxFileSizeMb: quotaSettings.maxFileSizeMb,
+      maxFilesPerUpload: quotaSettings.maxFilesPerUpload,
+      maxRepositoryStorageMb: quotaSettings.maxRepositoryStorageMb
     });
   });
 
@@ -703,7 +743,7 @@ export function createRepositoriesRouter(db, config) {
 
         try {
           db.exec('BEGIN IMMEDIATE');
-          enforceUploadQuotas(db, config, req.repository.id, req.files);
+          enforceUploadQuotas(db, req.uploadQuotaSettings, req.repository.id, req.files);
           for (const file of req.files) {
             fs.chmodSync(file.path, 0o600);
             insertFile.run(
@@ -742,7 +782,7 @@ export function createRepositoriesRouter(db, config) {
         return res.redirect(redirectUrl);
       } catch (error) {
         if (error instanceof UploadQuotaError) {
-          const message = uploadQuotaErrorMessage(req, error, config);
+          const message = uploadQuotaErrorMessage(req, error, req.uploadQuotaSettings);
           if (requestWantsJson(req)) return res.status(413).json({ error: message });
           return res.status(413).render('error', {
             title: req.t('Upload failed'),

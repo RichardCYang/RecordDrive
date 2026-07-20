@@ -203,7 +203,7 @@ export function createApplication(options = {}) {
     }
 
     if (error instanceof UploadQuotaError) {
-      const message = uploadQuotaErrorMessage(req, error, config);
+      const message = uploadQuotaErrorMessage(req, error, req.uploadQuotaSettings || config);
       if (requestWantsJson(req)) return res.status(413).json({ error: message });
       return res.status(413).render('error', {
         title: req.t('Upload failed'),
@@ -215,9 +215,11 @@ export function createApplication(options = {}) {
     if (error instanceof multer.MulterError) {
       let message = req.t('An error occurred while uploading the file.');
       if (error.code === 'LIMIT_FILE_SIZE') {
-        message = req.t('Each file can be up to {{size}} MB.', { size: config.maxFileSizeMb });
+        const size = req.uploadQuotaSettings?.maxFileSizeMb ?? config.maxFileSizeMb;
+        message = req.t('Each file can be up to {{size}} MB.', { size });
       } else if (error.code === 'LIMIT_FILE_COUNT') {
-        message = req.t('You can upload up to {{count}} files at a time.', { count: config.maxFilesPerUpload });
+        const count = req.uploadQuotaSettings?.maxFilesPerUpload ?? config.maxFilesPerUpload;
+        message = req.t('You can upload up to {{count}} files at a time.', { count });
       }
       const statusCode = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
       if (requestWantsJson(req)) return res.status(statusCode).json({ error: message });

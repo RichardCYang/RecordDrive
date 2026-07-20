@@ -6,6 +6,7 @@ import { purgeAdministratorSessions } from './admin-access.js';
 import { ensureSecureUploadRoot, openStoredFile, readInitialAccessTimeMs } from './file-access-time.js';
 import { normalizeAndValidateStorageConfiguration } from './storage-path-security.js';
 import { applyStoredRepositoryStorageRoot, ensureStorageSettingsTable } from './storage-settings.js';
+import { ensureQuotaSettings } from './quota-settings.js';
 
 const activityLogRetentionByDatabase = new WeakMap();
 
@@ -121,6 +122,8 @@ export function createDatabase(providedConfig) {
       description TEXT NOT NULL DEFAULT '',
       created_by INTEGER,
       update_file_access_time INTEGER NOT NULL DEFAULT 1 CHECK (update_file_access_time IN (0, 1)),
+      max_file_size_mb REAL,
+      max_storage_mb REAL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     );
@@ -264,6 +267,14 @@ export function createDatabase(providedConfig) {
       CHECK (update_file_access_time IN (0, 1));
     `);
   }
+  if (!repositoryColumns.has('max_file_size_mb')) {
+    db.exec('ALTER TABLE repositories ADD COLUMN max_file_size_mb REAL;');
+  }
+  if (!repositoryColumns.has('max_storage_mb')) {
+    db.exec('ALTER TABLE repositories ADD COLUMN max_storage_mb REAL;');
+  }
+
+  ensureQuotaSettings(db, config);
 
   const fileColumns = new Set(
     db.prepare('PRAGMA table_info(files)').all().map((column) => column.name)

@@ -236,6 +236,9 @@
                 <small><%= maxFileSizeMb > 0
                   ? t('Up to {{size}} MB per file · Up to {{count}} files at a time', { size: maxFileSizeMb, count: maxFilesPerUpload })
                   : t('No per-file size limit · Up to {{count}} files at a time', { count: maxFilesPerUpload }) %></small>
+                <small><%= maxRepositoryStorageMb > 0
+                  ? t('Active repository storage quota: {{size}} MB', { size: maxRepositoryStorageMb })
+                  : t('Active repository storage quota: Unlimited') %></small>
               </span>
               <span class="button button-primary button-small"><%= t('Choose from device') %></span>
             </label>
