@@ -27,6 +27,7 @@ import {
   uploadQuotaErrorMessage
 } from '../upload-storage.js';
 import {
+  createSevenZipPreview,
   createXlsxPreview,
   createZipPreview,
   FilePreviewError,
@@ -67,6 +68,10 @@ function previewErrorMessage(req, error) {
     EMPTY_XLSX: req.t('The spreadsheet does not contain any worksheets.'),
     INVALID_ZIP: req.t('The ZIP archive preview could not be generated.'),
     ZIP_TOO_LARGE: req.t('The ZIP archive is too large to preview safely.'),
+    INVALID_7Z: req.t('The 7z archive preview could not be generated.'),
+    SEVEN_ZIP_UNAVAILABLE: req.t('7z preview is unavailable because 7-Zip is not installed on the server.'),
+    SEVEN_ZIP_TIMEOUT: req.t('The 7z archive took too long to inspect safely.'),
+    SEVEN_ZIP_METADATA_LIMIT: req.t('The 7z archive contains too much metadata to preview safely.'),
     PREVIEW_BUSY: req.t('The preview service is busy. Try again shortly.')
   };
   return messages[error.code] || req.t('The file preview could not be generated.');
@@ -834,7 +839,7 @@ export function createRepositoriesRouter(db, config) {
     }
 
     const previewKind = filePreviewKind(file.mime_type, file.original_name);
-    if (!['pdf', 'xlsx', 'zip'].includes(previewKind)) {
+    if (!['pdf', 'xlsx', 'zip', '7z'].includes(previewKind)) {
       return res.status(415).json({ error: req.t('Preview is not available for this file type.') });
     }
 
@@ -858,12 +863,18 @@ export function createRepositoriesRouter(db, config) {
         const code = previewKind === 'xlsx' ? 'XLSX_TOO_LARGE' : 'ZIP_TOO_LARGE';
         throw new FilePreviewError(code, 'The file exceeds the compressed preview size limit.');
       }
-      const preview = await withTrackedFileAccess(
-        tracker,
-        () => previewKind === 'xlsx'
-          ? createXlsxPreview(() => readOpenedFile(opened), opened.stats, req.query.sheet)
-          : createZipPreview(() => readOpenedFile(opened), opened.stats)
-      );
+      const preview = await withTrackedFileAccess(tracker, () => {
+        if (previewKind === 'xlsx') {
+          return createXlsxPreview(() => readOpenedFile(opened), opened.stats, req.query.sheet);
+        }
+        if (previewKind === 'zip') {
+          return createZipPreview(() => readOpenedFile(opened), opened.stats);
+        }
+        return createSevenZipPreview(opened.filePath, opened.stats, {
+          binary: config.sevenZipBinary,
+          timeoutMs: config.sevenZipPreviewTimeoutMs
+        });
+      });
       return res.json(preview);
     } catch (error) {
       if (error?.code === 'ENOENT') {
@@ -872,10 +883,10 @@ export function createRepositoriesRouter(db, config) {
         });
       }
       if (error instanceof FilePreviewError) {
-        const status = ['XLSX_TOO_LARGE', 'ZIP_TOO_LARGE'].includes(error.code)
+        const status = ['XLSX_TOO_LARGE', 'ZIP_TOO_LARGE', 'SEVEN_ZIP_METADATA_LIMIT'].includes(error.code)
           ? 413
-          : (error.code === 'PREVIEW_BUSY' ? 503 : 422);
-        if (error.code === 'PREVIEW_BUSY') res.set('Retry-After', '2');
+          : (['PREVIEW_BUSY', 'SEVEN_ZIP_UNAVAILABLE', 'SEVEN_ZIP_TIMEOUT'].includes(error.code) ? 503 : 422);
+        if (['PREVIEW_BUSY', 'SEVEN_ZIP_TIMEOUT'].includes(error.code)) res.set('Retry-After', '2');
         return res.status(status).json({ error: previewErrorMessage(req, error), code: error.code });
       }
       return next(error);

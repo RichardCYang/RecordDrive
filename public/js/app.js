@@ -853,16 +853,29 @@
     };
 
     const renderArchivePreview = (payload) => {
+      const sevenZip = payload.kind === '7z';
       if (payload.encrypted) {
         showPreviewMessage(
-          message('encryptedArchive', 'This ZIP archive is password-protected.'),
-          message('encryptedArchiveDetail', 'Archive contents are not shown for encrypted ZIP files.'),
+          sevenZip
+            ? message('encryptedSevenZip', 'This 7z archive is password-protected.')
+            : message('encryptedArchive', 'This ZIP archive is password-protected.'),
+          sevenZip
+            ? message('encryptedSevenZipDetail', 'Archive contents are not shown for encrypted 7z files.')
+            : message('encryptedArchiveDetail', 'Archive contents are not shown for encrypted ZIP files.'),
           'warning'
         );
         return null;
       }
       if (!payload.entries?.length) {
-        showPreviewMessage(message('emptyArchive', 'This ZIP archive is empty.'));
+        if (payload.truncated && payload.totalEntries > 0) {
+          showPreviewMessage(message('archiveTruncated', 'Only the first {{count}} archive entries are shown.', { count: 0 }));
+          return null;
+        }
+        showPreviewMessage(
+          sevenZip
+            ? message('emptySevenZip', 'This 7z archive is empty.')
+            : message('emptyArchive', 'This ZIP archive is empty.')
+        );
         return null;
       }
 
@@ -873,7 +886,17 @@
       const title = document.createElement('strong');
       title.textContent = message('archiveContents', 'Archive contents');
       const metadata = document.createElement('span');
-      metadata.textContent = `${payload.totalEntries} ${payload.totalEntries === 1 ? message('item', 'item') : message('items', 'items')} · ${formatPreviewBytes(payload.totalUncompressedSize)}`;
+      const totalEntries = Number(payload.totalEntries) || 0;
+      const countSuffix = payload.totalEntriesExact === false ? '+' : '';
+      const sizeSuffix = payload.totalsExact === false ? '+' : '';
+      const metadataParts = [
+        `${totalEntries}${countSuffix} ${totalEntries === 1 ? message('item', 'item') : message('items', 'items')}`,
+        `${formatPreviewBytes(payload.totalUncompressedSize)}${sizeSuffix}`
+      ];
+      if (payload.metadataOnly) {
+        metadataParts.push(message('metadataOnlyArchive', 'Metadata only (no extraction)'));
+      }
+      metadata.textContent = metadataParts.join(' · ');
       summary.append(title, metadata);
       shell.append(summary);
 
@@ -942,7 +965,7 @@
         if (previewKind === 'xlsx') {
           loadedPreviewKey = `${fileId}:${previewKind}:${payload.sheet?.index ?? sheetIndex}`;
           showPreviewContent(renderSpreadsheetPreview(item, payload));
-        } else if (previewKind === 'zip') {
+        } else if (previewKind === 'zip' || previewKind === '7z') {
           const content = renderArchivePreview(payload);
           loadedPreviewKey = previewKey;
           if (content) showPreviewContent(content);

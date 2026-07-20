@@ -151,6 +151,12 @@ export function loadConfig(overrides = {}) {
     sessionAbsoluteHours: Number.isFinite(sessionAbsoluteHours) && sessionAbsoluteHours > 0
       ? Math.min(sessionAbsoluteHours, 24 * 365)
       : 168,
+    sevenZipBinary: String(env.SEVEN_ZIP_BINARY || '').trim(),
+    sevenZipPreviewTimeoutMs: timeoutFromEnv(
+      env.SEVEN_ZIP_PREVIEW_TIMEOUT_MS,
+      20 * 1000,
+      { allowZero: false }
+    ),
     dbPath: resolveFromCwd(env.DB_PATH || './data/recorddrive.db'),
     uploadRoot: resolveFromCwd(env.UPLOAD_ROOT || './data/uploads')
   };

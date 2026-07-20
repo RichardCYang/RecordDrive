@@ -39,6 +39,7 @@ export function filePreviewKind(mimeType = '', filename = '') {
   if (extension === '.pdf' || mime === 'application/pdf') return 'pdf';
   if (extension === '.xlsx' || mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return 'xlsx';
   if (extension === '.zip' || mime === 'application/zip' || mime === 'application/x-zip-compressed') return 'zip';
+  if (extension === '.7z' || mime === 'application/x-7z-compressed') return '7z';
   return '';
 }
 

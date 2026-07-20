@@ -2,6 +2,9 @@ FROM node:24.18.0-alpine
 
 WORKDIR /app
 
+# 7z previews call only the 7-Zip metadata listing command; no archive data is extracted.
+RUN apk add --no-cache 7zip
+
 COPY --chown=node:node package*.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
