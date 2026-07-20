@@ -24,7 +24,11 @@ import { createRepositoriesRouter } from './routes/repositories.js';
 import { fileKind, filePreviewKind, formatBytes, formatDate, requestWantsJson } from './utils.js';
 import { languageMiddleware } from './i18n.js';
 import { createSettingsRouter } from './routes/settings.js';
-import { UploadCsrfError, UploadQuotaError } from './upload-storage.js';
+import {
+  UploadCsrfError,
+  UploadQuotaError,
+  uploadQuotaErrorMessage
+} from './upload-storage.js';
 import { normalizeAndValidateStorageConfiguration } from './storage-path-security.js';
 import { applyStoredRepositoryStorageRoot } from './storage-settings.js';
 import { ensureSecureUploadRoot } from './file-access-time.js';
@@ -199,7 +203,7 @@ export function createApplication(options = {}) {
     }
 
     if (error instanceof UploadQuotaError) {
-      const message = req.t(error.message);
+      const message = uploadQuotaErrorMessage(req, error, config);
       if (requestWantsJson(req)) return res.status(413).json({ error: message });
       return res.status(413).render('error', {
         title: req.t('Upload failed'),

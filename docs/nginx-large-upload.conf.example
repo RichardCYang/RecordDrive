@@ -1,0 +1,13 @@
+# Include these directives in the NGINX server/location that proxies RecordDrive.
+# RecordDrive's own repository and total storage quotas remain the authoritative limits.
+location / {
+    client_max_body_size 0;
+    proxy_request_buffering off;
+    proxy_read_timeout 1h;
+    proxy_send_timeout 1h;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_pass http://127.0.0.1:3000;
+}

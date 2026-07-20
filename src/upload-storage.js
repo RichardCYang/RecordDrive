@@ -8,10 +8,11 @@ import { isValidCsrf } from './middleware/csrf.js';
 const BYTES_PER_MEGABYTE = 1024 * 1024;
 
 export class UploadQuotaError extends Error {
-  constructor(message) {
+  constructor(message, quota = 'UNKNOWN') {
     super(message);
     this.name = 'UploadQuotaError';
     this.code = 'UPLOAD_QUOTA_EXCEEDED';
+    this.quota = quota;
     this.statusCode = 413;
   }
 }
@@ -38,8 +39,14 @@ function configuredQuotaCount(value) {
 }
 
 function uploadFileSizeLimit(config) {
-  const configured = configuredQuotaBytes(config.maxFileSizeMb);
-  return Number.isFinite(configured) ? configured : 100 * BYTES_PER_MEGABYTE;
+  return configuredQuotaBytes(config.maxFileSizeMb);
+}
+
+export function uploadQuotaErrorMessage(req, error, config) {
+  if (error?.quota === 'FILE_SIZE' && Number(config.maxFileSizeMb) > 0) {
+    return req.t('Each file can be up to {{size}} MB.', { size: config.maxFileSizeMb });
+  }
+  return req.t(error?.message || 'The upload could not be completed. Please try again.');
 }
 
 function removePath(filePath) {
@@ -102,10 +109,13 @@ function createQuotaCoordinator(db, config) {
 
       if (committedRepositoryUsage.count + active.repositoryCount + 1
         > configuredQuotaCount(config.maxRepositoryFiles)) {
-        throw new UploadQuotaError('The repository file count quota would be exceeded.');
+        throw new UploadQuotaError(
+          'The repository file count quota would be exceeded.',
+          'REPOSITORY_FILE_COUNT'
+        );
       }
       if (totalUsage.count + active.totalCount + 1 > configuredQuotaCount(config.maxTotalFiles)) {
-        throw new UploadQuotaError('The server file count quota would be exceeded.');
+        throw new UploadQuotaError('The server file count quota would be exceeded.', 'TOTAL_FILE_COUNT');
       }
 
       const id = crypto.randomUUID();
@@ -125,15 +135,18 @@ function createQuotaCoordinator(db, config) {
       const nextFileSize = reservation.reservedBytes + additionalBytes;
 
       if (nextFileSize > uploadFileSizeLimit(config)) {
-        throw new UploadQuotaError('The file size limit would be exceeded.');
+        throw new UploadQuotaError('The file size limit would be exceeded.', 'FILE_SIZE');
       }
       if (committedRepositoryUsage.size + active.repositoryBytes + additionalBytes
         > configuredQuotaBytes(config.maxRepositoryStorageMb)) {
-        throw new UploadQuotaError('The repository storage quota would be exceeded.');
+        throw new UploadQuotaError(
+          'The repository storage quota would be exceeded.',
+          'REPOSITORY_STORAGE'
+        );
       }
       if (totalUsage.size + active.totalBytes + additionalBytes
         > configuredQuotaBytes(config.maxTotalStorageMb)) {
-        throw new UploadQuotaError('The server storage quota would be exceeded.');
+        throw new UploadQuotaError('The server storage quota would be exceeded.', 'TOTAL_STORAGE');
       }
       reservation.reservedBytes = nextFileSize;
     },
@@ -173,6 +186,12 @@ export function createQuotaAwareUploadStorage(db, config) {
         const destination = ensureSecureRepositoryDirectory(config, req.repository.id);
         const filename = crypto.randomUUID();
         filePath = path.join(destination, filename);
+        // Expose pending-file metadata before streaming starts so Multer can remove a
+        // partially written file if the source stream errors before _handleFile completes.
+        file.destination = destination;
+        file.filename = filename;
+        file.path = filePath;
+        file.quotaReservationId = reservation.id;
         let size = 0;
         const limiter = new Transform({
           transform(chunk, encoding, done) {

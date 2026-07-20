@@ -191,7 +191,7 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `WEBAUTHN_RP_NAME` | `RecordDrive` | Friendly relying-party name displayed during passkey registration |
 | `WEBAUTHN_RP_ID` | Empty | Public host name used as the WebAuthn relying-party ID; required for production passkey use |
 | `WEBAUTHN_ORIGIN` | Empty | Exact public origin accepted for WebAuthn responses; required for production passkey use |
-| `MAX_FILE_SIZE_MB` | `100` | Maximum size of one uploaded file in megabytes |
+| `MAX_FILE_SIZE_MB` | `0` | Maximum size of one uploaded file in megabytes; `0` disables only the per-file cap |
 | `MAX_FILES_PER_UPLOAD` | `10` | Maximum files accepted in one upload request |
 | `MAX_REPOSITORY_STORAGE_MB` | `10240` | Maximum stored file bytes per repository; `0` disables this quota |
 | `MAX_TOTAL_STORAGE_MB` | `102400` | Maximum stored file bytes across the service; `0` disables this quota |
@@ -207,6 +207,20 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `UPLOAD_ROOT` | `./data/uploads` | Initial uploaded-file storage directory; the administrator can override it in **Admin → Storage**, and it must not contain `DB_PATH` |
 
 Every environment other than `development` and `test` uses production validation. Startup rejects a weak session secret, a weak or bcrypt-truncated bootstrap administrator password, and a separately configured MFA encryption key shorter than 32 UTF-8 bytes.
+
+## Large file uploads
+
+RecordDrive streams multipart file data directly to the configured upload filesystem. The default `MAX_FILE_SIZE_MB=0` removes the legacy 100 MB per-file ceiling, while `MAX_REPOSITORY_STORAGE_MB`, `MAX_TOTAL_STORAGE_MB`, `MAX_REPOSITORY_FILES`, and `MAX_TOTAL_FILES` continue to be enforced during the write. Set a positive `MAX_FILE_SIZE_MB` value when a separate per-file cap is required.
+
+For example, the following permits individual files up to the repository quota while retaining a 50 GB repository limit and a 500 GB service-wide limit:
+
+```dotenv
+MAX_FILE_SIZE_MB=0
+MAX_REPOSITORY_STORAGE_MB=51200
+MAX_TOTAL_STORAGE_MB=512000
+```
+
+When RecordDrive is behind a reverse proxy, that proxy must also accept the request body. An NGINX example is provided at `docs/nginx-large-upload.conf.example`. Keep the application storage quotas enabled even when the proxy body-size check is disabled.
 
 
 ## Repository storage location

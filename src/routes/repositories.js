@@ -23,7 +23,8 @@ import {
 import { filePreviewKind, requestWantsJson, safeOriginalName, setFlash } from '../utils.js';
 import {
   createQuotaAwareUploadStorage,
-  UploadQuotaError
+  UploadQuotaError,
+  uploadQuotaErrorMessage
 } from '../upload-storage.js';
 import {
   createXlsxPreview,
@@ -198,16 +199,22 @@ function enforceUploadQuotas(db, config, repositoryId, uploadedFiles) {
   const totalCount = Number(totalUsage.count || 0);
 
   if (repositoryBytes + uploadedBytes > configuredQuotaBytes(config.maxRepositoryStorageMb)) {
-    throw new UploadQuotaError('The repository storage quota would be exceeded.');
+    throw new UploadQuotaError(
+      'The repository storage quota would be exceeded.',
+      'REPOSITORY_STORAGE'
+    );
   }
   if (totalBytes + uploadedBytes > configuredQuotaBytes(config.maxTotalStorageMb)) {
-    throw new UploadQuotaError('The server storage quota would be exceeded.');
+    throw new UploadQuotaError('The server storage quota would be exceeded.', 'TOTAL_STORAGE');
   }
   if (repositoryCount + uploadedCount > configuredQuotaCount(config.maxRepositoryFiles)) {
-    throw new UploadQuotaError('The repository file count quota would be exceeded.');
+    throw new UploadQuotaError(
+      'The repository file count quota would be exceeded.',
+      'REPOSITORY_FILE_COUNT'
+    );
   }
   if (totalCount + uploadedCount > configuredQuotaCount(config.maxTotalFiles)) {
-    throw new UploadQuotaError('The server file count quota would be exceeded.');
+    throw new UploadQuotaError('The server file count quota would be exceeded.', 'TOTAL_FILE_COUNT');
   }
 }
 
@@ -343,19 +350,20 @@ export function createRepositoriesRouter(db, config) {
 
   const storage = createQuotaAwareUploadStorage(db, config);
 
-  const upload = multer({
-    storage,
-    limits: {
-      fileSize: config.maxFileSizeMb * 1024 * 1024,
-      files: config.maxFilesPerUpload,
-      fieldNameSize: 64,
-      fieldSize: 256,
-      fields: 2,
-      parts: config.maxFilesPerUpload + 2,
-      headerPairs: 100,
-      fieldNestingDepth: 0
-    }
-  });
+  const uploadLimits = {
+    files: config.maxFilesPerUpload,
+    fieldNameSize: 64,
+    fieldSize: 256,
+    fields: 2,
+    parts: config.maxFilesPerUpload + 2,
+    headerPairs: 100,
+    fieldNestingDepth: 0
+  };
+  if (Number(config.maxFileSizeMb) > 0) {
+    uploadLimits.fileSize = config.maxFileSizeMb * 1024 * 1024;
+  }
+
+  const upload = multer({ storage, limits: uploadLimits });
   const parseUpload = upload.array('files', config.maxFilesPerUpload);
   const uploadFiles = (req, res, next) => parseUpload(req, res, (error) => {
     if (error) cleanupUploadedFiles(req.files, storage);
@@ -734,7 +742,7 @@ export function createRepositoriesRouter(db, config) {
         return res.redirect(redirectUrl);
       } catch (error) {
         if (error instanceof UploadQuotaError) {
-          const message = req.t(error.message);
+          const message = uploadQuotaErrorMessage(req, error, config);
           if (requestWantsJson(req)) return res.status(413).json({ error: message });
           return res.status(413).render('error', {
             title: req.t('Upload failed'),

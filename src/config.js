@@ -50,7 +50,7 @@ export function loadConfig(overrides = {}) {
     }
   }
 
-  const maxFileSizeMb = Number.parseInt(env.MAX_FILE_SIZE_MB || '100', 10);
+  const maxFileSizeMb = Number.parseInt(env.MAX_FILE_SIZE_MB || '0', 10);
   const maxFilesPerUpload = Number.parseInt(env.MAX_FILES_PER_UPLOAD || '10', 10);
   const httpPort = Number.parseInt(env.HTTP_PORT || env.PORT || '3000', 10);
   const httpsPort = Number.parseInt(env.HTTPS_PORT || '3443', 10);
@@ -96,9 +96,9 @@ export function loadConfig(overrides = {}) {
     webAuthnRpName: (env.WEBAUTHN_RP_NAME || 'RecordDrive').trim(),
     webAuthnRpId: (env.WEBAUTHN_RP_ID || '').trim().toLowerCase(),
     webAuthnOrigin: (env.WEBAUTHN_ORIGIN || '').trim(),
-    maxFileSizeMb: Number.isFinite(maxFileSizeMb) && maxFileSizeMb > 0
+    maxFileSizeMb: Number.isFinite(maxFileSizeMb) && maxFileSizeMb >= 0
       ? Math.min(maxFileSizeMb, 10240)
-      : 100,
+      : 0,
     maxFilesPerUpload: Number.isFinite(maxFilesPerUpload) && maxFilesPerUpload > 0
       ? Math.min(maxFilesPerUpload, 100)
       : 10,
