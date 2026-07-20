@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { requestWantsJson } from '../utils.js';
 
 const MULTIPART_UPLOAD_PATH = /^\/repositories\/[1-9]\d*\/upload\/?$/;
 const ANONYMOUS_CSRF_COOKIE = 'recorddrive.csrf';
@@ -88,10 +89,14 @@ function setAnonymousCsrfCookie(req, res, token) {
 }
 
 function renderCsrfFailure(req, res) {
+  const message = req.t('The security token is invalid or has expired. Refresh the page and try again.');
+  if (requestWantsJson(req)) {
+    return res.status(403).json({ error: message });
+  }
   return res.status(403).render('error', {
     title: req.t('Request could not be verified'),
     statusCode: 403,
-    message: req.t('The security token is invalid or has expired. Refresh the page and try again.')
+    message
   });
 }
 

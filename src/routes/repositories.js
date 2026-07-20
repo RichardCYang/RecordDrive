@@ -20,7 +20,7 @@ import {
   resolveStoredFilePath,
   restoreRepositoryInitialAccessTimes
 } from '../file-access-time.js';
-import { filePreviewKind, safeOriginalName, setFlash } from '../utils.js';
+import { filePreviewKind, requestWantsJson, safeOriginalName, setFlash } from '../utils.js';
 import {
   createQuotaAwareUploadStorage,
   UploadQuotaError
@@ -653,10 +653,12 @@ export function createRepositoriesRouter(db, config) {
       try {
         if (!isValidCsrf(req)) {
           cleanupUploadedFiles(req.files, storage);
+          const message = req.t('The security token is invalid or has expired. Refresh the page and try again.');
+          if (requestWantsJson(req)) return res.status(403).json({ error: message });
           return res.status(403).render('error', {
             title: req.t('Request could not be verified'),
             statusCode: 403,
-            message: req.t('The security token is invalid or has expired. Refresh the page and try again.')
+            message
           });
         }
 
@@ -671,12 +673,16 @@ export function createRepositoriesRouter(db, config) {
         }
         if (requestedFolderId && !uploadFolder) {
           cleanupUploadedFiles(req.files, storage);
-          setFlash(req, 'error', req.t('The selected folder does not exist.'));
+          const message = req.t('The selected folder does not exist.');
+          if (requestWantsJson(req)) return res.status(400).json({ error: message });
+          setFlash(req, 'error', message);
           return res.redirect(`/repositories/${req.repository.id}`);
         }
 
         if (!req.files?.length) {
-          setFlash(req, 'error', req.t('Select at least one file to upload.'));
+          const message = req.t('Select at least one file to upload.');
+          if (requestWantsJson(req)) return res.status(400).json({ error: message });
+          setFlash(req, 'error', message);
           return res.redirect(safeRepositoryFolderUrl(req.repository.id, uploadFolder?.id));
         }
 
@@ -721,14 +727,19 @@ export function createRepositoriesRouter(db, config) {
             : `${req.files.length} files`,
           repositoryId: req.repository.id
         });
-        setFlash(req, 'success', req.t('{{count}} file(s) uploaded successfully.', { count: req.files.length }));
-        return res.redirect(safeRepositoryFolderUrl(req.repository.id, uploadFolder?.id));
+        const message = req.t('{{count}} file(s) uploaded successfully.', { count: req.files.length });
+        const redirectUrl = safeRepositoryFolderUrl(req.repository.id, uploadFolder?.id);
+        setFlash(req, 'success', message);
+        if (requestWantsJson(req)) return res.json({ ok: true, message, redirectUrl });
+        return res.redirect(redirectUrl);
       } catch (error) {
         if (error instanceof UploadQuotaError) {
+          const message = req.t(error.message);
+          if (requestWantsJson(req)) return res.status(413).json({ error: message });
           return res.status(413).render('error', {
             title: req.t('Upload failed'),
             statusCode: 413,
-            message: req.t(error.message)
+            message
           });
         }
         return next(error);
@@ -802,10 +813,12 @@ export function createRepositoriesRouter(db, config) {
     `).get(req.params.fileId, req.repository.id);
 
     if (!file) {
+      const message = req.t('The requested file does not exist.');
+      if (requestWantsJson(req)) return res.status(404).json({ error: message });
       return res.status(404).render('error', {
         title: req.t('File not found'),
         statusCode: 404,
-        message: req.t('The requested file does not exist.')
+        message
       });
     }
 
@@ -822,10 +835,12 @@ export function createRepositoriesRouter(db, config) {
     } catch (error) {
       if (opened) fs.closeSync(opened.fd);
       if (error?.code === 'ENOENT') {
+        const message = req.t('The file record exists, but its data could not be found on disk.');
+        if (requestWantsJson(req)) return res.status(410).json({ error: message });
         return res.status(410).render('error', {
           title: req.t('File data missing'),
           statusCode: 410,
-          message: req.t('The file record exists, but its data could not be found on disk.')
+          message
         });
       }
       return next(error);

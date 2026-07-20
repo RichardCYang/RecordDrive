@@ -7,6 +7,143 @@
     });
   };
 
+
+  const formatTransferBytes = (bytes) => {
+    const value = Number(bytes) || 0;
+    if (value <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const exponent = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+    const amount = value / (1024 ** exponent);
+    return `${amount >= 10 || exponent === 0 ? amount.toFixed(0) : amount.toFixed(1)} ${units[exponent]}`;
+  };
+
+  const transferProgress = (() => {
+    const root = document.querySelector('[data-transfer-progress]');
+    if (!root) return null;
+
+    const title = root.querySelector('[data-transfer-title]');
+    const detail = root.querySelector('[data-transfer-detail]');
+    const track = root.querySelector('[data-transfer-track]');
+    const bar = root.querySelector('[data-transfer-bar]');
+    const percent = root.querySelector('[data-transfer-percent]');
+    const bytes = root.querySelector('[data-transfer-bytes]');
+    const action = root.querySelector('[data-transfer-action]');
+    let actionHandler = null;
+    let hideTimer = null;
+    let busy = false;
+
+    const clearHideTimer = () => {
+      if (hideTimer) window.clearTimeout(hideTimer);
+      hideTimer = null;
+    };
+
+    const hide = () => {
+      clearHideTimer();
+      root.hidden = true;
+      root.dataset.state = 'idle';
+      root.classList.remove('is-indeterminate');
+    };
+
+    const setAction = (label, handler) => {
+      actionHandler = handler;
+      action.setAttribute('aria-label', label);
+      action.title = label;
+    };
+
+    const setIndeterminate = (enabled) => {
+      root.classList.toggle('is-indeterminate', enabled);
+      if (enabled) track.removeAttribute('aria-valuenow');
+    };
+
+    action.addEventListener('click', () => actionHandler?.());
+
+    return {
+      isBusy: () => busy,
+      start({ kind, titleText, detailText = '', onCancel }) {
+        if (busy) return false;
+        clearHideTimer();
+        busy = true;
+        root.hidden = false;
+        root.dataset.state = 'active';
+        root.dataset.kind = kind === 'download' ? 'download' : 'upload';
+        root.classList.remove('is-indeterminate');
+        title.textContent = titleText;
+        detail.textContent = detailText;
+        bar.style.width = '0%';
+        percent.textContent = '0%';
+        bytes.textContent = '';
+        track.setAttribute('aria-valuenow', '0');
+        setAction(message('cancelTransfer', 'Cancel transfer'), onCancel);
+        return true;
+      },
+      update(loaded, total) {
+        const loadedBytes = Math.max(0, Number(loaded) || 0);
+        const totalBytes = Math.max(0, Number(total) || 0);
+        if (totalBytes > 0) {
+          const progress = Math.min(100, Math.max(0, Math.round((loadedBytes / totalBytes) * 100)));
+          setIndeterminate(false);
+          bar.style.width = `${progress}%`;
+          percent.textContent = `${progress}%`;
+          bytes.textContent = message('transferBytes', '{{loaded}} of {{total}}', {
+            loaded: formatTransferBytes(loadedBytes),
+            total: formatTransferBytes(totalBytes)
+          });
+          track.setAttribute('aria-valuenow', String(progress));
+        } else {
+          setIndeterminate(true);
+          percent.textContent = '…';
+          bytes.textContent = message('transferBytesUnknown', '{{loaded}} transferred', {
+            loaded: formatTransferBytes(loadedBytes)
+          });
+        }
+      },
+      processing(detailText) {
+        setIndeterminate(true);
+        detail.textContent = detailText;
+        percent.textContent = '…';
+        bytes.textContent = '';
+      },
+      complete(titleText, detailText = '') {
+        busy = false;
+        setIndeterminate(false);
+        root.dataset.state = 'success';
+        title.textContent = titleText;
+        detail.textContent = detailText;
+        bar.style.width = '100%';
+        percent.textContent = '100%';
+        bytes.textContent = '';
+        track.setAttribute('aria-valuenow', '100');
+        setAction(message('dismiss', 'Dismiss'), hide);
+        hideTimer = window.setTimeout(hide, 2200);
+      },
+      fail(titleText, detailText = '') {
+        busy = false;
+        setIndeterminate(false);
+        root.dataset.state = 'error';
+        title.textContent = titleText;
+        detail.textContent = detailText;
+        bar.style.width = '100%';
+        percent.textContent = '';
+        bytes.textContent = '';
+        track.removeAttribute('aria-valuenow');
+        setAction(message('dismiss', 'Dismiss'), hide);
+      },
+      cancel(titleText) {
+        busy = false;
+        setIndeterminate(false);
+        root.dataset.state = 'canceled';
+        title.textContent = titleText;
+        detail.textContent = '';
+        bar.style.width = '0%';
+        percent.textContent = '';
+        bytes.textContent = '';
+        track.removeAttribute('aria-valuenow');
+        setAction(message('dismiss', 'Dismiss'), hide);
+        hideTimer = window.setTimeout(hide, 1600);
+      }
+    };
+  })();
+
   const passwordToggles = document.querySelectorAll('[data-password-toggle]');
   passwordToggles.forEach((button) => {
     button.addEventListener('click', () => {
@@ -91,12 +228,98 @@
       input.files = event.dataTransfer.files;
       renderFiles();
     });
-    uploadForm.addEventListener('submit', () => {
+    uploadForm.addEventListener('submit', (event) => {
+      const files = Array.from(input.files || []);
       const button = uploadForm.querySelector('button[type="submit"]');
+      if (!files.length || !transferProgress || typeof XMLHttpRequest === 'undefined' || typeof FormData === 'undefined') {
+        if (button) {
+          button.disabled = true;
+          button.textContent = message('uploading', 'Uploading…');
+        }
+        return;
+      }
+
+      event.preventDefault();
+      if (transferProgress.isBusy()) return;
+
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData(uploadForm);
+      const originalButtonText = button?.textContent || '';
+      const displayName = files.length === 1 ? files[0].name : `${files.length} ${message('files', 'files')}`;
+      const totalFileBytes = files.reduce((total, file) => total + file.size, 0);
+      const started = transferProgress.start({
+        kind: 'upload',
+        titleText: message('uploadingFile', 'Uploading {{name}}', { name: displayName }),
+        detailText: summary.textContent,
+        onCancel: () => xhr.abort()
+      });
+      if (!started) return;
+
       if (button) {
         button.disabled = true;
         button.textContent = message('uploading', 'Uploading…');
       }
+      input.disabled = true;
+      dropZone.classList.add('is-disabled');
+      dropZone.setAttribute('aria-disabled', 'true');
+
+      const restoreForm = () => {
+        if (button) {
+          button.disabled = false;
+          button.textContent = originalButtonText;
+        }
+        input.disabled = false;
+        dropZone.classList.remove('is-disabled');
+        dropZone.removeAttribute('aria-disabled');
+      };
+
+      xhr.open((uploadForm.method || 'post').toUpperCase(), uploadForm.action, true);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      xhr.upload.addEventListener('progress', (progressEvent) => {
+        transferProgress.update(
+          progressEvent.loaded,
+          progressEvent.lengthComputable ? progressEvent.total : totalFileBytes
+        );
+      });
+      xhr.upload.addEventListener('load', () => {
+        transferProgress.processing(message('processingUpload', 'Processing uploaded files…'));
+      });
+      xhr.addEventListener('load', () => {
+        let payload = {};
+        try {
+          payload = JSON.parse(xhr.responseText || '{}');
+        } catch {
+          payload = {};
+        }
+
+        if (xhr.status >= 200 && xhr.status < 300 && payload.redirectUrl) {
+          transferProgress.complete(message('uploadComplete', 'Upload complete'), displayName);
+          window.setTimeout(() => window.location.assign(payload.redirectUrl), 350);
+          return;
+        }
+
+        restoreForm();
+        const detailText = payload.error || message(
+          'uploadFailedDetail',
+          'The upload could not be completed. Please try again.'
+        );
+        transferProgress.fail(message('uploadFailed', 'Upload failed'), detailText);
+        if (payload.loginUrl) window.setTimeout(() => window.location.assign(payload.loginUrl), 700);
+      });
+      xhr.addEventListener('error', () => {
+        restoreForm();
+        transferProgress.fail(
+          message('uploadFailed', 'Upload failed'),
+          message('uploadFailedDetail', 'The upload could not be completed. Please try again.')
+        );
+      });
+      xhr.addEventListener('abort', () => {
+        restoreForm();
+        transferProgress.cancel(message('uploadCanceled', 'Upload canceled'));
+      });
+      xhr.send(formData);
     });
   }
 
@@ -149,6 +372,108 @@
     let selectedItem = null;
     let previewController = null;
     let loadedPreviewKey = '';
+
+
+    const filenameFromDisposition = (headerValue, fallbackName) => {
+      const value = String(headerValue || '');
+      const encodedMatch = value.match(/filename\*=UTF-8''([^;]+)/i);
+      if (encodedMatch) {
+        try {
+          return decodeURIComponent(encodedMatch[1]).replace(/[\/\\]/g, '_');
+        } catch {
+          // Fall through to the basic filename parameter.
+        }
+      }
+      const quotedMatch = value.match(/filename="([^"]*)"/i);
+      const plainMatch = value.match(/filename=([^;]+)/i);
+      return String(quotedMatch?.[1] || plainMatch?.[1] || fallbackName || 'download')
+        .trim()
+        .replace(/[\/\\]/g, '_');
+    };
+
+    const startDownload = async (url, fallbackName = 'download') => {
+      if (!url || !transferProgress || transferProgress.isBusy()) return;
+      const controller = new AbortController();
+      const started = transferProgress.start({
+        kind: 'download',
+        titleText: message('downloadingFile', 'Downloading {{name}}', { name: fallbackName }),
+        detailText: message('preparingDownload', 'Preparing download…'),
+        onCancel: () => controller.abort()
+      });
+      if (!started) return;
+
+      try {
+        const response = await window.fetch(url, {
+          credentials: 'same-origin',
+          signal: controller.signal,
+          headers: {
+            Accept: 'application/octet-stream, application/json;q=0.9',
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) {
+          let errorMessage = message(
+            'downloadFailedDetail',
+            'The download could not be completed. Please try again.'
+          );
+          if (contentType.includes('application/json')) {
+            const payload = await response.json().catch(() => ({}));
+            errorMessage = payload.error || errorMessage;
+            if (payload.loginUrl) window.setTimeout(() => window.location.assign(payload.loginUrl), 700);
+          }
+          throw new Error(errorMessage);
+        }
+
+        const filename = filenameFromDisposition(
+          response.headers.get('content-disposition'),
+          fallbackName
+        );
+        const totalBytes = Number(response.headers.get('content-length')) || 0;
+        if (!response.body || typeof response.body.getReader !== 'function') {
+          transferProgress.processing(message('preparingDownload', 'Preparing download…'));
+          window.location.assign(url);
+          transferProgress.complete(message('downloadComplete', 'Download complete'), filename);
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const chunks = [];
+        let receivedBytes = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          receivedBytes += value.byteLength;
+          transferProgress.update(receivedBytes, totalBytes);
+        }
+
+        const blob = new Blob(chunks, { type: contentType || 'application/octet-stream' });
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = filename;
+        anchor.hidden = true;
+        document.body.append(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+        transferProgress.complete(message('downloadComplete', 'Download complete'), filename);
+      } catch (error) {
+        if (error?.name === 'AbortError') {
+          transferProgress.cancel(message('downloadCanceled', 'Download canceled'));
+          return;
+        }
+        transferProgress.fail(
+          message('downloadFailed', 'Download failed'),
+          error?.message || message(
+            'downloadFailedDetail',
+            'The download could not be completed. Please try again.'
+          )
+        );
+      }
+    };
 
     const openUploadDrawer = () => {
       if (!uploadDrawer) return;
@@ -721,13 +1046,13 @@
       });
       primaryLink?.addEventListener('dblclick', (event) => {
         event.preventDefault();
-        if (item.dataset.downloadUrl) window.location.assign(item.dataset.downloadUrl);
+        if (item.dataset.downloadUrl) startDownload(item.dataset.downloadUrl, item.dataset.fileName);
       });
       item.addEventListener('click', (event) => {
         if (!isInteractiveTarget(event.target)) selectFile(item);
       });
       item.addEventListener('dblclick', (event) => {
-        if (!isInteractiveTarget(event.target)) if (item.dataset.downloadUrl) window.location.assign(item.dataset.downloadUrl);
+        if (!isInteractiveTarget(event.target)) if (item.dataset.downloadUrl) startDownload(item.dataset.downloadUrl, item.dataset.fileName);
       });
       item.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -773,6 +1098,19 @@
       if (listHeader) listHeader.hidden = count === 0 || fileItemsContainer?.dataset.view === 'grid';
     };
     filterButtons.forEach((button) => button.addEventListener('click', () => updateFilter(button)));
+
+
+    explorer.addEventListener('click', (event) => {
+      const downloadLink = event.target.closest('[data-download-link]');
+      if (!downloadLink || event.defaultPrevented) return;
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const url = downloadLink.getAttribute('href');
+      if (!url || url === '#' || downloadLink.getAttribute('aria-disabled') === 'true') return;
+      event.preventDefault();
+      const item = downloadLink.closest('[data-file-item]');
+      const filename = item?.dataset.fileName || selectedItem?.dataset.fileName || 'download';
+      startDownload(url, filename);
+    });
 
     document.addEventListener('click', (event) => {
       document.querySelectorAll('.explorer-file-menu[open]').forEach((menu) => {

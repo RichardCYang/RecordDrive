@@ -141,7 +141,7 @@
             <% } %>
             <% if (repositoryPermissions.upload && (repositoryPermissions.download || repositoryPermissions.delete)) { %><span class="explorer-command-divider" aria-hidden="true"></span><% } %>
             <% if (repositoryPermissions.download) { %>
-              <a class="explorer-command is-disabled" href="#" data-selected-download aria-disabled="true" tabindex="-1">
+              <a class="explorer-command is-disabled" href="#" data-selected-download data-download-link aria-disabled="true" tabindex="-1">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
                 <span><%= t('Download') %></span>
               </a>
@@ -406,7 +406,7 @@
                       <span></span>
                     </label>
 
-                    <a class="explorer-file-primary" href="<%= downloadUrl || '#' %>" data-file-primary title="<%= repositoryPermissions.download ? t('Click once to select; double-click to download') : t('Click to select') %>">
+                    <a class="explorer-file-primary" href="<%= downloadUrl || '#' %>" data-file-primary data-download-link title="<%= repositoryPermissions.download ? t('Click once to select; double-click to download') : t('Click to select') %>">
                       <span class="file-icon explorer-file-icon file-<%= kind %>" aria-hidden="true"><%= kindCodes[kind] || 'FILE' %></span>
                       <span class="explorer-file-copy">
                         <strong><%= file.original_name %></strong>
@@ -421,7 +421,7 @@
 
                     <div class="explorer-file-actions">
                       <% if (repositoryPermissions.download) { %>
-                        <a href="<%= downloadUrl %>" title="<%= t('Download') %>" aria-label="<%= t('Download {{name}}', { name: file.original_name }) %>">
+                        <a href="<%= downloadUrl %>" data-download-link title="<%= t('Download') %>" aria-label="<%= t('Download {{name}}', { name: file.original_name }) %>">
                           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
                         </a>
                       <% } %>
@@ -432,7 +432,7 @@
                           </summary>
                           <div>
                             <% if (repositoryPermissions.download) { %>
-                              <a href="<%= downloadUrl %>">
+                              <a href="<%= downloadUrl %>" data-download-link>
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
                                 <%= t('Download') %>
                               </a>
@@ -523,7 +523,7 @@
                 </dl>
                 <% if (repositoryPermissions.download || repositoryPermissions.delete) { %>
                   <div class="explorer-details-actions">
-                    <% if (repositoryPermissions.download) { %><a class="button button-primary button-block" href="#" data-detail-download><%= t('Download') %></a><% } %>
+                    <% if (repositoryPermissions.download) { %><a class="button button-primary button-block" href="#" data-detail-download data-download-link><%= t('Download') %></a><% } %>
                     <% if (repositoryPermissions.delete) { %>
                       <form action="#" method="post" data-detail-delete-form data-confirm="<%= t('Permanently delete the selected file?') %>">
                         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -549,6 +549,29 @@
       </section>
     </div>
   </main>
+
+
+  <div class="transfer-progress" data-transfer-progress data-state="idle" data-kind="upload" hidden role="status" aria-live="polite" aria-label="<%= t('File transfer progress') %>">
+    <div class="transfer-progress-heading">
+      <span class="transfer-progress-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 19V5m0 0-5 5m5-5 5 5"/><path d="M5 21h14"/></svg>
+      </span>
+      <span class="transfer-progress-copy">
+        <strong data-transfer-title></strong>
+        <small data-transfer-detail></small>
+      </span>
+      <button type="button" class="transfer-progress-action" data-transfer-action aria-label="<%= t('Cancel transfer') %>" title="<%= t('Cancel transfer') %>">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="transfer-progress-track" data-transfer-track role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <span data-transfer-bar></span>
+    </div>
+    <div class="transfer-progress-meta">
+      <strong data-transfer-percent>0%</strong>
+      <span data-transfer-bytes></span>
+    </div>
+  </div>
 
   <%- include('partials/footer') %>
 </body>

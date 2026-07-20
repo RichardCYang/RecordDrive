@@ -2,6 +2,7 @@ import {
   canUseAdministratorAccess,
   isBlockedAdministrator
 } from './admin-access.js';
+import { requestWantsJson } from './utils.js';
 
 const PERMISSION_COLUMNS = {
   view: 'can_view',
@@ -58,10 +59,14 @@ export function getRepositoryAccess(db, repository, user, config = {}) {
 }
 
 function renderRepositoryNotFound(req, res) {
+  const message = req.t('The requested repository does not exist or is not available to your account.');
+  if (requestWantsJson(req)) {
+    return res.status(404).json({ error: message });
+  }
   return res.status(404).render('error', {
     title: req.t('Repository not found'),
     statusCode: 404,
-    message: req.t('The requested repository does not exist or is not available to your account.')
+    message
   });
 }
 

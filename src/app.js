@@ -21,7 +21,7 @@ import { createAuthRouter } from './routes/auth.js';
 import { createDashboardRouter } from './routes/dashboard.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createRepositoriesRouter } from './routes/repositories.js';
-import { fileKind, filePreviewKind, formatBytes, formatDate } from './utils.js';
+import { fileKind, filePreviewKind, formatBytes, formatDate, requestWantsJson } from './utils.js';
 import { languageMiddleware } from './i18n.js';
 import { createSettingsRouter } from './routes/settings.js';
 import { UploadCsrfError, UploadQuotaError } from './upload-storage.js';
@@ -125,7 +125,7 @@ export function createApplication(options = {}) {
         priority: 'high'
       });
       if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-        if (req.is('application/json') || req.path.includes('/passkeys/')) {
+        if (requestWantsJson(req) || req.path.includes('/passkeys/')) {
           return res.status(401).json({ error: req.t('Your session has expired. Sign in again.') });
         }
         return res.redirect('/login');
@@ -189,18 +189,22 @@ export function createApplication(options = {}) {
     if (res.headersSent) return next(error);
 
     if (error instanceof UploadCsrfError) {
+      const message = req.t('The security token is invalid or has expired. Refresh the page and try again.');
+      if (requestWantsJson(req)) return res.status(403).json({ error: message });
       return res.status(403).render('error', {
         title: req.t('Request could not be verified'),
         statusCode: 403,
-        message: req.t('The security token is invalid or has expired. Refresh the page and try again.')
+        message
       });
     }
 
     if (error instanceof UploadQuotaError) {
+      const message = req.t(error.message);
+      if (requestWantsJson(req)) return res.status(413).json({ error: message });
       return res.status(413).render('error', {
         title: req.t('Upload failed'),
         statusCode: 413,
-        message: req.t(error.message)
+        message
       });
     }
 
@@ -212,6 +216,7 @@ export function createApplication(options = {}) {
         message = req.t('You can upload up to {{count}} files at a time.', { count: config.maxFilesPerUpload });
       }
       const statusCode = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      if (requestWantsJson(req)) return res.status(statusCode).json({ error: message });
       return res.status(statusCode).render('error', {
         title: req.t('Upload failed'),
         statusCode,
@@ -223,7 +228,7 @@ export function createApplication(options = {}) {
     const message = config.isProduction
       ? req.t('An error occurred while processing the request.')
       : error.message;
-    if (req.is('application/json') || req.path.includes('/passkeys/')) {
+    if (requestWantsJson(req) || req.path.includes('/passkeys/')) {
       return res.status(500).json({ error: message });
     }
     return res.status(500).render('error', {

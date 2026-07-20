@@ -2,7 +2,7 @@ import {
   canUseAdministratorAccess,
   isBlockedAdministrator
 } from '../admin-access.js';
-import { safeInternalPath } from '../utils.js';
+import { requestWantsJson, safeInternalPath } from '../utils.js';
 
 function administratorAccessDisabledMessage(req) {
   return req.t('Administrator access is disabled by server configuration.');
@@ -12,7 +12,7 @@ export function renderAdministratorAccessDisabled(req, res, statusCode = 403) {
   res.set('Cache-Control', 'no-store');
   const message = administratorAccessDisabledMessage(req);
 
-  if (req.is('application/json') || req.path.includes('/passkeys/')) {
+  if (requestWantsJson(req) || req.path.includes('/passkeys/')) {
     return res.status(statusCode).json({ error: message });
   }
 
@@ -43,6 +43,12 @@ export function requireAuth(req, res, next) {
     if (req.method === 'GET' || req.method === 'HEAD') {
       const returnTo = safeInternalPath(req.originalUrl, '/');
       return res.redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+    }
+    if (requestWantsJson(req)) {
+      return res.status(401).json({
+        error: req.t('Your session has expired. Sign in again.'),
+        loginUrl: '/login'
+      });
     }
     return res.redirect('/login');
   }

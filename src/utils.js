@@ -63,6 +63,13 @@ export function safeInternalPath(value, fallback = '/') {
   }
 }
 
+export function requestWantsJson(req) {
+  const requestedWith = String(req.get?.('x-requested-with') || '').toLowerCase();
+  if (requestedWith === 'xmlhttprequest') return true;
+  if (req.is?.('application/json')) return true;
+  return req.accepts?.(['html', 'json']) === 'json';
+}
+
 export function safeOriginalName(name) {
   const normalized = path.basename(String(name || 'unnamed-file')).replace(/[\u0000-\u001f\u007f]/g, '').trim();
   return normalized.slice(0, 240) || 'unnamed-file';
