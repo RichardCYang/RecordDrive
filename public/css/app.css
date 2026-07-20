@@ -338,6 +338,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--sky-400); backgr
 .file-name-cell strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .file-name-cell small { overflow: hidden; color: #93a3af; font-size: 9px; text-overflow: ellipsis; }
 .file-icon { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 10px; color: #526c7f; background: #edf3f6; font-size: 8px; font-weight: 900; letter-spacing: .2px; }
+.file-folder { color: #0369a1; background: #e0f2fe; }
 .file-image { color: #0f766e; background: #ccfbf1; }
 .file-video { color: #7c3aed; background: #ede9fe; }
 .file-audio { color: #c2410c; background: #ffedd5; }
@@ -761,7 +762,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--sky-400); backgr
 .explorer-view-switch button.is-active { color: #0369a1; background: #fff; box-shadow: 0 1px 5px rgba(57, 91, 111, .14); }
 .explorer-view-switch svg { width: 16px; }
 
-.explorer-upload-drawer {
+.explorer-upload-drawer,
+.explorer-folder-drawer {
   padding: 17px 20px 19px;
   border-bottom: 1px solid #bfdef0;
   background: linear-gradient(135deg, #f4fbff, #e9f6fd);
@@ -780,6 +782,27 @@ input:focus, textarea:focus, select:focus { border-color: var(--sky-400); backgr
 }
 .explorer-upload-heading h2 { margin: 4px 0 1px; color: #274a61; font-size: 15px; }
 .explorer-upload-heading p { margin: 0; color: #72899a; font-size: 10px; }
+.explorer-folder-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+.explorer-folder-form label { display: grid; gap: 6px; }
+.explorer-folder-form label > span { color: #47677b; font-size: 10px; font-weight: 750; }
+.explorer-folder-form input {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 11px;
+  color: #274a61;
+  border: 1px solid #c9dce7;
+  border-radius: 8px;
+  outline: 0;
+  background: #fff;
+}
+.explorer-folder-form input:focus { border-color: #38bdf8; box-shadow: 0 0 0 3px rgba(56, 189, 248, .18); }
+.explorer-folder-form .button { min-height: 40px; }
+.explorer-folder-check { cursor: default; }
 .explorer-drop-zone { min-height: 94px; padding: 15px 20px; border-radius: 12px; }
 .explorer-drop-zone .upload-cloud { width: 46px; height: 46px; border-radius: 13px; }
 .explorer-drop-zone .upload-cloud svg { width: 30px; }
@@ -1090,6 +1113,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--sky-400); backgr
 .explorer-filter-empty h3 { margin: 17px 0 5px; color: #35566b; font-size: 16px; }
 .explorer-zero-state p,
 .explorer-filter-empty p { max-width: 360px; margin: 0 0 18px; color: #8395a2; font-size: 10px; }
+.explorer-zero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .explorer-filter-empty span { color: #46b3e4; font-size: 42px; line-height: 1; }
 .explorer-statusbar {
   min-height: 34px;
@@ -1470,7 +1494,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--sky-400); backgr
   .explorer-command:not(.explorer-command-primary) span { display: none; }
   .explorer-command-group-right { width: auto; margin-left: auto; }
   .explorer-sort-form label { width: 111px; }
-  .explorer-upload-drawer { padding: 15px 13px; }
+  .explorer-upload-drawer,
+  .explorer-folder-drawer { padding: 15px 13px; }
+  .explorer-folder-form { grid-template-columns: 1fr; }
   .explorer-drop-zone { padding: 18px; }
   .explorer-list-header { display: none; }
   .explorer-file-item {

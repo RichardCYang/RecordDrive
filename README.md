@@ -1,6 +1,6 @@
 # RecordDrive
 
-RecordDrive is a self-hosted Node.js file workspace with personal repositories and per-user repository permissions. Regular users create and own repositories, owners decide which actions another user may perform, and administrators retain full access to every repository.
+RecordDrive is a self-hosted Node.js file workspace with personal repositories, nested folders, and per-user repository permissions. Regular users create and own repositories, owners decide which actions another user may perform, and administrators retain full access to every repository.
 
 Metadata, sessions, permission grants, and activity history are stored in SQLite. Uploaded file contents are stored on the local filesystem.
 
@@ -16,6 +16,12 @@ Select a file in the repository explorer and open the **Preview** tab in the rig
 - XLSX files are rendered as a spreadsheet grid with worksheet tabs, merged cells, column widths, and common cell formatting. Preview processing is limited to 25 MB, and each worksheet preview shows at most the first 200 rows and 50 columns. Cell text, merge metadata, and total response text are also bounded.
 - Unencrypted ZIP files are displayed as an expandable folder and file tree. Password-protected archives show a protected-file notice instead of their entries. A maximum of 2,500 ZIP entries is displayed, with limits on archive size, scanned entries, individual names, and total visible name data.
 
+## Repository folders
+
+Repository users with upload permission can create nested folders and upload files directly into the current folder. Breadcrumb navigation, folder-scoped search, and direct-child listings keep each repository organized without changing the generated on-disk storage names. Existing file records remain in the repository root after the database migration.
+
+Folder names are normalized and validated, sibling names are unique under SQLite's `NOCASE` comparison, nesting is limited to 32 levels, and deleting a folder requires delete permission. Folder deletion recursively removes its descendant folders and stored files.
+
 ## Access model
 
 ### Administrator
@@ -23,8 +29,8 @@ Select a file in the repository explorer and open the **Preview** tab in the rig
 Administrators can:
 
 - View every repository
-- Upload and download files in every repository
-- Delete files and repositories
+- Create folders and upload or download files in every repository
+- Delete files, folders, and repositories
 - Manage repository permission grants
 - Create and delete regular user accounts
 - Review activity and storage metrics
@@ -36,8 +42,8 @@ Administrators cannot create repositories. Repository creation is reserved for r
 A regular user becomes the owner of every repository they create. Owners automatically receive all repository permissions and can:
 
 - View the repository and file metadata
-- Upload and download files
-- Delete files and the repository
+- Create folders and upload or download files
+- Delete files, folders, and the repository
 - Grant, update, and revoke permissions for other regular users
 
 Owner permissions are implicit and cannot be removed through a permission grant.
@@ -49,16 +55,16 @@ A repository owner or administrator can grant any combination of the following p
 | Permission | Effect |
 | --- | --- |
 | `View` | Open the repository and view file metadata |
-| `Upload` | Add files through the upload endpoint |
+| `Upload` | Create folders and upload files into the current folder |
 | `Download` | Download stored file contents |
-| `Delete` | Delete stored files; repository deletion remains limited to the owner and administrators |
+| `Delete` | Recursively delete folders and stored files; repository deletion remains limited to the owner and administrators |
 
 Permissions are checked independently on every server request. A user with no `View` permission cannot discover or open another user's repository through the dashboard or a direct repository URL. A permission such as `Download` or `Upload` can technically be granted without `View`, but that user will not see the repository in the dashboard.
 
 ## Security behavior
 
 - Access is denied by default unless the requester is an administrator, the repository owner, or has the required explicit permission.
-- Repository access is checked on every view, upload, download, file deletion, repository deletion, and permission-management request. Repository deletion is restricted to the owner and administrators.
+- Repository access is checked on every view, folder creation, upload, download, file or folder deletion, repository deletion, and permission-management request. Repository deletion is restricted to the owner and administrators.
 - Unauthorized repository requests return a generic not-found response to avoid exposing repository existence.
 - Uploaded files receive generated storage names and are stored outside the public web directory.
 - Stored files are opened with symbolic-link following disabled. Storage paths are canonicalized, symbolic-link ancestors are rejected during use, and repository/database paths reject symbolic links.

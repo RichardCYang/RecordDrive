@@ -141,9 +141,27 @@ export function createDatabase(providedConfig) {
       FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
+    CREATE TABLE IF NOT EXISTS folders (
+      id TEXT PRIMARY KEY,
+      repository_id INTEGER NOT NULL,
+      parent_id TEXT,
+      name TEXT NOT NULL COLLATE NOCASE,
+      created_by INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE CASCADE,
+      FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_folders_unique_sibling_name
+      ON folders(repository_id, COALESCE(parent_id, ''), name COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_folders_repository_parent
+      ON folders(repository_id, parent_id);
+
     CREATE TABLE IF NOT EXISTS files (
       id TEXT PRIMARY KEY,
       repository_id INTEGER NOT NULL,
+      folder_id TEXT,
       original_name TEXT NOT NULL,
       stored_name TEXT NOT NULL,
       mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
@@ -152,6 +170,7 @@ export function createDatabase(providedConfig) {
       initial_access_time_ms REAL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE CASCADE,
+      FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE,
       FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
@@ -252,6 +271,18 @@ export function createDatabase(providedConfig) {
   if (!fileColumns.has('initial_access_time_ms')) {
     db.exec('ALTER TABLE files ADD COLUMN initial_access_time_ms REAL;');
   }
+  if (!fileColumns.has('folder_id')) {
+    db.exec(`
+      ALTER TABLE files
+      ADD COLUMN folder_id TEXT REFERENCES folders(id) ON DELETE CASCADE;
+    `);
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_files_folder_id ON files(folder_id);
+    CREATE INDEX IF NOT EXISTS idx_folders_repository_parent ON folders(repository_id, parent_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_folders_unique_sibling_name
+      ON folders(repository_id, COALESCE(parent_id, ''), name COLLATE NOCASE);
+  `);
 
   const filesWithoutInitialAccessTime = db.prepare(`
     SELECT id, repository_id, stored_name

@@ -105,6 +105,10 @@
     const uploadDrawer = explorer.querySelector('[data-upload-drawer]');
     const uploadOpenButtons = explorer.querySelectorAll('[data-upload-open]');
     const uploadCloseButton = explorer.querySelector('[data-upload-close]');
+    const folderDrawer = explorer.querySelector('[data-folder-drawer]');
+    const folderOpenButtons = explorer.querySelectorAll('[data-folder-open]');
+    const folderCloseButton = explorer.querySelector('[data-folder-close]');
+    const folderItems = Array.from(explorer.querySelectorAll('[data-folder-item]'));
     const fileItems = Array.from(explorer.querySelectorAll('[data-file-item]'));
     const fileItemsContainer = explorer.querySelector('[data-file-items]');
     const listHeader = explorer.querySelector('[data-list-header]');
@@ -148,6 +152,7 @@
 
     const openUploadDrawer = () => {
       if (!uploadDrawer) return;
+      if (folderDrawer) folderDrawer.hidden = true;
       uploadDrawer.hidden = false;
       uploadDrawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       window.setTimeout(() => uploadDrawer.querySelector('[data-drop-zone]')?.focus?.(), 180);
@@ -157,8 +162,22 @@
       if (uploadDrawer) uploadDrawer.hidden = true;
     };
 
+    const openFolderDrawer = () => {
+      if (!folderDrawer) return;
+      if (uploadDrawer) uploadDrawer.hidden = true;
+      folderDrawer.hidden = false;
+      folderDrawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      window.setTimeout(() => folderDrawer.querySelector('[data-folder-name-input]')?.focus(), 180);
+    };
+
+    const closeFolderDrawer = () => {
+      if (folderDrawer) folderDrawer.hidden = true;
+    };
+
     uploadOpenButtons.forEach((button) => button.addEventListener('click', openUploadDrawer));
     uploadCloseButton?.addEventListener('click', closeUploadDrawer);
+    folderOpenButtons.forEach((button) => button.addEventListener('click', openFolderDrawer));
+    folderCloseButton?.addEventListener('click', closeFolderDrawer);
     explorer.querySelector('[data-refresh-button]')?.addEventListener('click', () => window.location.reload());
     explorer.querySelector('[data-sort-select]')?.addEventListener('change', (event) => {
       event.currentTarget.closest('form')?.requestSubmit();
@@ -727,6 +746,11 @@
       const filter = button.dataset.fileFilter || 'all';
       const acceptedKinds = filter === 'all' ? null : filter.split(',');
       let count = 0;
+      folderItems.forEach((item) => {
+        const visible = !acceptedKinds;
+        item.hidden = !visible;
+        if (visible) count += 1;
+      });
       fileItems.forEach((item) => {
         const visible = !acceptedKinds || acceptedKinds.includes(item.dataset.fileKind);
         item.hidden = !visible;
@@ -764,7 +788,8 @@
         explorerSearch.select();
       }
       if (event.key === 'Escape') {
-        if (uploadDrawer && !uploadDrawer.hidden) closeUploadDrawer();
+        if (folderDrawer && !folderDrawer.hidden) closeFolderDrawer();
+        else if (uploadDrawer && !uploadDrawer.hidden) closeUploadDrawer();
         else if (selectedItem) clearSelection();
       }
     });

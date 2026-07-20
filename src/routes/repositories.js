@@ -31,6 +31,16 @@ import {
   FilePreviewError,
   previewFileSizeLimit
 } from '../file-preview.js';
+import {
+  createRepositoryFolder,
+  deleteRepositoryFolder,
+  getRepositoryFolder,
+  getRepositoryFolderBreadcrumbs,
+  listRepositoryFolders,
+  MAX_FOLDER_DEPTH,
+  RepositoryFolderError,
+  repositoryFolderUrl
+} from '../repository-folders.js';
 
 function contentDisposition(disposition, filename) {
   const originalName = String(filename || 'preview.pdf');
@@ -53,6 +63,34 @@ function previewErrorMessage(req, error) {
     PREVIEW_BUSY: req.t('The preview service is busy. Try again shortly.')
   };
   return messages[error.code] || req.t('The file preview could not be generated.');
+}
+
+function folderErrorMessage(req, error) {
+  const messages = {
+    INVALID_NAME_LENGTH: req.t('The folder name must be between 1 and 100 characters.'),
+    INVALID_NAME: req.t('Folder names cannot be "." or ".." and cannot contain slashes or control characters.'),
+    DUPLICATE_NAME: req.t('A folder with that name already exists here.'),
+    FOLDER_NOT_FOUND: req.t('The selected folder does not exist.'),
+    FOLDER_LIMIT: req.t('The repository folder limit has been reached.'),
+    DEPTH_LIMIT: req.t('Folders can be nested up to {{count}} levels.', { count: MAX_FOLDER_DEPTH })
+  };
+  return messages[error.code] || req.t('An error occurred while processing the request.');
+}
+
+function safeRepositoryFolderUrl(repositoryId, folderId = null) {
+  try {
+    return repositoryFolderUrl(repositoryId, folderId);
+  } catch {
+    return `/repositories/${repositoryId}`;
+  }
+}
+
+function renderFolderNotFound(req, res) {
+  return res.status(404).render('error', {
+    title: req.t('Folder not found'),
+    statusCode: 404,
+    message: req.t('The selected folder does not exist.')
+  });
 }
 
 function cleanupUploadedFiles(files = [], storage = null) {
@@ -312,8 +350,8 @@ export function createRepositoriesRouter(db, config) {
       files: config.maxFilesPerUpload,
       fieldNameSize: 64,
       fieldSize: 256,
-      fields: 1,
-      parts: config.maxFilesPerUpload + 1,
+      fields: 2,
+      parts: config.maxFilesPerUpload + 2,
       headerPairs: 100,
       fieldNestingDepth: 0
     }
@@ -474,7 +512,62 @@ export function createRepositoriesRouter(db, config) {
     return res.redirect(`/repositories/${req.repository.id}/permissions`);
   });
 
-  router.get('/:repositoryId', requireView, (req, res) => {
+  router.post('/:repositoryId/folders', requireUpload, (req, res, next) => {
+    const parentId = String(req.body.parentId || '').trim();
+    try {
+      const folder = createRepositoryFolder(db, config, req.repository, {
+        parentId,
+        name: req.body.name,
+        userId: req.currentUser.id
+      });
+      setFlash(req, 'success', req.t('Created the {{name}} folder.', { name: folder.name }));
+      return res.redirect(safeRepositoryFolderUrl(req.repository.id, parentId));
+    } catch (error) {
+      if (!(error instanceof RepositoryFolderError)) return next(error);
+      setFlash(req, 'error', folderErrorMessage(req, error));
+      return res.redirect(safeRepositoryFolderUrl(req.repository.id, parentId));
+    }
+  });
+
+  router.post('/:repositoryId/folders/:folderId/delete', requireDelete, (req, res, next) => {
+    let folder;
+    try {
+      folder = getRepositoryFolder(db, req.repository.id, req.params.folderId);
+    } catch (error) {
+      if (!(error instanceof RepositoryFolderError)) return next(error);
+    }
+
+    if (!folder) {
+      setFlash(req, 'error', req.t('The folder to delete could not be found.'));
+      return res.redirect(`/repositories/${req.repository.id}`);
+    }
+
+    try {
+      const parentId = folder.parent_id;
+      deleteRepositoryFolder(db, config, req.repository, folder, req.currentUser.id);
+      setFlash(req, 'success', req.t('Deleted the {{name}} folder and its contents.', { name: folder.name }));
+      return res.redirect(safeRepositoryFolderUrl(req.repository.id, parentId));
+    } catch (error) {
+      if (error instanceof RepositoryFolderError) {
+        setFlash(req, 'error', folderErrorMessage(req, error));
+        return res.redirect(safeRepositoryFolderUrl(req.repository.id, folder.parent_id));
+      }
+      return next(error);
+    }
+  });
+
+  router.get('/:repositoryId', requireView, (req, res, next) => {
+    const requestedFolderId = String(req.query.folder || '').trim();
+    let currentFolder = null;
+    try {
+      currentFolder = requestedFolderId
+        ? getRepositoryFolder(db, req.repository.id, requestedFolderId)
+        : null;
+    } catch (error) {
+      if (!(error instanceof RepositoryFolderError)) return next(error);
+    }
+    if (requestedFolderId && !currentFolder) return renderFolderNotFound(req, res);
+
     const search = String(req.query.q || '').trim();
     const sort = String(req.query.sort || 'newest');
     const sortOptions = {
@@ -486,17 +579,32 @@ export function createRepositoriesRouter(db, config) {
       'size-asc': 'f.size ASC, f.created_at DESC'
     };
     const selectedSort = Object.hasOwn(sortOptions, sort) ? sort : 'newest';
-    const searchSql = search ? 'AND f.original_name LIKE ?' : '';
     const params = [req.repository.id];
+    let folderSql = 'f.folder_id IS NULL';
+    if (currentFolder) {
+      folderSql = 'f.folder_id = ?';
+      params.push(currentFolder.id);
+    }
+    const searchSql = search ? 'AND f.original_name LIKE ?' : '';
     if (search) params.push(`%${search}%`);
 
     const files = db.prepare(`
       SELECT f.*, u.display_name AS uploader_name, u.username AS uploader_username
       FROM files f
       LEFT JOIN users u ON u.id = f.uploaded_by
-      WHERE f.repository_id = ? ${searchSql}
+      WHERE f.repository_id = ? AND ${folderSql} ${searchSql}
       ORDER BY ${sortOptions[selectedSort]}
     `).all(...params);
+
+    const folders = listRepositoryFolders(db, req.repository.id, currentFolder?.id, {
+      search,
+      sort: selectedSort
+    });
+    const breadcrumbs = getRepositoryFolderBreadcrumbs(
+      db,
+      req.repository.id,
+      currentFolder?.id
+    );
 
     const grants = db.prepare(`
       SELECT
@@ -514,14 +622,19 @@ export function createRepositoriesRouter(db, config) {
     `).all(req.repository.id);
 
     const stats = db.prepare(`
-      SELECT COUNT(*) AS file_count, COALESCE(SUM(size), 0) AS total_size
-      FROM files WHERE repository_id = ?
-    `).get(req.repository.id);
+      SELECT
+        (SELECT COUNT(*) FROM files WHERE repository_id = ?) AS file_count,
+        (SELECT COALESCE(SUM(size), 0) FROM files WHERE repository_id = ?) AS total_size,
+        (SELECT COUNT(*) FROM folders WHERE repository_id = ?) AS folder_count
+    `).get(req.repository.id, req.repository.id, req.repository.id);
 
     return res.render('repository', {
-      title: req.repository.name,
+      title: currentFolder ? `${currentFolder.name} · ${req.repository.name}` : req.repository.name,
       repository: req.repository,
       repositoryPermissions: req.repositoryPermissions,
+      currentFolder,
+      breadcrumbs,
+      folders,
       files,
       grants,
       stats,
@@ -547,16 +660,31 @@ export function createRepositoriesRouter(db, config) {
           });
         }
 
+        const requestedFolderId = String(req.body.folderId || '').trim();
+        let uploadFolder = null;
+        try {
+          uploadFolder = requestedFolderId
+            ? getRepositoryFolder(db, req.repository.id, requestedFolderId)
+            : null;
+        } catch (error) {
+          if (!(error instanceof RepositoryFolderError)) throw error;
+        }
+        if (requestedFolderId && !uploadFolder) {
+          cleanupUploadedFiles(req.files, storage);
+          setFlash(req, 'error', req.t('The selected folder does not exist.'));
+          return res.redirect(`/repositories/${req.repository.id}`);
+        }
+
         if (!req.files?.length) {
           setFlash(req, 'error', req.t('Select at least one file to upload.'));
-          return res.redirect(`/repositories/${req.repository.id}`);
+          return res.redirect(safeRepositoryFolderUrl(req.repository.id, uploadFolder?.id));
         }
 
         const insertFile = db.prepare(`
           INSERT INTO files (
-            id, repository_id, original_name, stored_name, mime_type, size, uploaded_by,
+            id, repository_id, folder_id, original_name, stored_name, mime_type, size, uploaded_by,
             initial_access_time_ms
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         try {
@@ -567,6 +695,7 @@ export function createRepositoriesRouter(db, config) {
             insertFile.run(
               crypto.randomUUID(),
               req.repository.id,
+              uploadFolder?.id || null,
               safeOriginalName(file.originalname),
               file.filename,
               file.mimetype || 'application/octet-stream',
@@ -593,7 +722,7 @@ export function createRepositoriesRouter(db, config) {
           repositoryId: req.repository.id
         });
         setFlash(req, 'success', req.t('{{count}} file(s) uploaded successfully.', { count: req.files.length }));
-        return res.redirect(`/repositories/${req.repository.id}`);
+        return res.redirect(safeRepositoryFolderUrl(req.repository.id, uploadFolder?.id));
       } catch (error) {
         if (error instanceof UploadQuotaError) {
           return res.status(413).render('error', {
@@ -726,7 +855,7 @@ export function createRepositoriesRouter(db, config) {
         repositoryId: req.repository.id
       });
       setFlash(req, 'success', req.t('{{name}} was deleted.', { name: file.original_name }));
-      return res.redirect(`/repositories/${req.repository.id}`);
+      return res.redirect(safeRepositoryFolderUrl(req.repository.id, file.folder_id));
     } catch (error) {
       return next(error);
     }

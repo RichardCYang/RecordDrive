@@ -29,6 +29,7 @@
   const documentCount = (counts.document || 0) + (counts.pdf || 0) + (counts.sheet || 0) + (counts.slide || 0);
   const mediaCount = (counts.video || 0) + (counts.audio || 0);
   const otherCount = (counts.file || 0);
+  const visibleItemCount = folders.length + files.length;
 %>
 <!doctype html>
 <html lang="<%= language %>">
@@ -60,6 +61,7 @@
 
           <div class="explorer-title-actions">
             <div class="explorer-stat-pills" aria-label="<%= t('Repository summary') %>">
+              <span><%= stats.folder_count === 1 ? t('{{count}} folder', { count: stats.folder_count }) : t('{{count}} folders', { count: stats.folder_count }) %></span>
               <span><%= stats.file_count === 1 ? t('{{count}} file', { count: stats.file_count }) : t('{{count}} files', { count: stats.file_count }) %></span>
               <span><%= t('{{size}} used', { size: formatBytes(stats.total_size) }) %></span>
               <span><%= grants.length === 1 ? t('{{count}} shared user', { count: grants.length }) : t('{{count}} shared users', { count: grants.length }) %></span>
@@ -99,15 +101,28 @@
               <%= t('My Drive') %>
             </a>
             <svg class="breadcrumb-separator" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
-            <span><%= repository.name %></span>
+            <% if (currentFolder) { %>
+              <a href="/repositories/<%= repository.id %>"><%= repository.name %></a>
+              <% breadcrumbs.forEach((folder, index) => { %>
+                <svg class="breadcrumb-separator" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                <% if (index === breadcrumbs.length - 1) { %>
+                  <span><%= folder.name %></span>
+                <% } else { %>
+                  <a href="/repositories/<%= repository.id %>?folder=<%= encodeURIComponent(folder.id) %>"><%= folder.name %></a>
+                <% } %>
+              <% }) %>
+            <% } else { %>
+              <span><%= repository.name %></span>
+            <% } %>
           </nav>
 
           <form action="/repositories/<%= repository.id %>" method="get" class="explorer-search" role="search">
             <input type="hidden" name="sort" value="<%= sort %>">
+            <% if (currentFolder) { %><input type="hidden" name="folder" value="<%= currentFolder.id %>"><% } %>
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-            <input type="search" name="q" value="<%= search %>" placeholder="<%= t('Search in {{name}}', { name: repository.name }) %>" aria-label="<%= t('Search repository files') %>" data-explorer-search>
+            <input type="search" name="q" value="<%= search %>" placeholder="<%= t('Search in {{name}}', { name: currentFolder?.name || repository.name }) %>" aria-label="<%= t('Search folder items') %>" data-explorer-search>
             <% if (search) { %>
-              <a href="/repositories/<%= repository.id %>?sort=<%= sort %>" aria-label="<%= t('Clear search') %>" title="<%= t('Clear search') %>">×</a>
+              <a href="/repositories/<%= repository.id %>?sort=<%= sort %><%= currentFolder ? `&folder=${encodeURIComponent(currentFolder.id)}` : '' %>" aria-label="<%= t('Clear search') %>" title="<%= t('Clear search') %>">×</a>
             <% } %>
           </form>
         </div>
@@ -118,6 +133,10 @@
               <button class="explorer-command explorer-command-primary" type="button" data-upload-open>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                 <span><%= t('Upload files') %></span>
+              </button>
+              <button class="explorer-command" type="button" data-folder-open>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3z"/><path d="M12 11v6M9 14h6"/></svg>
+                <span><%= t('New folder') %></span>
               </button>
             <% } %>
             <% if (repositoryPermissions.upload && (repositoryPermissions.download || repositoryPermissions.delete)) { %><span class="explorer-command-divider" aria-hidden="true"></span><% } %>
@@ -145,6 +164,7 @@
             <span class="explorer-selection-label" data-selection-label><%= t('No item selected') %></span>
             <form action="/repositories/<%= repository.id %>" method="get" class="explorer-sort-form">
               <% if (search) { %><input type="hidden" name="q" value="<%= search %>"><% } %>
+              <% if (currentFolder) { %><input type="hidden" name="folder" value="<%= currentFolder.id %>"><% } %>
               <label>
                 <span class="sr-only"><%= t('Sort by') %></span>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h7M4 17h4M17 5v14m0 0-3-3m3 3 3-3"/></svg>
@@ -170,6 +190,28 @@
         </div>
 
         <% if (repositoryPermissions.upload) { %>
+        <section class="explorer-folder-drawer" data-folder-drawer hidden aria-label="<%= t('Create a new folder') %>">
+          <div class="explorer-upload-heading">
+            <div>
+              <span class="eyebrow"><%= t('FOLDER') %></span>
+              <h2><%= t('Create a new folder') %></h2>
+              <p><%= t('The folder will be created inside {{name}}.', { name: currentFolder?.name || repository.name }) %></p>
+            </div>
+            <button type="button" class="explorer-square-button" data-folder-close aria-label="<%= t('Close folder panel') %>" title="<%= t('Close folder panel') %>">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            </button>
+          </div>
+          <form action="/repositories/<%= repository.id %>/folders" method="post" class="explorer-folder-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="parentId" value="<%= currentFolder?.id || '' %>">
+            <label>
+              <span><%= t('Folder name') %></span>
+              <input type="text" name="name" maxlength="100" required autocomplete="off" placeholder="<%= t('e.g. Meeting notes') %>" data-folder-name-input>
+            </label>
+            <button class="button button-primary" type="submit"><%= t('Create folder') %></button>
+          </form>
+        </section>
+
         <section class="explorer-upload-drawer" data-upload-drawer hidden aria-label="<%= t('File upload') %>">
           <div class="explorer-upload-heading">
             <div>
@@ -183,6 +225,7 @@
           </div>
           <form action="/repositories/<%= repository.id %>/upload" method="post" enctype="multipart/form-data" data-upload-form>
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="folderId" value="<%= currentFolder?.id || '' %>">
             <label class="drop-zone explorer-drop-zone" data-drop-zone>
               <input type="file" name="files" multiple required data-file-input>
               <span class="upload-cloud" aria-hidden="true">
@@ -209,7 +252,7 @@
               <span class="explorer-sidebar-title"><%= t('This repository') %></span>
               <button type="button" class="explorer-sidebar-item is-active" data-file-filter="all" aria-pressed="true">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3z"/></svg>
-                <span><%= t('All files') %></span><strong><%= files.length %></strong>
+                <span><%= t('All items') %></span><strong><%= visibleItemCount %></strong>
               </button>
               <button type="button" class="explorer-sidebar-item" data-file-filter="image" aria-pressed="false">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
@@ -260,13 +303,13 @@
           <section class="explorer-content" aria-label="<%= t('File list') %>">
             <div class="explorer-content-heading">
               <div>
-                <h2 data-current-category><%= search ? t('Search results for “{{search}}”', { search }) : t('All files') %></h2>
-                <span><strong data-visible-file-count><%= files.length %></strong> <span data-visible-item-label><%= files.length === 1 ? t('item') : t('items') %></span></span>
+                <h2 data-current-category><%= search ? t('Search results for “{{search}}”', { search }) : (currentFolder?.name || t('All items')) %></h2>
+                <span><strong data-visible-file-count><%= visibleItemCount %></strong> <span data-visible-item-label><%= visibleItemCount === 1 ? t('item') : t('items') %></span></span>
               </div>
               <% if (search) { %><span class="explorer-search-chip"><%= t('Search:') %> <strong><%= search %></strong></span><% } %>
             </div>
 
-            <% if (files.length) { %>
+            <% if (visibleItemCount) { %>
               <div class="explorer-list-header" data-list-header>
                 <span></span>
                 <span><%= t('Name') %></span>
@@ -278,6 +321,59 @@
               </div>
 
               <div class="explorer-file-items" data-file-items data-view="list">
+                <% folders.forEach((folder) => {
+                  const folderUrl = `/repositories/${repository.id}?folder=${encodeURIComponent(folder.id)}`;
+                  const creator = folder.creator_name || t('Deleted account');
+                  const childCount = Number(folder.child_folder_count || 0) + Number(folder.direct_file_count || 0);
+                %>
+                  <article
+                    class="explorer-file-item explorer-folder-item"
+                    data-folder-item
+                    data-folder-name="<%= folder.name %>"
+                    aria-label="<%= folder.name %>, <%= t('Folder') %>">
+                    <span class="explorer-file-check explorer-folder-check" aria-hidden="true"></span>
+
+                    <a class="explorer-file-primary" href="<%= folderUrl %>" data-folder-primary title="<%= t('Open folder') %>">
+                      <span class="file-icon explorer-file-icon file-folder" aria-hidden="true">DIR</span>
+                      <span class="explorer-file-copy">
+                        <strong><%= folder.name %></strong>
+                        <small><%= t('Folder') %> · <%= childCount %> <%= childCount === 1 ? t('item') : t('items') %></small>
+                      </span>
+                    </a>
+
+                    <span class="explorer-file-cell explorer-file-date"><%= formatDate(folder.created_at) %></span>
+                    <span class="explorer-file-cell explorer-file-type"><%= t('Folder') %></span>
+                    <span class="explorer-file-cell explorer-file-size">—</span>
+                    <span class="explorer-file-cell explorer-file-owner"><%= creator %></span>
+
+                    <div class="explorer-file-actions">
+                      <a href="<%= folderUrl %>" title="<%= t('Open folder') %>" aria-label="<%= t('Open {{name}}', { name: folder.name }) %>">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                      </a>
+                      <% if (repositoryPermissions.delete) { %>
+                        <details class="explorer-file-menu">
+                          <summary title="<%= t('More options') %>" aria-label="<%= t('More actions for {{name}}', { name: folder.name }) %>">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                          </summary>
+                          <div>
+                            <a href="<%= folderUrl %>">
+                              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                              <%= t('Open folder') %>
+                            </a>
+                            <form action="/repositories/<%= repository.id %>/folders/<%= encodeURIComponent(folder.id) %>/delete" method="post" data-confirm="<%= t("Permanently delete the '{{name}}' folder and everything inside it?", { name: folder.name }) %>">
+                              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                              <button type="submit">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                                <%= t('Delete folder') %>
+                              </button>
+                            </form>
+                          </div>
+                        </details>
+                      <% } %>
+                    </div>
+                  </article>
+                <% }) %>
+
                 <% files.forEach((file) => {
                   const kind = fileKind(file.mime_type, file.original_name);
                   const owner = file.uploader_name || t('Deleted account');
@@ -368,18 +464,25 @@
                 <span class="explorer-zero-icon" aria-hidden="true">
                   <svg viewBox="0 0 64 64"><path d="M8 18h18l6 7h24v27H8z"/><path d="M8 18v-5h18l6 7"/><path d="M24 38h16M32 30v16"/></svg>
                 </span>
-                <h2><%= search ? t('No search results') : t('This repository is empty') %></h2>
-                <p><%= search ? t('Try another name or return to all files.') : t('Upload the first file to share it with the team.') %></p>
+                <h2><%= search ? t('No search results') : currentFolder ? t('This folder is empty') : t('This repository is empty') %></h2>
+                <p><%= search
+                  ? t('Try another name or return to all items.')
+                  : currentFolder
+                    ? t('Create a folder or upload a file here.')
+                    : t('Create the first folder or upload a file to share it with the team.') %></p>
                 <% if (search) { %>
-                  <a class="button button-secondary" href="/repositories/<%= repository.id %>"><%= t('View all files') %></a>
+                  <a class="button button-secondary" href="/repositories/<%= repository.id %>?sort=<%= sort %><%= currentFolder ? `&folder=${encodeURIComponent(currentFolder.id)}` : '' %>"><%= t('View all items') %></a>
                 <% } else if (repositoryPermissions.upload) { %>
-                  <button class="button button-primary" type="button" data-upload-open><%= t('Upload files') %></button>
+                  <div class="explorer-zero-actions">
+                    <button class="button button-secondary" type="button" data-folder-open><%= t('New folder') %></button>
+                    <button class="button button-primary" type="button" data-upload-open><%= t('Upload files') %></button>
+                  </div>
                 <% } %>
               </div>
             <% } %>
 
             <footer class="explorer-statusbar">
-              <span><strong data-status-count><%= files.length %></strong> <span data-status-item-label><%= files.length === 1 ? t('item') : t('items') %></span></span>
+              <span><strong data-status-count><%= visibleItemCount %></strong> <span data-status-item-label><%= visibleItemCount === 1 ? t('item') : t('items') %></span></span>
               <span><%= t('{{size}} used', { size: formatBytes(stats.total_size) }) %></span>
             </footer>
           </section>

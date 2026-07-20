@@ -3,6 +3,7 @@ import { securityTranslations } from './i18n-security.js';
 import { previewTranslations } from './i18n-preview.js';
 import { repositorySettingsTranslations } from './i18n-repository-settings.js';
 import { storageSettingsTranslations } from './i18n-storage-settings.js';
+import { folderTranslations } from './i18n-folders.js';
 
 const LANGUAGE_COOKIE = 'recorddrive.lang';
 const LANGUAGE_COOKIE_MAX_AGE = 1000 * 60 * 60 * 24 * 365;
@@ -411,7 +412,8 @@ for (const source of [
   securityTranslations,
   previewTranslations,
   repositorySettingsTranslations,
-  storageSettingsTranslations
+  storageSettingsTranslations,
+  folderTranslations
 ]) {
   for (const [language, entries] of Object.entries(source)) {
     Object.assign(translations[language], entries);
