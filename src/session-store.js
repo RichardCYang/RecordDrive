@@ -132,3 +132,34 @@ export function pruneUserSessions(db, userId, currentSessionId, maximumSessions 
   for (const sessionRecord of sessions.slice(limit)) deleteSession.run(sessionRecord.sid);
   return Math.max(0, sessions.length - limit);
 }
+
+export function purgeUserSessions(db, userId, exceptSessionId = '') {
+  const normalizedUserId = Number(userId);
+  if (!Number.isSafeInteger(normalizedUserId) || normalizedUserId < 1) {
+    throw new Error('A valid user identifier is required to purge sessions.');
+  }
+
+  const excludedSessionId = String(exceptSessionId || '');
+  const now = Date.now();
+  const deleteSession = db.prepare('DELETE FROM sessions WHERE sid = ?');
+  let deleted = 0;
+
+  for (const row of db.prepare('SELECT sid, sess, expires FROM sessions').all()) {
+    if (Number(row.expires) <= now) {
+      deleted += deleteSession.run(row.sid).changes;
+      continue;
+    }
+    if (row.sid === excludedSessionId) continue;
+
+    let storedSession;
+    try {
+      storedSession = JSON.parse(row.sess);
+    } catch {
+      continue;
+    }
+    if (referencedUserId(storedSession) !== normalizedUserId) continue;
+    deleted += deleteSession.run(row.sid).changes;
+  }
+  return deleted;
+}
+

@@ -56,6 +56,7 @@ test('lists a multi-gigabyte 7z file through metadata only without extraction', 
   const fake = createListingBinary(tempRoot, 3);
 
   const preview = await createSevenZipPreview(archivePath, fs.statSync(archivePath), {
+    enabled: true,
     binary: fake.binaryPath,
     timeoutMs: 5000
   });
@@ -85,6 +86,7 @@ test('bounds visible 7z metadata while preserving an exact scanned entry count',
   const fake = createListingBinary(tempRoot, 120);
 
   const preview = await createSevenZipPreview(archivePath, fs.statSync(archivePath), {
+    enabled: true,
     binary: fake.binaryPath,
     timeoutMs: 5000,
     maxVisibleEntries: 25,
@@ -96,3 +98,66 @@ test('bounds visible 7z metadata while preserving an exact scanned entry count',
   assert.equal(preview.entries.length, 25);
   assert.equal(preview.truncated, true);
 });
+
+test('keeps native 7z parsing disabled unless explicitly enabled', async (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-seven-zip-disabled-test-'));
+  t.after(() => fs.rmSync(tempRoot, { recursive: true, force: true }));
+  const archivePath = path.join(tempRoot, 'archive.7z');
+  fs.writeFileSync(archivePath, 'fixture');
+
+  await assert.rejects(
+    createSevenZipPreview(archivePath, fs.statSync(archivePath)),
+    (error) => error?.code === 'SEVEN_ZIP_DISABLED'
+  );
+});
+
+test('does not pass application secrets to the 7z child process', async (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-seven-zip-env-test-'));
+  const archivePath = path.join(tempRoot, 'archive.7z');
+  const binaryPath = path.join(tempRoot, 'fake-7zz-env.mjs');
+  const environmentPath = path.join(tempRoot, 'child-environment.json');
+  const previousSecret = process.env.RECORDDRIVE_TEST_SECRET;
+  process.env.RECORDDRIVE_TEST_SECRET = 'must-not-reach-native-parser';
+  t.after(() => {
+    if (previousSecret === undefined) delete process.env.RECORDDRIVE_TEST_SECRET;
+    else process.env.RECORDDRIVE_TEST_SECRET = previousSecret;
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  fs.writeFileSync(archivePath, 'fixture');
+  fs.writeFileSync(binaryPath, `#!/usr/bin/env node
+import fs from 'node:fs';
+fs.writeFileSync(${JSON.stringify(environmentPath)}, JSON.stringify({
+  secret: process.env.RECORDDRIVE_TEST_SECRET || null,
+  path: process.env.PATH || process.env.Path || null,
+  lang: process.env.LANG || null
+}));
+process.stdout.write([
+  '7-Zip fake test binary',
+  '',
+  'Path = archive.7z',
+  'Type = 7z',
+  'Physical Size = 7',
+  '',
+  '----------',
+  'Path = file.txt',
+  'Size = 1',
+  'Packed Size = 1',
+  'Folder = -',
+  'Encrypted = -',
+  ''
+].join('\\n'));
+`, { mode: 0o755 });
+  fs.chmodSync(binaryPath, 0o755);
+
+  const preview = await createSevenZipPreview(archivePath, fs.statSync(archivePath), {
+    enabled: true,
+    binary: binaryPath,
+    timeoutMs: 5000
+  });
+  assert.equal(preview.totalEntries, 1);
+  const childEnvironment = JSON.parse(fs.readFileSync(environmentPath, 'utf8'));
+  assert.equal(childEnvironment.secret, null);
+  assert.ok(childEnvironment.path);
+});
+

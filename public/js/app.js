@@ -919,13 +919,15 @@
       shell.className = 'pdf-preview-shell';
       const frame = document.createElement('iframe');
       frame.className = 'pdf-preview-frame';
+      frame.setAttribute('sandbox', '');
+      frame.referrerPolicy = 'no-referrer';
       frame.src = item.dataset.previewUrl;
       frame.title = message('pdfPreviewTitle', 'PDF preview for {{name}}', { name: item.dataset.fileName });
       const fallback = document.createElement('a');
       fallback.className = 'pdf-preview-fallback';
       fallback.href = item.dataset.previewUrl;
       fallback.target = '_blank';
-      fallback.rel = 'noopener';
+      fallback.rel = 'noopener noreferrer';
       fallback.textContent = message('openPdfNewTab', 'Open PDF in a new tab');
       shell.append(frame, fallback);
       return shell;

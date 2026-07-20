@@ -153,6 +153,7 @@ test('previews PDF, XLSX, ZIP, and 7z files in the repository details pane', asy
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-preview-test-'));
   const fakeSevenZip = createFakeSevenZipBinary(tempRoot);
   const config = testConfig(tempRoot, {
+    sevenZipPreviewEnabled: true,
     sevenZipBinary: fakeSevenZip.binaryPath,
     sevenZipPreviewTimeoutMs: 5000
   });
@@ -168,9 +169,11 @@ test('previews PDF, XLSX, ZIP, and 7z files in the repository details pane', asy
   await login(adminAgent, 'admin', 'TestPassword123!');
   await createUser(adminAgent, 'Preview Owner', 'preview.owner', 'OwnerPassword123!');
   await createUser(adminAgent, 'View Only User', 'preview.viewer', 'ViewerPassword123!');
+  await createUser(adminAgent, 'Hidden Collaborator', 'preview.hidden', 'HiddenPassword123!');
 
   const owner = db.prepare('SELECT * FROM users WHERE username = ?').get('preview.owner');
   const viewer = db.prepare('SELECT * FROM users WHERE username = ?').get('preview.viewer');
+  const hiddenCollaborator = db.prepare('SELECT * FROM users WHERE username = ?').get('preview.hidden');
   const ownerAgent = request.agent(app);
   await login(ownerAgent, owner.username, 'OwnerPassword123!');
   const repositoryId = await createRepository(ownerAgent, 'Preview Repository');
@@ -204,7 +207,14 @@ test('previews PDF, XLSX, ZIP, and 7z files in the repository details pane', asy
     .expect(200)
     .expect('Content-Type', /application\/pdf/);
   assert.match(pdfResponse.headers['content-disposition'], /^inline;/);
+  assert.match(pdfResponse.headers['content-security-policy'], /(?:^|;)\s*sandbox(?:;|$)/);
+  assert.match(pdfResponse.headers['content-security-policy'], /default-src 'none'/);
+  assert.equal(pdfResponse.headers['referrer-policy'], 'no-referrer');
+  assert.equal(pdfResponse.headers['cross-origin-resource-policy'], 'same-origin');
   assert.ok(pdfResponse.body.length > 0);
+  const browserScript = fs.readFileSync(new URL('../public/js/app.js', import.meta.url), 'utf8');
+  assert.match(browserScript, /frame\.setAttribute\('sandbox', ''\)/);
+  assert.match(browserScript, /frame\.referrerPolicy = 'no-referrer'/);
 
   const workbookResponse = await ownerAgent
     .get(`/repositories/${repositoryId}/files/${byName['workbook.xlsx'].id}/preview`)
@@ -260,11 +270,14 @@ test('previews PDF, XLSX, ZIP, and 7z files in the repository details pane', asy
   assert.ok(!['e', 'x'].includes(sevenZipArgs[0]));
 
   await grantViewPermission(ownerAgent, repositoryId, viewer.id);
+  await grantViewPermission(ownerAgent, repositoryId, hiddenCollaborator.id);
   const viewerAgent = request.agent(app);
   await login(viewerAgent, viewer.username, 'ViewerPassword123!');
   const viewerPage = await viewerAgent.get(`/repositories/${repositoryId}`).expect(200);
   assert.match(viewerPage.text, /data-preview-kind="pdf"/);
   assert.match(viewerPage.text, /data-preview-url=""/);
+  assert.match(viewerPage.text, />2 shared users</);
+  assert.doesNotMatch(viewerPage.text, /@preview\.hidden/);
   await viewerAgent
     .get(`/repositories/${repositoryId}/files/${byName['document.pdf'].id}/preview`)
     .expect(404);

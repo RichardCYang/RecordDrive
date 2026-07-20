@@ -10,6 +10,7 @@ import {
   validateTlsSettings
 } from '../tls-settings.js';
 import { setFlash } from '../utils.js';
+import { purgeUserSessions } from '../session-store.js';
 import {
   loadRepositoryStorageSettings,
   StorageSettingsError,
@@ -196,6 +197,7 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
       } else if (user.role === 'ADMIN') {
         setFlash(req, 'error', req.t('Administrator accounts cannot be deleted.'));
       } else {
+        purgeUserSessions(db, userId);
         db.prepare('DELETE FROM users WHERE id = ?').run(userId);
         logActivity(db, {
           actorId: req.currentUser.id,

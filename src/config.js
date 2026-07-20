@@ -151,6 +151,7 @@ export function loadConfig(overrides = {}) {
     sessionAbsoluteHours: Number.isFinite(sessionAbsoluteHours) && sessionAbsoluteHours > 0
       ? Math.min(sessionAbsoluteHours, 24 * 365)
       : 168,
+    sevenZipPreviewEnabled: booleanFromEnv(env.SEVEN_ZIP_PREVIEW_ENABLED, false),
     sevenZipBinary: String(env.SEVEN_ZIP_BINARY || '').trim(),
     sevenZipPreviewTimeoutMs: timeoutFromEnv(
       env.SEVEN_ZIP_PREVIEW_TIMEOUT_MS,

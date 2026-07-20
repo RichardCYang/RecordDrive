@@ -112,6 +112,67 @@ test('does not persist anonymous sessions and preserves safe post-login redirect
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions').get().count, 1);
 });
 
+test('rotates the session after password reauthentication and revokes other sessions after MFA changes', async (t) => {
+  resetAuthenticationRateLimits();
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-security-session-rotation-'));
+  const config = testConfig(tempRoot);
+  const app = createApplication({ config });
+  const db = app.locals.db;
+  const primaryAgent = request.agent(app);
+  const secondaryAgent = request.agent(app);
+
+  t.after(() => {
+    resetAuthenticationRateLimits();
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  await passwordLogin(primaryAgent);
+  await passwordLogin(secondaryAgent);
+  const administrator = db.prepare("SELECT id FROM users WHERE username = 'admin'").get();
+  const userSessionIds = () => db.prepare('SELECT sid, sess FROM sessions').all()
+    .filter(({ sess }) => Number(JSON.parse(sess).userId) === Number(administrator.id))
+    .map(({ sid }) => sid)
+    .sort();
+
+  const beforeReauthentication = userSessionIds();
+  assert.equal(beforeReauthentication.length, 2);
+  const settings = await primaryAgent.get('/settings').expect(200);
+  await primaryAgent
+    .post('/settings/security/verify-password')
+    .type('form')
+    .send({ _csrf: csrfFrom(settings.text), password: 'TestPassword123!' })
+    .expect(302)
+    .expect('Location', '/settings#security');
+
+  const afterReauthentication = userSessionIds();
+  assert.equal(afterReauthentication.length, 2);
+  assert.equal(beforeReauthentication.filter((sid) => afterReauthentication.includes(sid)).length, 1);
+  await primaryAgent.get('/settings').expect(200);
+
+  let refreshedSettings = await primaryAgent.get('/settings').expect(200);
+  await primaryAgent
+    .post('/settings/security/totp/start')
+    .type('form')
+    .send({ _csrf: csrfFrom(refreshedSettings.text) })
+    .expect(302)
+    .expect('Location', '/settings#totp');
+  refreshedSettings = await primaryAgent.get('/settings').expect(200);
+  const secretMatch = refreshedSettings.text.match(/data-totp-secret>([^<]+)</);
+  assert.ok(secretMatch);
+  const { generate } = await import('otplib');
+  await primaryAgent
+    .post('/settings/security/totp/confirm')
+    .type('form')
+    .send({ _csrf: csrfFrom(refreshedSettings.text), token: await generate({ secret: secretMatch[1].trim() }) })
+    .expect(302)
+    .expect('Location', '/settings#security');
+
+  assert.equal(userSessionIds().length, 1);
+  await primaryAgent.get('/settings').expect(200);
+  await secondaryAgent.get('/settings').expect(302).expect('Location', '/login?returnTo=%2Fsettings');
+});
+
 test('limits active authentication sessions per user', async (t) => {
   resetAuthenticationRateLimits();
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-session-limit-hardening-'));
@@ -281,6 +342,8 @@ test('sanitizes internal redirects and parses proxy trust explicitly', () => {
   assert.equal(resourceLimits.maxRepositoryFiles, 17);
   assert.equal(resourceLimits.maxTotalFiles, 53);
   assert.equal(resourceLimits.maxSessionsPerUser, 3);
+  assert.equal(resourceLimits.sevenZipPreviewEnabled, false);
+  assert.equal(loadConfig({ NODE_ENV: 'test', SEVEN_ZIP_PREVIEW_ENABLED: 'true' }).sevenZipPreviewEnabled, true);
   assert.throws(() => loadConfig({
     NODE_ENV: 'production',
     SESSION_SECRET: 'production-session-secret-with-more-than-thirty-two-characters',

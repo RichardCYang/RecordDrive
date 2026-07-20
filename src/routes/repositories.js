@@ -69,6 +69,7 @@ function previewErrorMessage(req, error) {
     INVALID_ZIP: req.t('The ZIP archive preview could not be generated.'),
     ZIP_TOO_LARGE: req.t('The ZIP archive is too large to preview safely.'),
     INVALID_7Z: req.t('The 7z archive preview could not be generated.'),
+    SEVEN_ZIP_DISABLED: req.t('7z preview is disabled by the server security policy.'),
     SEVEN_ZIP_UNAVAILABLE: req.t('7z preview is unavailable because 7-Zip is not installed on the server.'),
     SEVEN_ZIP_TIMEOUT: req.t('The 7z archive took too long to inspect safely.'),
     SEVEN_ZIP_METADATA_LIMIT: req.t('The 7z archive contains too much metadata to preview safely.'),
@@ -669,7 +670,7 @@ export function createRepositoriesRouter(db, config) {
     if (search) params.push(`%${search}%`);
 
     const files = db.prepare(`
-      SELECT f.*, u.display_name AS uploader_name, u.username AS uploader_username
+      SELECT f.*, u.display_name AS uploader_name
       FROM files f
       LEFT JOIN users u ON u.id = f.uploaded_by
       WHERE f.repository_id = ? AND ${folderSql} ${searchSql}
@@ -686,27 +687,30 @@ export function createRepositoriesRouter(db, config) {
       currentFolder?.id
     );
 
-    const grants = db.prepare(`
-      SELECT
-        u.id,
-        u.username,
-        u.display_name,
-        rp.can_view,
-        rp.can_upload,
-        rp.can_download,
-        rp.can_delete
-      FROM repository_permissions rp
-      INNER JOIN users u ON u.id = rp.user_id
-      WHERE rp.repository_id = ?
-      ORDER BY u.display_name COLLATE NOCASE
-    `).all(req.repository.id);
+    const grants = req.repositoryPermissions.canManage
+      ? db.prepare(`
+          SELECT
+            u.id,
+            u.username,
+            u.display_name,
+            rp.can_view,
+            rp.can_upload,
+            rp.can_download,
+            rp.can_delete
+          FROM repository_permissions rp
+          INNER JOIN users u ON u.id = rp.user_id
+          WHERE rp.repository_id = ?
+          ORDER BY u.display_name COLLATE NOCASE
+        `).all(req.repository.id)
+      : [];
 
     const stats = db.prepare(`
       SELECT
         (SELECT COUNT(*) FROM files WHERE repository_id = ?) AS file_count,
         (SELECT COALESCE(SUM(size), 0) FROM files WHERE repository_id = ?) AS total_size,
-        (SELECT COUNT(*) FROM folders WHERE repository_id = ?) AS folder_count
-    `).get(req.repository.id, req.repository.id, req.repository.id);
+        (SELECT COUNT(*) FROM folders WHERE repository_id = ?) AS folder_count,
+        (SELECT COUNT(*) FROM repository_permissions WHERE repository_id = ?) AS shared_user_count
+    `).get(req.repository.id, req.repository.id, req.repository.id, req.repository.id);
 
     const quotaSettings = loadEffectiveQuotaSettings(db, config, req.repository);
     return res.render('repository', {
@@ -853,6 +857,10 @@ export function createRepositoriesRouter(db, config) {
         res.type('application/pdf');
         res.set('Content-Length', String(opened.stats.size));
         res.set('Content-Disposition', contentDisposition('inline', file.original_name));
+        res.set('Content-Security-Policy', "sandbox; default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'");
+        res.set('Referrer-Policy', 'no-referrer');
+        res.set('Permissions-Policy', 'camera=(), geolocation=(), microphone=(), payment=(), usb=()');
+        res.set('Cross-Origin-Resource-Policy', 'same-origin');
         streamOpenedFile(opened, tracker, res, next);
         opened = null;
         return;
@@ -871,6 +879,7 @@ export function createRepositoriesRouter(db, config) {
           return createZipPreview(() => readOpenedFile(opened), opened.stats);
         }
         return createSevenZipPreview(opened.filePath, opened.stats, {
+          enabled: config.sevenZipPreviewEnabled === true,
           binary: config.sevenZipBinary,
           timeoutMs: config.sevenZipPreviewTimeoutMs
         });
@@ -885,7 +894,7 @@ export function createRepositoriesRouter(db, config) {
       if (error instanceof FilePreviewError) {
         const status = ['XLSX_TOO_LARGE', 'ZIP_TOO_LARGE', 'SEVEN_ZIP_METADATA_LIMIT'].includes(error.code)
           ? 413
-          : (['PREVIEW_BUSY', 'SEVEN_ZIP_UNAVAILABLE', 'SEVEN_ZIP_TIMEOUT'].includes(error.code) ? 503 : 422);
+          : (['PREVIEW_BUSY', 'SEVEN_ZIP_DISABLED', 'SEVEN_ZIP_UNAVAILABLE', 'SEVEN_ZIP_TIMEOUT'].includes(error.code) ? 503 : 422);
         if (['PREVIEW_BUSY', 'SEVEN_ZIP_TIMEOUT'].includes(error.code)) res.set('Retry-After', '2');
         return res.status(status).json({ error: previewErrorMessage(req, error), code: error.code });
       }

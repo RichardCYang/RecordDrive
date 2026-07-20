@@ -15,14 +15,16 @@ Select a file in the repository explorer and open the **Preview** tab in the rig
 - PDF files are displayed inline with the browser PDF viewer and include an open-in-new-tab fallback.
 - XLSX files are rendered as a spreadsheet grid with worksheet tabs, merged cells, column widths, and common cell formatting. Preview processing is limited to 25 MB, and each worksheet preview shows at most the first 200 rows and 50 columns. Cell text, merge metadata, and total response text are also bounded.
 - Unencrypted ZIP files are displayed as an expandable folder and file tree. Password-protected archives show a protected-file notice instead of their entries. A maximum of 2,500 ZIP entries is displayed, with limits on archive size, scanned entries, individual names, and total visible name data.
-- 7z files use the same expandable tree, but the server runs only 7-Zip's metadata listing command (`l -slt`). File bodies are never extracted for preview, so very large 7z files are not rejected by compressed size. Listing work is still bounded by a 20-second timeout, two concurrent jobs, 10,000 scanned entries, 2,500 displayed entries, an 8 MB metadata-output cap, and file-name limits. Header-encrypted archives show a protected-file notice.
+- 7z preview is disabled by default because it invokes an external native parser on an untrusted upload. When explicitly enabled, the server runs only 7-Zip's metadata listing command (`l -slt`), passes a minimal non-secret environment, and applies the existing timeout, concurrency, scanned-entry, output-size, and file-name limits. File bodies are never extracted.
 
 
-### 7-Zip runtime requirement
+### Optional 7-Zip runtime
 
-Docker deployments install Alpine's `7zip` package automatically. For a direct Node.js/PM2 deployment, install a current 7-Zip command-line build and make `7zz`, `7z`, or `7za` available on `PATH`, or set `SEVEN_ZIP_BINARY` to its executable path. The preview implementation invokes only the list command and streams its technical metadata output; it never invokes `e`, `x`, or another extraction command.
+The default Docker image does not install 7-Zip. A deployment that has separately isolated the preview path and verified a patched 7-Zip build may build with `--build-arg RECORDDRIVE_INSTALL_7ZIP=true` and set `SEVEN_ZIP_PREVIEW_ENABLED=true`. Direct Node.js/PM2 deployments must likewise install a current patched command-line build, make `7zz`, `7z`, or `7za` available on `PATH` (or set `SEVEN_ZIP_BINARY`), and explicitly enable the feature.
 
-RecordDrive uses the external 7-Zip program for this feature. 7-Zip is free software whose code is primarily licensed under the GNU LGPL, with additional BSD-licensed and unRAR-restricted components. License and source information is available from https://www.7-zip.org/.
+Enabling this feature executes native archive-parsing code as the RecordDrive operating-system account. Process-level or container-level isolation is strongly recommended; the environment passed to the parser intentionally excludes application secrets. The implementation never invokes `e`, `x`, or another extraction command.
+
+RecordDrive uses the external 7-Zip program only when this optional feature is enabled. 7-Zip is free software whose code is primarily licensed under the GNU LGPL, with additional BSD-licensed and unRAR-restricted components. License and source information is available from https://www.7-zip.org/.
 
 ## Repository folders
 
@@ -191,7 +193,8 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `TRUST_PROXY` | `false` | Explicit Express proxy trust setting; use a hop count or comma-separated trusted addresses/subnets only when required |
 | `HTTP_REQUEST_TIMEOUT_MS` | `3600000` | Maximum time to receive a complete HTTP request body; the 1-hour default replaces Node.js's 5-minute default for large uploads, and `0` disables the limit |
 | `HTTP_HEADERS_TIMEOUT_MS` | `60000` | Maximum time to receive complete HTTP headers; automatically clamped to `HTTP_REQUEST_TIMEOUT_MS` when that limit is enabled |
-| `SEVEN_ZIP_BINARY` | Auto-detect | Optional path or command name for `7zz`, `7z`, or `7za`; the Docker image installs `7zz` through Alpine's `7zip` package |
+| `SEVEN_ZIP_PREVIEW_ENABLED` | `false` | Explicitly opts in to native 7z metadata parsing; keep disabled unless the parser is patched and isolated |
+| `SEVEN_ZIP_BINARY` | Auto-detect | Optional path or command name for `7zz`, `7z`, or `7za` after 7z preview is enabled |
 | `SEVEN_ZIP_PREVIEW_TIMEOUT_MS` | `20000` | Maximum runtime for a metadata-only 7z listing; accepted values are clamped to 1–120 seconds |
 | `SESSION_SECRET` | Example value | Secret used to sign session cookies |
 | `ADMIN_ACCESS_DISABLED` | `false` | Disables administrator creation, login, sessions, privileges, and `/admin` routes when set to `true`, `on`, `yes`, or `1` |

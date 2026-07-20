@@ -31,6 +31,7 @@ import {
   verifyTotpToken
 } from '../security-service.js';
 import { setFlash } from '../utils.js';
+import { purgeUserSessions } from '../session-store.js';
 
 const ENROLLMENT_MAX_AGE_MS = 10 * 60 * 1000;
 const SECURITY_PASSWORD_WINDOW_MS = 10 * 60 * 1000;
@@ -69,6 +70,30 @@ function consumeSecurityPasswordAttempt(req) {
   }
   record.count += 1;
   return record.count <= SECURITY_PASSWORD_MAX_ATTEMPTS;
+}
+
+
+function completeSecurityReauthentication(req, res, next) {
+  const userId = Number(req.currentUser.id);
+  const authenticatedAt = Number(req.session.authenticatedAt) || Date.now();
+  const sessionCreatedAt = Number(req.session.sessionCreatedAt) || authenticatedAt;
+
+  return req.session.regenerate((error) => {
+    if (error) return next(error);
+    req.session.userId = userId;
+    req.session.authenticatedAt = authenticatedAt;
+    req.session.sessionCreatedAt = sessionCreatedAt;
+    req.session.securityVerifiedAt = Date.now();
+    setFlash(req, 'success', req.t('Security settings are unlocked for ten minutes.'));
+    return req.session.save((saveError) => {
+      if (saveError) return next(saveError);
+      return res.redirect('/settings#security');
+    });
+  });
+}
+
+function revokeOtherUserSessions(req, db) {
+  return purgeUserSessions(db, req.currentUser.id, req.sessionID);
 }
 
 function pendingTotpFromSession(req, config) {
@@ -207,10 +232,7 @@ export function createSettingsRouter(db, config) {
         setFlash(req, 'error', req.t('The password is incorrect.'));
         return res.redirect('/settings#security-verification');
       }
-      delete req.session.securityPasswordAttempts;
-      req.session.securityVerifiedAt = Date.now();
-      setFlash(req, 'success', req.t('Security settings are unlocked for ten minutes.'));
-      return res.redirect('/settings#security');
+      return completeSecurityReauthentication(req, res, next);
     } catch (error) {
       return next(error);
     }
@@ -259,6 +281,7 @@ export function createSettingsRouter(db, config) {
       if (countActiveRecoveryCodes(db, req.currentUser.id) === 0) {
         storeNewRecoveryCodes(req, createRecoveryCodes(db, req.currentUser.id, config), config);
       }
+      revokeOtherUserSessions(req, db);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'TOTP_ENABLED',
@@ -285,6 +308,7 @@ export function createSettingsRouter(db, config) {
       if (!getMfaState(db, req.currentUser.id).enabled) {
         db.prepare('DELETE FROM recovery_codes WHERE user_id = ?').run(req.currentUser.id);
       }
+      revokeOtherUserSessions(req, db);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'TOTP_DISABLED',
@@ -433,6 +457,7 @@ export function createSettingsRouter(db, config) {
       if (countActiveRecoveryCodes(db, req.currentUser.id) === 0) {
         storeNewRecoveryCodes(req, createRecoveryCodes(db, req.currentUser.id, config), config);
       }
+      revokeOtherUserSessions(req, db);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'PASSKEY_REGISTERED',
@@ -466,6 +491,7 @@ export function createSettingsRouter(db, config) {
       if (!getMfaState(db, req.currentUser.id).enabled) {
         db.prepare('DELETE FROM recovery_codes WHERE user_id = ?').run(req.currentUser.id);
       }
+      revokeOtherUserSessions(req, db);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'PASSKEY_REMOVED',

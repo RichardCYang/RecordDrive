@@ -485,6 +485,21 @@ function sevenZipBinaryCandidates(configuredBinary) {
     : ['7zz', '7z', '7za'];
 }
 
+function sevenZipChildEnvironment() {
+  const allowedKeys = process.platform === 'win32'
+    ? ['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'WINDIR', 'ComSpec', 'TEMP', 'TMP']
+    : ['PATH', 'TMPDIR'];
+  const environment = {};
+  for (const key of allowedKeys) {
+    if (process.env[key]) environment[key] = process.env[key];
+  }
+  if (process.platform !== 'win32') {
+    environment.LANG = 'C.UTF-8';
+    environment.LC_ALL = 'C.UTF-8';
+  }
+  return environment;
+}
+
 function inspectSevenZipWithBinary(binary, source, stats, options) {
   const timeoutMs = normalizedPositiveInteger(
     options.timeoutMs,
@@ -529,9 +544,7 @@ function inspectSevenZipWithBinary(binary, source, stats, options) {
       shell: false,
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: process.platform === 'win32'
-        ? process.env
-        : { ...process.env, LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8' }
+      env: sevenZipChildEnvironment()
     });
 
     const decoder = new StringDecoder('utf8');
@@ -731,6 +744,12 @@ function inspectSevenZipWithBinary(binary, source, stats, options) {
 }
 
 async function buildSevenZipPreview(source, stats, options = {}) {
+  if (options.enabled !== true) {
+    throw new FilePreviewError(
+      'SEVEN_ZIP_DISABLED',
+      '7z preview is disabled by default because it invokes a native parser on untrusted archives.'
+    );
+  }
   if (typeof source !== 'string' || !source) {
     throw new FilePreviewError('INVALID_7Z', '7z previews require a server-side archive path.');
   }

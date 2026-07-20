@@ -64,7 +64,7 @@
               <span><%= stats.folder_count === 1 ? t('{{count}} folder', { count: stats.folder_count }) : t('{{count}} folders', { count: stats.folder_count }) %></span>
               <span><%= stats.file_count === 1 ? t('{{count}} file', { count: stats.file_count }) : t('{{count}} files', { count: stats.file_count }) %></span>
               <span><%= t('{{size}} used', { size: formatBytes(stats.total_size) }) %></span>
-              <span><%= grants.length === 1 ? t('{{count}} shared user', { count: grants.length }) : t('{{count}} shared users', { count: grants.length }) %></span>
+              <span><%= stats.shared_user_count === 1 ? t('{{count}} shared user', { count: stats.shared_user_count }) : t('{{count}} shared users', { count: stats.shared_user_count }) %></span>
             </div>
             <% if (repositoryPermissions.canManage) { %>
               <a class="explorer-icon-action" href="/repositories/<%= repository.id %>/settings" title="<%= t('Repository settings') %>" aria-label="<%= t('Repository settings') %>" data-repository-settings>
@@ -290,16 +290,16 @@
             </div>
 
             <div class="explorer-members-card">
-              <div class="explorer-members-heading"><span><%= t('Shared users') %></span><strong><%= grants.length %></strong></div>
-              <div class="explorer-member-list">
-                <% grants.slice(0, 4).forEach((grant) => { %>
-                  <div class="explorer-member">
-                    <span class="avatar"><%= grant.display_name.slice(0, 1).toUpperCase() %></span>
-                    <span><strong><%= grant.display_name %></strong><small>@<%= grant.username %></small></span>
-                  </div>
-                <% }) %>
-              </div>
+              <div class="explorer-members-heading"><span><%= t('Shared users') %></span><strong><%= stats.shared_user_count %></strong></div>
               <% if (repositoryPermissions.canManage) { %>
+                <div class="explorer-member-list">
+                  <% grants.slice(0, 4).forEach((grant) => { %>
+                    <div class="explorer-member">
+                      <span class="avatar"><%= grant.display_name.slice(0, 1).toUpperCase() %></span>
+                      <span><strong><%= grant.display_name %></strong><small>@<%= grant.username %></small></span>
+                    </div>
+                  <% }) %>
+                </div>
                 <a href="/repositories/<%= repository.id %>/permissions"><%= t('Manage permissions') %></a>
               <% } %>
             </div>
