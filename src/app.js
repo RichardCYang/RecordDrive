@@ -1,6 +1,7 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
@@ -235,11 +236,24 @@ export function createApplication(options = {}) {
   return app;
 }
 
-const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (isMain) {
+function resolvesToCurrentModule(candidatePath) {
+  if (!candidatePath) return false;
+  const currentPath = fileURLToPath(import.meta.url);
+  try {
+    return fs.realpathSync(candidatePath) === fs.realpathSync(currentPath);
+  } catch {
+    return path.resolve(candidatePath) === path.resolve(currentPath);
+  }
+}
+
+const isServiceEntryPoint = import.meta.main === true
+  || resolvesToCurrentModule(process.argv[1])
+  || resolvesToCurrentModule(process.env.pm_exec_path);
+
+if (isServiceEntryPoint) {
   const app = createApplication();
   startNetworkServers(app).catch((error) => {
-    console.error(`RecordDrive failed to start: ${error.message}`);
-    process.exitCode = 1;
+    console.error('RecordDrive failed to start:', error);
+    process.exit(1);
   });
 }

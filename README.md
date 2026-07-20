@@ -137,7 +137,28 @@ Change the administrator password and `SESSION_SECRET` before exposing the servi
 | `npm start` | Start the web server |
 | `npm run dev` | Start with Node's watch mode |
 | `npm test` | Run integration and permission tests |
-| `npm run check` | Check the server entry file for syntax errors |
+| `npm run check` | Check the server entry files for syntax errors |
+
+## PM2 deployment
+
+RecordDrive uses `src/server.js` as its dedicated executable entry point. Start PM2 with the included CommonJS ecosystem file so the working directory and ESM loading behavior remain consistent:
+
+```bash
+npm install -g pm2
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup
+```
+
+Run the command printed by `pm2 startup` with the requested privileges. Useful operational commands are:
+
+```bash
+pm2 logs RecordDrive
+pm2 restart ecosystem.config.cjs --update-env
+pm2 stop ecosystem.config.cjs
+```
+
+The included ecosystem file uses the dedicated `src/server.js` service entry point. Direct legacy launches such as `pm2 start src/app.js --name RecordDrive` are also recognized, but the ecosystem file is preferred because it pins the working directory and shutdown behavior.
 
 ## Configuration
 

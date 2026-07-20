@@ -3,7 +3,7 @@ import process from 'node:process';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 function resolveFromCwd(value) {
   return path.isAbsolute(value) ? value : path.resolve(process.cwd(), value);
