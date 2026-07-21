@@ -192,23 +192,29 @@ function validateExternallyReachableSecrets(config) {
     || sessionSecret === DEFAULT_SESSION_SECRET
     || sessionSecret.includes('change-this')
   ) {
-    throw new Error('A non-loopback listener requires a unique SESSION_SECRET of at least 32 UTF-8 bytes.');
+    throw new Error('An externally reachable deployment requires a unique SESSION_SECRET of at least 32 UTF-8 bytes.');
   }
 
   if (!config.adminAccessDisabled) {
     const adminPassword = String(config.adminPassword || '');
     if (adminPassword === DEFAULT_ADMIN_PASSWORD) {
-      throw new Error('The default ADMIN_PASSWORD cannot be used on a non-loopback listener.');
+      throw new Error('The default ADMIN_PASSWORD cannot be used in an externally reachable deployment.');
     }
     if (adminPassword.length < 12 || adminPassword.length > 128 || bcrypt.truncates(adminPassword)) {
-      throw new Error("A non-loopback listener requires ADMIN_PASSWORD to be 12 to 128 characters and within bcrypt's 72-byte input limit.");
+      throw new Error("An externally reachable deployment requires ADMIN_PASSWORD to be 12 to 128 characters and within bcrypt's 72-byte input limit.");
     }
   }
 
   const mfaEncryptionKey = String(config.mfaEncryptionKey || '');
   if (Buffer.byteLength(mfaEncryptionKey, 'utf8') < 32) {
-    throw new Error('A non-loopback listener requires an MFA encryption key source of at least 32 UTF-8 bytes.');
+    throw new Error('An externally reachable deployment requires an MFA encryption key source of at least 32 UTF-8 bytes.');
   }
+}
+
+function hasTrustedProxyExposure(trustProxy) {
+  if (trustProxy === undefined || trustProxy === null || trustProxy === false) return false;
+  if (Array.isArray(trustProxy)) return trustProxy.length > 0;
+  return true;
 }
 
 export function applyRuntimeConfidentialityPolicy(config, networkSettings = {}) {
@@ -217,7 +223,11 @@ export function applyRuntimeConfidentialityPolicy(config, networkSettings = {}) 
     activeHosts.push(networkSettings.httpsHost || config.httpsHost);
   }
 
-  const externallyReachable = activeHosts.some((host) => !isLoopbackListenerHost(host));
+  // A loopback-bound application is still externally reachable when a trusted
+  // reverse proxy publishes it. TRUST_PROXY is therefore a deployment-boundary
+  // signal, not only an Express request-parsing option.
+  const externallyReachable = hasTrustedProxyExposure(config.trustProxy)
+    || activeHosts.some((host) => !isLoopbackListenerHost(host));
   if (externallyReachable) validateExternallyReachableSecrets(config);
 
   config.externallyReachable = externallyReachable;

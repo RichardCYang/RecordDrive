@@ -1,6 +1,6 @@
 {
   "name": "recorddrive",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "A sky-blue team file drive built with Node.js",
   "type": "module",
   "main": "src/app.js",

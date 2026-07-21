@@ -390,7 +390,7 @@ test('sanitizes internal redirects and parses proxy trust explicitly', () => {
   }), /72-byte input limit/);
 });
 
-test('defaults development listeners to loopback and fails closed for external HTTP exposure', async (t) => {
+test('fails closed for non-loopback and trusted reverse-proxy exposure', async (t) => {
   const defaults = loadConfig({ NODE_ENV: 'test' });
   assert.equal(defaults.httpHost, '127.0.0.1');
   assert.equal(defaults.httpsHost, '127.0.0.1');
@@ -404,8 +404,22 @@ test('defaults development listeners to loopback and fails closed for external H
       sessionSecret: 'recorddrive-change-this-session-secret-at-least-32-chars',
       adminPassword: 'ChangeMe123!'
     }
-  }), /non-loopback listener requires a unique SESSION_SECRET/);
+  }), /externally reachable deployment requires a unique SESSION_SECRET/);
   assert.equal(fs.existsSync(path.join(weakTempRoot, 'recorddrive.db')), false);
+
+  const weakProxyTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-weak-proxy-listener-'));
+  t.after(() => fs.rmSync(weakProxyTempRoot, { recursive: true, force: true }));
+  assert.throws(() => createApplication({
+    config: {
+      ...testConfig(weakProxyTempRoot),
+      httpHost: '127.0.0.1',
+      httpsHost: '127.0.0.1',
+      trustProxy: 1,
+      sessionSecret: 'recorddrive-change-this-session-secret-at-least-32-chars',
+      adminPassword: 'ChangeMe123!'
+    }
+  }), /externally reachable deployment requires a unique SESSION_SECRET/);
+  assert.equal(fs.existsSync(path.join(weakProxyTempRoot, 'recorddrive.db')), false);
 
   const strongTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-strong-external-listener-'));
   const config = {
@@ -427,6 +441,28 @@ test('defaults development listeners to loopback and fails closed for external H
   assert.equal(plainLogin.text, 'HTTPS is required for this listener.');
   assert.equal(plainLogin.headers['set-cookie'], undefined);
   await request(app)
+    .get('/login')
+    .set('X-Forwarded-Proto', 'https')
+    .expect(200);
+
+  const proxyTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-strong-proxy-listener-'));
+  const proxyConfig = {
+    ...testConfig(proxyTempRoot),
+    httpHost: '127.0.0.1',
+    httpsHost: '127.0.0.1',
+    trustProxy: ['loopback']
+  };
+  const proxyApp = createApplication({ config: proxyConfig });
+  t.after(() => {
+    proxyApp.recorddrive.db.close();
+    fs.rmSync(proxyTempRoot, { recursive: true, force: true });
+  });
+
+  assert.equal(proxyConfig.externallyReachable, true);
+  assert.equal(proxyConfig.requireHttps, true);
+  assert.equal(proxyConfig.exposeDetailedErrors, false);
+  await request(proxyApp).get('/login').expect(426);
+  await request(proxyApp)
     .get('/login')
     .set('X-Forwarded-Proto', 'https')
     .expect(200);

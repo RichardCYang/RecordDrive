@@ -77,7 +77,7 @@ Permissions are checked independently on every server request. A user with no `V
 - Stored files are opened with symbolic-link following disabled. Storage paths are canonicalized, symbolic-link ancestors are rejected during use, and repository/database paths reject symbolic links.
 - File names shown to users are normalized and length-limited.
 - File size, per-request file count, repository storage, total storage, and file-count limits are stored in SQLite. Administrators can update server-wide values from **Admin → Storage**, while repository owners and administrators can set per-repository file-size and storage overrides. New upload requests use changes immediately. Upload CSRF validation and quota checks occur before and during disk writes, and multipart field nesting is disabled.
-- Production and every non-loopback listener reject application requests that are not recognized as HTTPS before static files, body parsing, sessions, or authentication are reached. Non-loopback startup also rejects the example session secret, the example administrator password, and undersized encryption keys. Session cookies require HTTPS in those modes, and authenticated sessions have both rolling idle expiration and a server-enforced absolute lifetime. CSRF protection, Helmet headers, bcrypt password hashing, and login/MFA rate limiting are enabled.
+- Production, every non-loopback listener, and every deployment with `TRUST_PROXY` enabled reject application requests that are not recognized as HTTPS before static files, body parsing, sessions, or authentication are reached. Those externally reachable modes also reject the example session secret, the example administrator password, and undersized encryption keys. Session cookies require HTTPS in those modes, and authenticated sessions have both rolling idle expiration and a server-enforced absolute lifetime. CSRF protection, Helmet headers, bcrypt password hashing, and login/MFA rate limiting are enabled.
 - TOTP secrets, saved TLS passphrases, and one-time recovery-code display data are protected with authenticated encryption.
 - Administrators can enable native HTTPS, validate Posh-ACME certificate files, redirect HTTP requests, and reload renewed certificates without interrupting existing TLS connections. Corrupt or undecryptable saved TLS settings stop startup instead of silently disabling HTTPS.
 - Startup resolves storage paths through existing filesystem ancestors and rejects filesystem roots, project parents, static files, source files, views, Git metadata, symbolic-link final components, and any database path inside the upload root.
@@ -139,7 +139,7 @@ ADMIN_PASSWORD=ChangeMe123!
 
 Set `ADMIN_ACCESS_DISABLED=true` (also accepts `on`, `yes`, or `1`) to disable administrator account creation, password login, MFA completion, existing administrator sessions, administrator-only routes, and implicit administrator repository privileges. Regular user login remains available. Existing administrator records are retained in SQLite so access can be restored later by changing the flag and restarting the service.
 
-The example password and session secret are accepted only for loopback development. RecordDrive refuses to start on a non-loopback listener until `SESSION_SECRET` is unique and at least 32 UTF-8 bytes and, when administrator access is enabled, `ADMIN_PASSWORD` is non-default and meets the password-length limits. The bootstrap password is used only when no administrator account exists.
+The example password and session secret are accepted only for direct loopback development without proxy trust. RecordDrive refuses to start on a non-loopback listener or when `TRUST_PROXY` is enabled until `SESSION_SECRET` is unique and at least 32 UTF-8 bytes and, when administrator access is enabled, `ADMIN_PASSWORD` is non-default and meets the password-length limits. The bootstrap password is used only when no administrator account exists.
 
 ## Available commands
 
@@ -176,7 +176,7 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | Variable | Default | Description |
 | --- | --- | --- |
 | `PORT` | `3000` | Initial HTTP port; the administrator UI stores later changes in SQLite |
-| `HTTP_HOST` | `127.0.0.1` in development/test; `0.0.0.0` otherwise | Initial HTTP bind address; any non-loopback value activates external-listener confidentiality checks |
+| `HTTP_HOST` | `127.0.0.1` in development/test; `0.0.0.0` otherwise | Initial HTTP bind address; any non-loopback value activates externally reachable deployment checks |
 | `HTTPS_ENABLED` | `false` | Initial native HTTPS state before settings are saved in the administrator UI |
 | `HTTP_TO_HTTPS_REDIRECT` | `true` | Initial HTTP-to-HTTPS redirect state |
 | `HTTPS_PORT` | `3443` | Initial HTTPS port |
@@ -191,7 +191,7 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `TLS_AUTO_RELOAD` | `true` | Automatically reload renewed certificate files |
 | `TLS_RELOAD_INTERVAL_MINUTES` | `5` | Certificate file change check interval |
 | `NODE_ENV` | `development` | Enables production validation, secure transport enforcement, production error behavior, and static asset caching |
-| `TRUST_PROXY` | `false` | Explicit Express proxy trust setting; use a hop count or comma-separated trusted addresses/subnets only when required |
+| `TRUST_PROXY` | `false` | Explicit Express proxy trust setting; enabling it activates externally reachable deployment checks even when the application binds only to loopback |
 | `HTTP_REQUEST_TIMEOUT_MS` | `3600000` | Maximum time to receive a complete HTTP request body; the 1-hour default replaces Node.js's 5-minute default for large uploads, and `0` disables the limit |
 | `HTTP_HEADERS_TIMEOUT_MS` | `60000` | Maximum time to receive complete HTTP headers; automatically clamped to `HTTP_REQUEST_TIMEOUT_MS` when that limit is enabled |
 | `SEVEN_ZIP_PREVIEW_ENABLED` | `true` | Enables the bounded pure-JavaScript 7z metadata parser; set to `false` for an explicit policy override |
@@ -217,7 +217,7 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 
 Upload and storage limits are not runtime environment settings. They are persisted in SQLite and edited through **Admin → Storage**. Legacy `MAX_FILE_SIZE_MB`, `MAX_FILES_PER_UPLOAD`, `MAX_REPOSITORY_STORAGE_MB`, `MAX_TOTAL_STORAGE_MB`, `MAX_REPOSITORY_FILES`, and `MAX_TOTAL_FILES` values are used only to seed missing database keys during an upgrade or first initialization; after the keys exist, the database is authoritative.
 
-Every environment other than `development` and `test` uses production validation. Startup rejects a weak session secret, a weak or bcrypt-truncated bootstrap administrator password, and a separately configured MFA encryption key shorter than 32 UTF-8 bytes. The same secret-strength validation is applied in development or test whenever an active HTTP or HTTPS listener is not loopback-only. Production and non-loopback listeners require requests to be recognized as HTTPS; use native TLS or a narrowly trusted TLS-terminating reverse proxy.
+Every environment other than `development` and `test` uses production validation. Startup rejects a weak session secret, a weak or bcrypt-truncated bootstrap administrator password, and a separately configured MFA encryption key shorter than 32 UTF-8 bytes. The same secret-strength validation is applied in development or test whenever an active HTTP or HTTPS listener is not loopback-only or `TRUST_PROXY` is enabled. Production and externally reachable deployments require requests to be recognized as HTTPS; use native TLS or a narrowly trusted TLS-terminating reverse proxy.
 
 ## Large file uploads
 
@@ -362,7 +362,7 @@ RecordDrive/
 
 ## Deployment notes
 
-Use either the native HTTPS listener or a trusted HTTPS reverse proxy with `NODE_ENV=production`. The application returns HTTP 426 for every request that Express does not recognize as HTTPS in production or on any non-loopback listener, and this check runs before static serving, body parsing, sessions, and authentication. Authentication cookies are always marked `Secure` in those modes. Proxy trust is disabled by default; set `TRUST_PROXY` only when the exact proxy topology is known, because forwarded client and protocol headers are otherwise attacker-controlled. Universal trust values such as `true` are rejected. Do not expose the application listener directly when it is configured to trust a reverse proxy. Keep secrets outside source control, protect the persistent data volume and certificate files with filesystem permissions, and maintain regular backups.
+Use either the native HTTPS listener or a trusted HTTPS reverse proxy with `NODE_ENV=production`. The application returns HTTP 426 for every request that Express does not recognize as HTTPS in production, on any non-loopback listener, or whenever `TRUST_PROXY` is enabled; this check runs before static serving, body parsing, sessions, and authentication. Authentication cookies are always marked `Secure` in those modes. Enabling proxy trust also forces strong-secret and non-default administrator-password validation, even when the application listener itself is loopback-only. Proxy trust is disabled by default; set `TRUST_PROXY` only when the exact proxy topology is known, because forwarded client and protocol headers are otherwise attacker-controlled. Universal trust values such as `true` are rejected. Do not expose the application listener directly when it is configured to trust a reverse proxy. Keep secrets outside source control, protect the persistent data volume and certificate files with filesystem permissions, and maintain regular backups.
 
 Browser upload forms already place `_csrf` before file parts. Custom multipart clients must do the same or send the token in the `X-CSRF-Token` header so the request can be authenticated before any file bytes are opened on disk.
 
