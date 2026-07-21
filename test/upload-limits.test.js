@@ -55,7 +55,7 @@ test('unlimited per-file uploads still stream through repository storage quotas'
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-unlimited-file-upload-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const passwordHash = bcrypt.hashSync('LargeUploadPassword123!', 12);
   const userId = Number(db.prepare(`
     INSERT INTO users (username, display_name, password_hash, role)

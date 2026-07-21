@@ -46,3 +46,7 @@ temp/
 .LSOverride
 Thumbs.db
 Desktop.ini
+
+# The security-hardened local decoder is a committed runtime dependency.
+!vendor/xz-compat-purejs/dist/
+!vendor/xz-compat-purejs/dist/**

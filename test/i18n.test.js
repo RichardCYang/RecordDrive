@@ -31,7 +31,7 @@ function testConfig(tempRoot) {
 test('detects browser languages and persists a selected language', async (t) => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-i18n-test-'));
   const app = createApplication({ config: testConfig(tempRoot) });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const agent = request.agent(app);
 
   t.after(() => {

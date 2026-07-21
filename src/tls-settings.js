@@ -57,12 +57,13 @@ function normalizeHostname(value) {
 }
 
 export function createDefaultTlsSettings(config = {}) {
+  const defaultBindHost = config.isProduction ? '0.0.0.0' : '127.0.0.1';
   return {
     httpsEnabled: booleanValue(config.httpsEnabled, false),
     redirectHttpToHttps: booleanValue(config.redirectHttpToHttps, true),
-    httpHost: cleanString(config.httpHost || '0.0.0.0', 255),
+    httpHost: cleanString(config.httpHost || defaultBindHost, 255),
     httpPort: integerValue(config.httpPort ?? config.port, 3000),
-    httpsHost: cleanString(config.httpsHost || '0.0.0.0', 255),
+    httpsHost: cleanString(config.httpsHost || defaultBindHost, 255),
     httpsPort: integerValue(config.httpsPort, 3443),
     publicHostname: normalizeHostname(config.publicHostname || ''),
     certificateMode: CERTIFICATE_MODES.has(config.certificateMode) ? config.certificateMode : 'pem',

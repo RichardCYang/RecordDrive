@@ -25,7 +25,7 @@ async function startRecordDrive() {
 
     try {
       await runtimeControl.close?.();
-      app.locals.db?.close?.();
+      app.recorddrive.db?.close?.();
       clearTimeout(forceExitTimer);
       console.log('RecordDrive shutdown completed.');
       process.exitCode = 0;

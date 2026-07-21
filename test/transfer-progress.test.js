@@ -86,7 +86,7 @@ async function login(agent, username, password) {
 test('XHR upload and streamed download endpoints return progress-friendly responses', async (t) => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-transfer-progress-'));
   const app = createApplication({ config: transferTestConfig(tempRoot) });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const adminAgent = request.agent(app);
 
   t.after(() => {

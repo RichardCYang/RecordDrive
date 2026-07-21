@@ -102,7 +102,7 @@ test('previews PDF, XLSX, ZIP, and 7z files in the repository details pane', asy
     sevenZipPreviewTimeoutMs: 5000
   });
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
 
   t.after(() => {
     db.close();

@@ -92,7 +92,7 @@ function createRedirectHandler(settings) {
 }
 
 export async function startNetworkServers(app) {
-  const { db, config, runtimeControl } = app.locals;
+  const { db, config, runtimeControl } = app.recorddrive;
   const settings = loadTlsSettings(db, config);
   const validation = validateTlsSettings(settings, {
     checkCertificateFiles: settings.httpsEnabled

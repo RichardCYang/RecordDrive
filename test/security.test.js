@@ -86,7 +86,7 @@ test('supports TOTP, one-time recovery keys, multiple recovery keys, and passkey
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-security-test-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const agent = request.agent(app);
 
   t.after(() => {

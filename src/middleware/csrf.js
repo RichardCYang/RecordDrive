@@ -28,7 +28,7 @@ function parseCookies(headerValue) {
 }
 
 function anonymousCsrfKey(req) {
-  const secret = String(req.app?.locals?.config?.sessionSecret || '');
+  const secret = String(req.app?.recorddrive?.config?.sessionSecret || '');
   if (!secret) throw new Error('A session secret is required for anonymous CSRF protection.');
   return crypto.createHash('sha256').update(`recorddrive:anonymous-csrf:v1:${secret}`, 'utf8').digest();
 }

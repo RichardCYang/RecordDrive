@@ -4,6 +4,7 @@ This directory is the single location for RecordDrive security reports, validati
 
 ## Reports
 
+- [`SECURITY_CONFIDENTIALITY_REVIEW_2026-07-21_FINAL.md`](SECURITY_CONFIDENTIALITY_REVIEW_2026-07-21_FINAL.md) — Final confidentiality hardening pass covering deployment defaults, HTTPS fail-closed behavior, template-local secret exposure, and release integrity.
 - [`SEVEN_ZIP_PURE_JAVASCRIPT_PREVIEW_2026-07-21.md`](SEVEN_ZIP_PURE_JAVASCRIPT_PREVIEW_2026-07-21.md) — Design, threat model, validation, and residual-risk review for the external-executable-free 7z metadata parser.
 
 - [`SECURITY_CONFIDENTIALITY_REVIEW_2026-07-20.md`](SECURITY_CONFIDENTIALITY_REVIEW_2026-07-20.md) — Confidentiality-focused deep-dive review and remediation report dated 2026-07-20.

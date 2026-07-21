@@ -67,7 +67,7 @@ test('disabled mode does not bootstrap an administrator and keeps regular user l
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-admin-disabled-fresh-'));
   const config = testConfig(tempRoot, { adminAccessDisabled: true });
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const agent = request.agent(app);
 
   t.after(() => {
@@ -92,7 +92,7 @@ test('disabled mode rejects administrator password and MFA entry points', async 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-admin-disabled-login-'));
   const enabledConfig = testConfig(tempRoot);
   const enabledApp = createApplication({ config: enabledConfig });
-  const enabledDb = enabledApp.locals.db;
+  const enabledDb = enabledApp.recorddrive.db;
   enabledDb.prepare(`
     UPDATE users
     SET totp_enabled = 1, totp_secret_encrypted = ?
@@ -102,7 +102,7 @@ test('disabled mode rejects administrator password and MFA entry points', async 
 
   const disabledConfig = testConfig(tempRoot, { adminAccessDisabled: true });
   const app = createApplication({ config: disabledConfig });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const agent = request.agent(app);
 
   t.after(() => {
@@ -121,7 +121,7 @@ test('enabling the flag invalidates an active administrator session and removes 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-admin-disabled-session-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const agent = request.agent(app);
 
   t.after(() => {
@@ -159,7 +159,7 @@ test('disabled startup purges stored administrator sessions while retaining regu
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-admin-disabled-purge-'));
   const enabledConfig = testConfig(tempRoot);
   const enabledApp = createApplication({ config: enabledConfig });
-  const enabledDb = enabledApp.locals.db;
+  const enabledDb = enabledApp.recorddrive.db;
   const admin = enabledDb.prepare("SELECT id FROM users WHERE role = 'ADMIN'").get();
   const memberId = enabledDb.prepare(`
     INSERT INTO users (username, display_name, password_hash, role)
@@ -185,7 +185,7 @@ test('disabled startup purges stored administrator sessions while retaining regu
   enabledDb.close();
 
   const disabledApp = createApplication({ config: testConfig(tempRoot, { adminAccessDisabled: true }) });
-  const disabledDb = disabledApp.locals.db;
+  const disabledDb = disabledApp.recorddrive.db;
 
   t.after(() => {
     disabledDb.close();

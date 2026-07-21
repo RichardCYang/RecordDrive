@@ -1,9 +1,13 @@
 import path from 'node:path';
 import process from 'node:process';
+import { isIP } from 'node:net';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 
 dotenv.config({ quiet: true });
+
+const DEFAULT_SESSION_SECRET = 'recorddrive-change-this-session-secret-at-least-32-chars';
+const DEFAULT_ADMIN_PASSWORD = 'ChangeMe123!';
 
 function resolveFromCwd(value) {
   return path.isAbsolute(value) ? value : path.resolve(process.cwd(), value);
@@ -37,8 +41,8 @@ function trustProxyFromEnv(value) {
 export function loadConfig(overrides = {}) {
   const env = { ...process.env, ...overrides };
   const nodeEnv = String(env.NODE_ENV || 'development').trim().toLowerCase();
-  const sessionSecret = env.SESSION_SECRET || 'recorddrive-change-this-session-secret-at-least-32-chars';
-  const adminPassword = env.ADMIN_PASSWORD || 'ChangeMe123!';
+  const sessionSecret = env.SESSION_SECRET || DEFAULT_SESSION_SECRET;
+  const adminPassword = env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
   const adminAccessDisabled = booleanFromEnv(env.ADMIN_ACCESS_DISABLED, false);
   const isProduction = !['development', 'test'].includes(nodeEnv);
   const configuredMfaEncryptionKey = String(env.MFA_ENCRYPTION_KEY || '');
@@ -47,7 +51,7 @@ export function loadConfig(overrides = {}) {
     if (Buffer.byteLength(sessionSecret, 'utf8') < 32 || sessionSecret.includes('change-this')) {
       throw new Error('Production requires a secure SESSION_SECRET of at least 32 UTF-8 bytes.');
     }
-    if (!adminAccessDisabled && adminPassword === 'ChangeMe123!') {
+    if (!adminAccessDisabled && adminPassword === DEFAULT_ADMIN_PASSWORD) {
       throw new Error('The default ADMIN_PASSWORD cannot be used in production while administrator access is enabled.');
     }
     if (!adminAccessDisabled && (adminPassword.length < 12 || adminPassword.length > 128 || bcrypt.truncates(adminPassword))) {
@@ -62,6 +66,7 @@ export function loadConfig(overrides = {}) {
   const maxFilesPerUpload = Number.parseInt(env.MAX_FILES_PER_UPLOAD || '10', 10);
   const httpPort = Number.parseInt(env.HTTP_PORT || env.PORT || '3000', 10);
   const httpsPort = Number.parseInt(env.HTTPS_PORT || '3443', 10);
+  const defaultBindHost = isProduction ? '0.0.0.0' : '127.0.0.1';
   const reloadIntervalMinutes = Number.parseInt(env.TLS_RELOAD_INTERVAL_MINUTES || '5', 10);
   const maxRepositoryStorageMb = Number.parseInt(env.MAX_REPOSITORY_STORAGE_MB || '10240', 10);
   const maxTotalStorageMb = Number.parseInt(env.MAX_TOTAL_STORAGE_MB || '102400', 10);
@@ -86,11 +91,11 @@ export function loadConfig(overrides = {}) {
   return {
     port: Number.isFinite(httpPort) ? httpPort : 3000,
     httpPort: Number.isFinite(httpPort) ? httpPort : 3000,
-    httpHost: (env.HTTP_HOST || '0.0.0.0').trim(),
+    httpHost: (env.HTTP_HOST || defaultBindHost).trim(),
     httpsEnabled: booleanFromEnv(env.HTTPS_ENABLED, false),
     redirectHttpToHttps: booleanFromEnv(env.HTTP_TO_HTTPS_REDIRECT, true),
     httpsPort: Number.isFinite(httpsPort) ? httpsPort : 3443,
-    httpsHost: (env.HTTPS_HOST || '0.0.0.0').trim(),
+    httpsHost: (env.HTTPS_HOST || defaultBindHost).trim(),
     publicHostname: (env.TLS_PUBLIC_HOSTNAME || '').trim(),
     certificateMode: (env.TLS_CERT_MODE || 'pem').trim().toLowerCase(),
     certificateDirectory: (env.TLS_CERT_DIRECTORY || '').trim(),
@@ -160,4 +165,62 @@ export function loadConfig(overrides = {}) {
     dbPath: resolveFromCwd(env.DB_PATH || './data/recorddrive.db'),
     uploadRoot: resolveFromCwd(env.UPLOAD_ROOT || './data/uploads')
   };
+}
+
+
+function normalizeListenerHost(value) {
+  let host = String(value ?? '').trim().toLowerCase();
+  if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
+  const zoneIndex = host.indexOf('%');
+  if (zoneIndex >= 0) host = host.slice(0, zoneIndex);
+  return host;
+}
+
+export function isLoopbackListenerHost(value) {
+  const host = normalizeListenerHost(value);
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  const addressFamily = isIP(host);
+  if (addressFamily === 4) return host.split('.')[0] === '127';
+  if (addressFamily === 6) return host === '::1' || host === '0:0:0:0:0:0:0:1';
+  return false;
+}
+
+function validateExternallyReachableSecrets(config) {
+  const sessionSecret = String(config.sessionSecret || '');
+  if (
+    Buffer.byteLength(sessionSecret, 'utf8') < 32
+    || sessionSecret === DEFAULT_SESSION_SECRET
+    || sessionSecret.includes('change-this')
+  ) {
+    throw new Error('A non-loopback listener requires a unique SESSION_SECRET of at least 32 UTF-8 bytes.');
+  }
+
+  if (!config.adminAccessDisabled) {
+    const adminPassword = String(config.adminPassword || '');
+    if (adminPassword === DEFAULT_ADMIN_PASSWORD) {
+      throw new Error('The default ADMIN_PASSWORD cannot be used on a non-loopback listener.');
+    }
+    if (adminPassword.length < 12 || adminPassword.length > 128 || bcrypt.truncates(adminPassword)) {
+      throw new Error("A non-loopback listener requires ADMIN_PASSWORD to be 12 to 128 characters and within bcrypt's 72-byte input limit.");
+    }
+  }
+
+  const mfaEncryptionKey = String(config.mfaEncryptionKey || '');
+  if (Buffer.byteLength(mfaEncryptionKey, 'utf8') < 32) {
+    throw new Error('A non-loopback listener requires an MFA encryption key source of at least 32 UTF-8 bytes.');
+  }
+}
+
+export function applyRuntimeConfidentialityPolicy(config, networkSettings = {}) {
+  const activeHosts = [networkSettings.httpHost || config.httpHost];
+  if (networkSettings.httpsEnabled) {
+    activeHosts.push(networkSettings.httpsHost || config.httpsHost);
+  }
+
+  const externallyReachable = activeHosts.some((host) => !isLoopbackListenerHost(host));
+  if (externallyReachable) validateExternallyReachableSecrets(config);
+
+  config.externallyReachable = externallyReachable;
+  config.requireHttps = Boolean(config.isProduction || externallyReachable);
+  return config;
 }

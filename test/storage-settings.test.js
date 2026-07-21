@@ -72,7 +72,7 @@ test('moves repository data to an administrator-selected external path and reloa
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-storage-settings-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const storedFile = createStoredFile(db, config);
   const originalRoot = config.uploadRoot;
   const externalRoot = path.join(tempRoot, 'external-repository-data');
@@ -128,7 +128,7 @@ test('moves repository data to an administrator-selected external path and reloa
   db.close();
   const restartedConfig = testConfig(tempRoot);
   const restartedApp = createApplication({ config: restartedConfig });
-  const restartedDb = restartedApp.locals.db;
+  const restartedDb = restartedApp.recorddrive.db;
   assert.equal(restartedConfig.uploadRoot, fs.realpathSync(externalRoot));
   assert.equal(fs.readFileSync(movedPath, 'utf8'), storedFile.contents);
   restartedDb.close();
@@ -138,7 +138,7 @@ test('verifies pre-positioned repository data before using an existing external 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-storage-existing-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const storedFile = createStoredFile(db, config, 'Pre-positioned data');
   const existingRoot = path.join(tempRoot, 'mounted-repository-data');
   const agent = request.agent(app);

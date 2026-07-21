@@ -1,5 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import { applyRuntimeConfidentialityPolicy } from '../config.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { logActivity } from '../database.js';
 import {
@@ -96,6 +97,7 @@ function renderStoragePage(req, res, db, config, {
       migrationMode: form?.migrationMode === 'use-existing' ? 'use-existing' : 'move'
     },
     metrics,
+    databasePath: config.dbPath,
     quotaSettings: {
       ...storedQuotaSettings,
       ...(limitForm || {})
@@ -341,6 +343,7 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
         });
       }
 
+      applyRuntimeConfidentialityPolicy({ ...config }, settings);
       saveTlsSettings(db, settings, config);
       logActivity(db, {
         actorId: req.currentUser.id,

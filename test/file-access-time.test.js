@@ -82,7 +82,7 @@ test('repository owners and administrators control file access time updates', as
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-atime-test-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
 
   t.after(() => {
     db.close();

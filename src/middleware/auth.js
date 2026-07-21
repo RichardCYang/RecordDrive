@@ -24,7 +24,7 @@ export function renderAdministratorAccessDisabled(req, res, statusCode = 403) {
 }
 
 export function blockDisabledAdministratorSession(req, res, next) {
-  if (!isBlockedAdministrator(req.app.locals.config, req.currentUser)) return next();
+  if (!isBlockedAdministrator(req.app.recorddrive.config, req.currentUser)) return next();
 
   req.currentUser = null;
   res.locals.currentUser = null;
@@ -36,7 +36,7 @@ export function blockDisabledAdministratorSession(req, res, next) {
 }
 
 export function requireAuth(req, res, next) {
-  if (isBlockedAdministrator(req.app.locals.config, req.currentUser)) {
+  if (isBlockedAdministrator(req.app.recorddrive.config, req.currentUser)) {
     return renderAdministratorAccessDisabled(req, res);
   }
   if (!req.currentUser) {
@@ -56,11 +56,11 @@ export function requireAuth(req, res, next) {
 }
 
 export function requireAdmin(req, res, next) {
-  if (req.app.locals.config?.adminAccessDisabled) {
+  if (req.app.recorddrive.config?.adminAccessDisabled) {
     return renderAdministratorAccessDisabled(req, res, 404);
   }
   if (!req.currentUser) return res.redirect('/login');
-  if (!canUseAdministratorAccess(req.app.locals.config, req.currentUser)) {
+  if (!canUseAdministratorAccess(req.app.recorddrive.config, req.currentUser)) {
     return res.status(403).render('error', {
       title: req.t('Access denied'),
       statusCode: 403,
@@ -71,7 +71,7 @@ export function requireAdmin(req, res, next) {
 }
 
 export function requireRegularUser(req, res, next) {
-  if (isBlockedAdministrator(req.app.locals.config, req.currentUser)) {
+  if (isBlockedAdministrator(req.app.recorddrive.config, req.currentUser)) {
     return renderAdministratorAccessDisabled(req, res);
   }
   if (!req.currentUser) return res.redirect('/login');

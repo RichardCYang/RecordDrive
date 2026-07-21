@@ -48,7 +48,7 @@ test('stores global quotas in SQLite and applies administrator changes without a
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-db-quota-admin-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const ownerPassword = 'OwnerQuotaPassword123!';
   const ownerId = Number(db.prepare(`
     INSERT INTO users (username, display_name, password_hash, role)
@@ -119,7 +119,7 @@ test('allows owners and administrators to change repository overrides while bloc
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-db-quota-owner-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const password = 'RepositorySettingsPassword123!';
   const insertUser = db.prepare(`
     INSERT INTO users (username, display_name, password_hash, role)

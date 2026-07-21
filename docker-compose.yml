@@ -2,10 +2,14 @@ services:
   recorddrive:
     build: .
     ports:
-      - "3000:3000"
-      - "3443:3443"
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3443:3443"
     env_file:
       - .env
+    environment:
+      NODE_ENV: production
+      HTTP_HOST: 0.0.0.0
+      HTTPS_HOST: 0.0.0.0
     volumes:
       - recorddrive_data:/app/data
       # Mount a host Posh-ACME order directory as read-only when native HTTPS is enabled.

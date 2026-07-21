@@ -6,10 +6,10 @@ import express from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
 import multer from 'multer';
-import { loadConfig } from './config.js';
+import { applyRuntimeConfidentialityPolicy, loadConfig } from './config.js';
 import { createDatabase } from './database.js';
 import { startNetworkServers } from './network-server.js';
-import { loadTlsSettings } from './tls-settings.js';
+import { createDefaultTlsSettings, loadTlsSettings } from './tls-settings.js';
 import { SQLiteSessionStore } from './session-store.js';
 import { csrfTokenMiddleware, verifyCsrf } from './middleware/csrf.js';
 import {
@@ -38,12 +38,14 @@ const projectRoot = path.resolve(__dirname, '..');
 
 export function createApplication(options = {}) {
   const config = normalizeAndValidateStorageConfiguration(options.config || loadConfig(options.env));
+  applyRuntimeConfidentialityPolicy(config, createDefaultTlsSettings(config));
   const db = options.db || createDatabase(config);
   applyStoredRepositoryStorageRoot(db, config);
   ensureSecureUploadRoot(config);
   if (config.adminAccessDisabled) purgeAdministratorSessions(db);
   const runtimeControl = options.runtimeControl || {};
   const networkSettings = loadTlsSettings(db, config);
+  applyRuntimeConfidentialityPolicy(config, networkSettings);
   const sessionIdleMs = (Number(config.sessionIdleHours) || 12) * 60 * 60 * 1000;
   const sessionAbsoluteMs = (Number(config.sessionAbsoluteHours) || 168) * 60 * 60 * 1000;
   const app = express();
@@ -56,10 +58,13 @@ export function createApplication(options = {}) {
     app.set('trust proxy', config.trustProxy);
   }
 
-  app.locals.db = db;
-  app.locals.config = config;
-  app.locals.runtimeControl = runtimeControl;
-  app.locals.networkSettings = networkSettings;
+  Object.defineProperty(app, 'recorddrive', {
+    value: Object.freeze({ db, config, runtimeControl, networkSettings }),
+    enumerable: false,
+    configurable: false,
+    writable: false
+  });
+  app.locals.administratorAccessDisabled = Boolean(config.adminAccessDisabled);
 
   app.use(helmet({
     contentSecurityPolicy: {
@@ -72,9 +77,9 @@ export function createApplication(options = {}) {
     }
   }));
   app.use((req, res, next) => {
-    if (!config.isProduction || req.secure) return next();
+    if (!config.requireHttps || req.secure) return next();
     res.set('Cache-Control', 'no-store');
-    return res.status(426).type('text/plain').send('HTTPS is required in production.');
+    return res.status(426).type('text/plain').send('HTTPS is required for this listener.');
   });
   app.use(express.static(path.join(projectRoot, 'public'), {
     maxAge: config.isProduction ? '7d' : 0,
@@ -94,7 +99,7 @@ export function createApplication(options = {}) {
     cookie: {
       httpOnly: true,
       sameSite: 'strict',
-      secure: config.isProduction ? true : 'auto',
+      secure: config.requireHttps ? true : 'auto',
       priority: 'high',
       maxAge: sessionIdleMs
     }
@@ -125,7 +130,7 @@ export function createApplication(options = {}) {
       res.clearCookie('recorddrive.sid', {
         httpOnly: true,
         sameSite: 'strict',
-        secure: config.isProduction,
+        secure: config.requireHttps,
         priority: 'high'
       });
       if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {

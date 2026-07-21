@@ -83,7 +83,7 @@ test('creates, browses, uploads into, and recursively deletes repository folders
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-folders-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const adminAgent = request.agent(app);
 
   t.after(() => {

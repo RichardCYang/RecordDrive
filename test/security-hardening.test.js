@@ -71,7 +71,7 @@ test('does not persist anonymous sessions and preserves safe post-login redirect
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-anonymous-session-hardening-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
 
   t.after(() => {
     resetAuthenticationRateLimits();
@@ -117,7 +117,7 @@ test('rotates the session after password reauthentication and revokes other sess
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-security-session-rotation-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const primaryAgent = request.agent(app);
   const secondaryAgent = request.agent(app);
 
@@ -178,7 +178,7 @@ test('limits active authentication sessions per user', async (t) => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-session-limit-hardening-'));
   const config = { ...testConfig(tempRoot), maxSessionsPerUser: 2 };
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const agents = [];
 
   t.after(() => {
@@ -208,7 +208,7 @@ test('limits failed authentication flows that originated from pending MFA sessio
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-mfa-session-limit-hardening-'));
   const config = { ...testConfig(tempRoot), maxSessionsPerUser: 2 };
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
   const administrator = db.prepare("SELECT id FROM users WHERE username = 'admin'").get();
   db.prepare(`
@@ -252,7 +252,7 @@ test('rejects multipart CSRF bypasses outside the upload route', async (t) => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-csrf-hardening-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const agent = request.agent(app);
 
   t.after(() => {
@@ -274,7 +274,7 @@ test('preserves MFA failure limits across newly created sessions', async (t) => 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-mfa-hardening-'));
   const config = testConfig(tempRoot);
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
   const admin = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
   db.prepare(`
@@ -357,6 +357,66 @@ test('sanitizes internal redirects and parses proxy trust explicitly', () => {
     ADMIN_ACCESS_DISABLED: 'false',
     ADMIN_PASSWORD: '😀'.repeat(20)
   }), /72-byte input limit/);
+});
+
+test('defaults development listeners to loopback and fails closed for external HTTP exposure', async (t) => {
+  const defaults = loadConfig({ NODE_ENV: 'test' });
+  assert.equal(defaults.httpHost, '127.0.0.1');
+  assert.equal(defaults.httpsHost, '127.0.0.1');
+
+  const weakTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-weak-external-listener-'));
+  t.after(() => fs.rmSync(weakTempRoot, { recursive: true, force: true }));
+  assert.throws(() => createApplication({
+    config: {
+      ...testConfig(weakTempRoot),
+      httpHost: '0.0.0.0',
+      sessionSecret: 'recorddrive-change-this-session-secret-at-least-32-chars',
+      adminPassword: 'ChangeMe123!'
+    }
+  }), /non-loopback listener requires a unique SESSION_SECRET/);
+  assert.equal(fs.existsSync(path.join(weakTempRoot, 'recorddrive.db')), false);
+
+  const strongTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-strong-external-listener-'));
+  const config = {
+    ...testConfig(strongTempRoot),
+    httpHost: '0.0.0.0',
+    trustProxy: 1
+  };
+  const app = createApplication({ config });
+  const db = app.recorddrive.db;
+  t.after(() => {
+    db.close();
+    fs.rmSync(strongTempRoot, { recursive: true, force: true });
+  });
+
+  assert.equal(config.externallyReachable, true);
+  assert.equal(config.requireHttps, true);
+  const plainLogin = await request(app).get('/login').expect(426);
+  assert.equal(plainLogin.text, 'HTTPS is required for this listener.');
+  assert.equal(plainLogin.headers['set-cookie'], undefined);
+  await request(app)
+    .get('/login')
+    .set('X-Forwarded-Proto', 'https')
+    .expect(200);
+});
+
+test('keeps confidential runtime objects out of template locals', (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-template-local-secrets-'));
+  const config = testConfig(tempRoot);
+  const app = createApplication({ config });
+  const db = app.recorddrive.db;
+  t.after(() => {
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  assert.equal(app.locals.db, undefined);
+  assert.equal(app.locals.config, undefined);
+  assert.equal(app.locals.runtimeControl, undefined);
+  assert.equal(app.locals.networkSettings, undefined);
+  assert.equal(app.recorddrive.db, db);
+  assert.equal(app.recorddrive.config.sessionSecret, config.sessionSecret);
+  assert.equal(app.locals.administratorAccessDisabled, false);
 });
 
 test('rejects traversal and symbolic links in stored file paths', (t) => {
@@ -525,7 +585,7 @@ test('rejects nested upload fields and cleans files that exceed storage or file-
     maxTotalFiles: 2
   };
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const passwordHash = bcrypt.hashSync('OwnerPassword123!', 12);
   const userId = Number(db.prepare(`
     INSERT INTO users (username, display_name, password_hash, role)
@@ -629,7 +689,7 @@ test('requires upload CSRF validation before file data and supports quota-aware 
     maxTotalFiles: 20
   };
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const passwordHash = bcrypt.hashSync('StreamingOwnerPassword123!', 12);
   const userId = Number(db.prepare(`
     INSERT INTO users (username, display_name, password_hash, role)
@@ -688,7 +748,7 @@ test('marks production authentication cookies as secure', async (t) => {
     trustProxy: 1
   };
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
 
   t.after(() => {
     resetAuthenticationRateLimits();
@@ -697,7 +757,7 @@ test('marks production authentication cookies as secure', async (t) => {
   });
 
   const plainLogin = await request(app).get('/login').expect(426);
-  assert.equal(plainLogin.text, 'HTTPS is required in production.');
+  assert.equal(plainLogin.text, 'HTTPS is required for this listener.');
   assert.equal(plainLogin.headers['set-cookie'], undefined);
   await request(app).get('/styles.css').expect(426);
   await request(app)
@@ -739,7 +799,7 @@ test('enforces a server-side absolute session lifetime', async (t) => {
     sessionAbsoluteHours: 1
   };
   const app = createApplication({ config });
-  const db = app.locals.db;
+  const db = app.recorddrive.db;
   const agent = request.agent(app);
 
   t.after(() => {
