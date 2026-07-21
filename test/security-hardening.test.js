@@ -342,8 +342,8 @@ test('sanitizes internal redirects and parses proxy trust explicitly', () => {
   assert.equal(resourceLimits.maxRepositoryFiles, 17);
   assert.equal(resourceLimits.maxTotalFiles, 53);
   assert.equal(resourceLimits.maxSessionsPerUser, 3);
-  assert.equal(resourceLimits.sevenZipPreviewEnabled, false);
-  assert.equal(loadConfig({ NODE_ENV: 'test', SEVEN_ZIP_PREVIEW_ENABLED: 'true' }).sevenZipPreviewEnabled, true);
+  assert.equal(resourceLimits.sevenZipPreviewEnabled, true);
+  assert.equal(loadConfig({ NODE_ENV: 'test', SEVEN_ZIP_PREVIEW_ENABLED: 'false' }).sevenZipPreviewEnabled, false);
   assert.throws(() => loadConfig({
     NODE_ENV: 'production',
     SESSION_SECRET: 'production-session-secret-with-more-than-thirty-two-characters',

@@ -1,7 +1,5 @@
 import fs from 'node:fs';
-import { spawn } from 'node:child_process';
-import process from 'node:process';
-import { StringDecoder } from 'node:string_decoder';
+import { Worker } from 'node:worker_threads';
 import ExcelJS from 'exceljs';
 import yauzl from 'yauzl';
 
@@ -23,7 +21,6 @@ const SEVEN_ZIP_MAX_VISIBLE_ENTRIES = 2500;
 const SEVEN_ZIP_MAX_SCANNED_ENTRIES = 10000;
 const SEVEN_ZIP_MAX_ENTRY_NAME_BYTES = 1024;
 const SEVEN_ZIP_MAX_VISIBLE_NAME_BYTES = 1024 * 1024;
-const SEVEN_ZIP_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const SEVEN_ZIP_DEFAULT_TIMEOUT_MS = 20 * 1000;
 const PREVIEW_CONCURRENCY_LIMITS = Object.freeze({ xlsx: 2, zip: 4, '7z': 2 });
 const activePreviews = { xlsx: 0, zip: 0, '7z': 0 };
@@ -31,8 +28,8 @@ const activePreviews = { xlsx: 0, zip: 0, '7z': 0 };
 export function previewFileSizeLimit(kind) {
   if (kind === 'xlsx') return XLSX_MAX_FILE_BYTES;
   if (kind === 'zip') return ZIP_MAX_FILE_BYTES;
-  // 7z previews use only the archive metadata listing command and never load
-  // the complete archive into memory, so compressed file size is not a gate.
+  // The JavaScript parser performs bounded random-access reads of metadata only;
+  // the full compressed archive is never loaded into memory.
   return Number.POSITIVE_INFINITY;
 }
 
@@ -445,82 +442,13 @@ export function createZipPreview(source, stats) {
 
 function normalizedPositiveInteger(value, fallback, minimum, maximum) {
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < minimum) return fallback;
-  return Math.min(parsed, maximum);
+  if (!Number.isSafeInteger(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, parsed));
 }
 
-function cappedArchiveNumber(value) {
-  const parsed = Number(String(value ?? '').trim());
-  if (!Number.isFinite(parsed) || parsed < 0) return 0;
-  return Math.min(parsed, Number.MAX_SAFE_INTEGER);
-}
-
-function addCappedArchiveNumber(total, value) {
-  return Math.min(Number.MAX_SAFE_INTEGER, total + cappedArchiveNumber(value));
-}
-
-function normalizeArchiveEntryName(value) {
-  return String(value || '')
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '')
-    .replace(/\u0000/g, '');
-}
-
-function sevenZipEntryDate(value) {
-  const text = String(value || '').trim();
-  const match = text.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})(\.\d+)?/);
-  if (!match) return null;
-  return `${match[1]}T${match[2]}${match[3] || ''}`;
-}
-
-function encryptedSevenZipError(value) {
-  return /password|encrypted archive|wrong password|can(?:not|'t) open encrypted/i.test(String(value || ''));
-}
-
-function sevenZipBinaryCandidates(configuredBinary) {
-  const configured = String(configuredBinary || '').trim();
-  if (configured) return [configured];
-  return process.platform === 'win32'
-    ? ['7zz.exe', '7z.exe', '7za.exe']
-    : ['7zz', '7z', '7za'];
-}
-
-function sevenZipChildEnvironment() {
-  const allowedKeys = process.platform === 'win32'
-    ? ['PATH', 'Path', 'PATHEXT', 'SystemRoot', 'WINDIR', 'ComSpec', 'TEMP', 'TMP']
-    : ['PATH', 'TMPDIR'];
-  const environment = {};
-  for (const key of allowedKeys) {
-    if (process.env[key]) environment[key] = process.env[key];
-  }
-  if (process.platform !== 'win32') {
-    environment.LANG = 'C.UTF-8';
-    environment.LC_ALL = 'C.UTF-8';
-  }
-  return environment;
-}
-
-function inspectSevenZipWithBinary(binary, source, stats, options) {
-  const timeoutMs = normalizedPositiveInteger(
-    options.timeoutMs,
-    SEVEN_ZIP_DEFAULT_TIMEOUT_MS,
-    1000,
-    120 * 1000
-  );
-  const maxOutputBytes = normalizedPositiveInteger(
-    options.maxOutputBytes,
-    SEVEN_ZIP_MAX_OUTPUT_BYTES,
-    64 * 1024,
-    64 * 1024 * 1024
-  );
-  const maxScannedEntries = normalizedPositiveInteger(
-    options.maxScannedEntries,
-    SEVEN_ZIP_MAX_SCANNED_ENTRIES,
-    1,
-    100000
-  );
+function validateSevenZipWorkerPreview(value, options = {}) {
   const maxVisibleEntries = Math.min(
-    maxScannedEntries,
+    SEVEN_ZIP_MAX_VISIBLE_ENTRIES,
     normalizedPositiveInteger(
       options.maxVisibleEntries,
       SEVEN_ZIP_MAX_VISIBLE_ENTRIES,
@@ -528,249 +456,170 @@ function inspectSevenZipWithBinary(binary, source, stats, options) {
       SEVEN_ZIP_MAX_VISIBLE_ENTRIES
     )
   );
+  if (!value || value.kind !== '7z' || value.metadataOnly !== true || value.parserEngine !== 'javascript') {
+    throw new FilePreviewError('INVALID_7Z', 'The JavaScript 7z parser returned an invalid response.');
+  }
+  if (!Array.isArray(value.entries) || value.entries.length > maxVisibleEntries) {
+    throw new FilePreviewError('SEVEN_ZIP_METADATA_LIMIT', 'The JavaScript 7z parser returned too many entries.');
+  }
+
+  let visibleNameBytes = 0;
+  const entries = value.entries.map((entry) => {
+    const name = String(entry?.name || '');
+    const nameBytes = Buffer.byteLength(name, 'utf8');
+    visibleNameBytes += nameBytes;
+    if (
+      !name
+      || nameBytes > SEVEN_ZIP_MAX_ENTRY_NAME_BYTES
+      || visibleNameBytes > SEVEN_ZIP_MAX_VISIBLE_NAME_BYTES
+      || /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/u.test(name)
+    ) {
+      throw new FilePreviewError('SEVEN_ZIP_METADATA_LIMIT', 'The JavaScript 7z parser returned unsafe entry metadata.');
+    }
+    return {
+      name,
+      directory: entry?.directory === true,
+      compressedSize: Number.isSafeInteger(entry?.compressedSize) && entry.compressedSize >= 0
+        ? entry.compressedSize
+        : 0,
+      uncompressedSize: Number.isSafeInteger(entry?.uncompressedSize) && entry.uncompressedSize >= 0
+        ? entry.uncompressedSize
+        : 0,
+      modifiedAt: typeof entry?.modifiedAt === 'string' && entry.modifiedAt.length <= 64
+        ? entry.modifiedAt
+        : null
+    };
+  });
+
+  const encrypted = value.encrypted === true;
+  if (encrypted && entries.length !== 0) {
+    throw new FilePreviewError('INVALID_7Z', 'Encrypted 7z metadata must not expose archive entries.');
+  }
+
+  const safeTotal = (candidate) => (
+    Number.isSafeInteger(candidate) && candidate >= 0 ? candidate : 0
+  );
+  return {
+    kind: '7z',
+    metadataOnly: true,
+    parserEngine: 'javascript',
+    encrypted,
+    entries: encrypted ? [] : entries,
+    totalEntries: encrypted ? 0 : safeTotal(value.totalEntries),
+    totalEntriesExact: encrypted ? false : value.totalEntriesExact === true,
+    totalCompressedSize: safeTotal(value.totalCompressedSize),
+    totalUncompressedSize: encrypted ? 0 : safeTotal(value.totalUncompressedSize),
+    totalsExact: encrypted ? false : value.totalsExact === true,
+    truncated: encrypted ? false : value.truncated === true
+  };
+}
+
+function inspectSevenZipWithJavaScriptParser(source, stats, options) {
+  const timeoutMs = normalizedPositiveInteger(
+    options.timeoutMs,
+    SEVEN_ZIP_DEFAULT_TIMEOUT_MS,
+    1000,
+    120 * 1000
+  );
+  const expectedSize = sourceSize(source, stats);
+  if (!Number.isSafeInteger(expectedSize) || expectedSize < 32) {
+    throw new FilePreviewError('INVALID_7Z', 'The 7z archive size is invalid.');
+  }
 
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, [
-      'l',
-      '-slt',
-      '-sccUTF-8',
-      '-bso1',
-      '-bse2',
-      '-bsp0',
-      '-y',
-      '--',
-      source
-    ], {
-      shell: false,
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: sevenZipChildEnvironment()
-    });
-
-    const decoder = new StringDecoder('utf8');
     let settled = false;
-    let timer = null;
-    let outputBytes = 0;
-    let lineBuffer = '';
-    let diagnostic = '';
-    let inEntrySection = false;
-    let fields = Object.create(null);
-    let archiveProperties = Object.create(null);
-    let totalEntries = 0;
-    let totalCompressedSize = 0;
-    let totalUncompressedSize = 0;
-    let visibleNameBytes = 0;
-    let encrypted = false;
-    let omittedEntries = false;
-    let stopReason = '';
-    const entries = [];
+    let receivedMessage = false;
+    const worker = new Worker(new URL('./seven-zip-parser-worker.js', import.meta.url), {
+      workerData: {
+        filePath: source,
+        expectedSize,
+        options: {
+          maxVisibleEntries: options.maxVisibleEntries,
+          maxScannedEntries: options.maxScannedEntries,
+          maxEntryNameBytes: SEVEN_ZIP_MAX_ENTRY_NAME_BYTES,
+          maxVisibleNameBytes: SEVEN_ZIP_MAX_VISIBLE_NAME_BYTES,
+          maxHeaderBytes: options.maxHeaderBytes,
+          maxCompressedHeaderBytes: options.maxCompressedHeaderBytes,
+          maxSingleReadBytes: options.maxSingleReadBytes,
+          maxTotalReadBytes: options.maxTotalReadBytes
+        }
+      },
+      env: { LZMA_NATIVE_DISABLE: '1' },
+      execArgv: process.execArgv.filter((argument) => !/^(?:--input-type|--max-old-space-size|--max_old_space_size|--max-semi-space-size|--max_semi_space_size)(?:=|$)/u.test(argument)),
+      name: 'recorddrive-7z',
+      resourceLimits: {
+        maxOldGenerationSizeMb: 96,
+        maxYoungGenerationSizeMb: 16,
+        codeRangeSizeMb: 16,
+        stackSizeMb: 4
+      },
+      trackUnmanagedFds: true
+    });
 
     const finish = (callback) => {
       if (settled) return;
       settled = true;
-      if (timer) clearTimeout(timer);
+      clearTimeout(timer);
       callback();
     };
 
-    const stopChild = (reason) => {
-      if (!stopReason) stopReason = reason;
-      if (!child.killed) child.kill('SIGKILL');
-    };
-
-    const appendDiagnostic = (value) => {
-      if (diagnostic.length >= 64 * 1024) return;
-      diagnostic += String(value).slice(0, (64 * 1024) - diagnostic.length);
-    };
-
-    const processEntry = (entryFields) => {
-      const normalizedName = normalizeArchiveEntryName(entryFields.Path);
-      if (!normalizedName) return;
-
-      totalEntries += 1;
-      totalCompressedSize = addCappedArchiveNumber(totalCompressedSize, entryFields['Packed Size']);
-      totalUncompressedSize = addCappedArchiveNumber(totalUncompressedSize, entryFields.Size);
-
-      if (String(entryFields.Encrypted || '').trim() === '+') {
-        encrypted = true;
-        stopChild('encrypted');
-        return;
-      }
-
-      if (totalEntries > maxScannedEntries) {
-        omittedEntries = true;
-        stopChild('metadata-limit');
-        return;
-      }
-
-      const nameBytes = Buffer.byteLength(normalizedName, 'utf8');
-      if (nameBytes > SEVEN_ZIP_MAX_ENTRY_NAME_BYTES) {
-        omittedEntries = true;
-        return;
-      }
-
-      const directory = String(entryFields.Folder || '').trim() === '+'
-        || normalizedName.endsWith('/')
-        || /^D/i.test(String(entryFields.Attributes || '').trim());
-
-      if (
-        entries.length >= maxVisibleEntries
-        || visibleNameBytes + nameBytes > SEVEN_ZIP_MAX_VISIBLE_NAME_BYTES
-      ) {
-        omittedEntries = true;
-        return;
-      }
-
-      visibleNameBytes += nameBytes;
-      entries.push({
-        name: normalizedName,
-        directory,
-        compressedSize: cappedArchiveNumber(entryFields['Packed Size']),
-        uncompressedSize: cappedArchiveNumber(entryFields.Size),
-        modifiedAt: sevenZipEntryDate(entryFields.Modified)
+    const timer = setTimeout(() => {
+      finish(() => {
+        void worker.terminate();
+        reject(new FilePreviewError('SEVEN_ZIP_TIMEOUT', 'The JavaScript 7z parser exceeded its time limit.'));
       });
-    };
-
-    const flushFields = () => {
-      if (!Object.keys(fields).length) return;
-      if (inEntrySection) processEntry(fields);
-      else archiveProperties = { ...archiveProperties, ...fields };
-      fields = Object.create(null);
-    };
-
-    const processLine = (rawLine) => {
-      const line = rawLine.replace(/\r$/, '');
-      if (/^-{5,}\s*$/.test(line)) {
-        flushFields();
-        inEntrySection = true;
-        return;
-      }
-      if (!line.trim()) {
-        flushFields();
-        return;
-      }
-      const separator = line.indexOf(' = ');
-      if (separator <= 0) return;
-      fields[line.slice(0, separator)] = line.slice(separator + 3);
-    };
-
-    const consumeText = (value, final = false) => {
-      lineBuffer += value;
-      const lines = lineBuffer.split('\n');
-      if (!final) lineBuffer = lines.pop();
-      else lineBuffer = '';
-      for (const line of lines) processLine(line);
-      if (final && lineBuffer) processLine(lineBuffer);
-    };
-
-    child.stdout.on('data', (chunk) => {
-      const remaining = Math.max(0, maxOutputBytes - outputBytes);
-      if (remaining > 0) {
-        const accepted = chunk.subarray(0, remaining);
-        const decoded = decoder.write(accepted);
-        appendDiagnostic(decoded);
-        consumeText(decoded);
-      }
-      outputBytes += chunk.length;
-      if (outputBytes > maxOutputBytes) {
-        omittedEntries = true;
-        stopChild('metadata-limit');
-      }
-    });
-
-    child.stderr.on('data', (chunk) => {
-      outputBytes += chunk.length;
-      appendDiagnostic(chunk.toString('utf8'));
-      if (outputBytes > maxOutputBytes) stopChild('metadata-limit');
-    });
-
-    child.on('error', (error) => finish(() => reject(error)));
-    child.on('close', (exitCode, signal) => finish(() => {
-      const decodedTail = decoder.end();
-      appendDiagnostic(decodedTail);
-      consumeText(decodedTail, true);
-      flushFields();
-
-      if (encrypted || encryptedSevenZipError(diagnostic)) {
-        resolve({
-          kind: '7z',
-          metadataOnly: true,
-          encrypted: true,
-          entries: [],
-          totalEntries,
-          totalEntriesExact: false,
-          totalCompressedSize: cappedArchiveNumber(archiveProperties['Physical Size']) || sourceSize(source, stats),
-          totalUncompressedSize,
-          totalsExact: false,
-          truncated: false
-        });
-        return;
-      }
-
-      if (stopReason === 'timeout' && totalEntries === 0) {
-        reject(new FilePreviewError('SEVEN_ZIP_TIMEOUT', 'The 7z metadata listing exceeded its time limit.'));
-        return;
-      }
-      if (stopReason === 'metadata-limit' && totalEntries === 0) {
-        reject(new FilePreviewError('SEVEN_ZIP_METADATA_LIMIT', 'The 7z metadata listing exceeded its safety limits.'));
-        return;
-      }
-
-      const succeeded = exitCode === 0 || exitCode === 1;
-      if (!succeeded && !stopReason && totalEntries === 0) {
-        const detail = diagnostic.trim().split(/\r?\n/).filter(Boolean).at(-1) || `exit ${exitCode ?? signal ?? 'unknown'}`;
-        reject(new FilePreviewError('INVALID_7Z', `The 7z archive could not be read: ${detail}`));
-        return;
-      }
-
-      const totalEntriesExact = succeeded && !stopReason;
-      const physicalSize = cappedArchiveNumber(archiveProperties['Physical Size']) || sourceSize(source, stats);
-      resolve({
-        kind: '7z',
-        metadataOnly: true,
-        encrypted: false,
-        entries,
-        totalEntries,
-        totalEntriesExact,
-        totalCompressedSize: physicalSize,
-        totalUncompressedSize,
-        totalsExact: totalEntriesExact,
-        truncated: omittedEntries || !totalEntriesExact || totalEntries > entries.length
-      });
-    }));
-
-    timer = setTimeout(() => stopChild('timeout'), timeoutMs);
+    }, timeoutMs);
     timer.unref?.();
+
+    worker.once('message', (message) => {
+      receivedMessage = true;
+      finish(() => {
+        void worker.terminate();
+        if (!message?.ok) {
+          const code = message?.error?.code === 'SEVEN_ZIP_METADATA_LIMIT'
+            ? 'SEVEN_ZIP_METADATA_LIMIT'
+            : 'INVALID_7Z';
+          reject(new FilePreviewError(code, String(message?.error?.message || 'The 7z archive could not be parsed.')));
+          return;
+        }
+        try {
+          resolve(validateSevenZipWorkerPreview(message.preview, options));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+
+    worker.once('error', (error) => {
+      finish(() => {
+        const code = error?.code === 'ERR_WORKER_OUT_OF_MEMORY'
+          ? 'SEVEN_ZIP_METADATA_LIMIT'
+          : 'INVALID_7Z';
+        reject(new FilePreviewError(code, `The JavaScript 7z parser failed: ${error.message}`));
+      });
+    });
+
+    worker.once('exit', (code) => {
+      if (settled || receivedMessage) return;
+      finish(() => reject(new FilePreviewError(
+        code === 0 ? 'INVALID_7Z' : 'SEVEN_ZIP_METADATA_LIMIT',
+        `The JavaScript 7z parser stopped before returning metadata (exit ${code}).`
+      )));
+    });
   });
 }
 
 async function buildSevenZipPreview(source, stats, options = {}) {
-  if (options.enabled !== true) {
+  if (options.enabled === false) {
     throw new FilePreviewError(
       'SEVEN_ZIP_DISABLED',
-      '7z preview is disabled by default because it invokes a native parser on untrusted archives.'
+      '7z preview is disabled by the server security policy.'
     );
   }
   if (typeof source !== 'string' || !source) {
     throw new FilePreviewError('INVALID_7Z', '7z previews require a server-side archive path.');
   }
-
-  let lastUnavailableError = null;
-  for (const binary of sevenZipBinaryCandidates(options.binary)) {
-    try {
-      return await inspectSevenZipWithBinary(binary, source, stats, options);
-    } catch (error) {
-      if (error?.code === 'ENOENT') {
-        lastUnavailableError = error;
-        continue;
-      }
-      throw error;
-    }
-  }
-
-  throw new FilePreviewError(
-    'SEVEN_ZIP_UNAVAILABLE',
-    `A 7-Zip command-line executable is required for 7z previews${lastUnavailableError ? `: ${lastUnavailableError.message}` : '.'}`
-  );
+  return inspectSevenZipWithJavaScriptParser(source, stats, options);
 }
 
 export function createSevenZipPreview(source, stats, options = {}) {

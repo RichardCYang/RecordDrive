@@ -15,16 +15,13 @@ Select a file in the repository explorer and open the **Preview** tab in the rig
 - PDF files are displayed inline with the browser PDF viewer and include an open-in-new-tab fallback.
 - XLSX files are rendered as a spreadsheet grid with worksheet tabs, merged cells, column widths, and common cell formatting. Preview processing is limited to 25 MB, and each worksheet preview shows at most the first 200 rows and 50 columns. Cell text, merge metadata, and total response text are also bounded.
 - Unencrypted ZIP files are displayed as an expandable folder and file tree. Password-protected archives show a protected-file notice instead of their entries. A maximum of 2,500 ZIP entries is displayed, with limits on archive size, scanned entries, individual names, and total visible name data.
-- 7z preview is disabled by default because it invokes an external native parser on an untrusted upload. When explicitly enabled, the server runs only 7-Zip's metadata listing command (`l -slt`), passes a minimal non-secret environment, and applies the existing timeout, concurrency, scanned-entry, output-size, and file-name limits. File bodies are never extracted.
+- 7z metadata preview is enabled by default and is implemented with a bounded JavaScript parser worker. It does not launch `7z.exe`, `7zz`, `7za`, PowerShell, or another external archive program. The worker reads only the signature, headers, and metadata streams needed for the listing; entry extraction APIs are disabled. Start Header and Next Header CRC values, offsets, sizes, coder graphs, entry counts, names, cumulative reads, memory, and runtime are bounded and validated.
 
+### Pure-JavaScript 7z parser
 
-### Optional 7-Zip runtime
+RecordDrive pins `7z-iterator` and supplies a project-local security fork of `xz-compat`. The fork permanently disables native add-on loading and runtime package installation, and startup refuses unexpected parser versions or native, executable, DLL, or WebAssembly payloads in the decoder package. This keeps Windows npm and PM2 deployments independent of a machine-wide 7-Zip installation.
 
-The default Docker image does not install 7-Zip. A deployment that has separately isolated the preview path and verified a patched 7-Zip build may build with `--build-arg RECORDDRIVE_INSTALL_7ZIP=true` and set `SEVEN_ZIP_PREVIEW_ENABLED=true`. Direct Node.js/PM2 deployments must likewise install a current patched command-line build, make `7zz`, `7z`, or `7za` available on `PATH` (or set `SEVEN_ZIP_BINARY`), and explicitly enable the feature.
-
-Enabling this feature executes native archive-parsing code as the RecordDrive operating-system account. Process-level or container-level isolation is strongly recommended; the environment passed to the parser intentionally excludes application secrets. The implementation never invokes `e`, `x`, or another extraction command.
-
-RecordDrive uses the external 7-Zip program only when this optional feature is enabled. 7-Zip is free software whose code is primarily licensed under the GNU LGPL, with additional BSD-licensed and unRAR-restricted components. License and source information is available from https://www.7-zip.org/.
+The parser runs in a disposable Node.js worker thread with a minimal environment and V8 memory limits. Password-protected headers or AES-encrypted stream metadata expose no entry names, entry count, or uncompressed-size totals. The server can still disable the feature explicitly with `SEVEN_ZIP_PREVIEW_ENABLED=false`. See [`docs/security/SEVEN_ZIP_PURE_JAVASCRIPT_PREVIEW_2026-07-21.md`](docs/security/SEVEN_ZIP_PURE_JAVASCRIPT_PREVIEW_2026-07-21.md) for the threat model, implementation boundaries, and residual risks.
 
 ## Repository folders
 
@@ -116,7 +113,7 @@ The saved preference is stored in an HTTP-only browser cookie and remains availa
 - Express 5 and EJS
 - SQLite through Node's built-in `node:sqlite` module
 - Multer for multipart uploads
-- ExcelJS for XLSX preview parsing, yauzl for ZIP directory inspection, and the 7-Zip command-line list operation for metadata-only 7z previews
+- ExcelJS for XLSX preview parsing, yauzl for ZIP directory inspection, and a pinned pure-JavaScript 7z header parser for metadata-only 7z previews
 - `express-session` with a custom SQLite session store
 - bcryptjs and Helmet
 - otplib for RFC-compatible TOTP, QRCode for enrollment images, and SimpleWebAuthn Server for FIDO2 verification
@@ -197,9 +194,8 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `TRUST_PROXY` | `false` | Explicit Express proxy trust setting; use a hop count or comma-separated trusted addresses/subnets only when required |
 | `HTTP_REQUEST_TIMEOUT_MS` | `3600000` | Maximum time to receive a complete HTTP request body; the 1-hour default replaces Node.js's 5-minute default for large uploads, and `0` disables the limit |
 | `HTTP_HEADERS_TIMEOUT_MS` | `60000` | Maximum time to receive complete HTTP headers; automatically clamped to `HTTP_REQUEST_TIMEOUT_MS` when that limit is enabled |
-| `SEVEN_ZIP_PREVIEW_ENABLED` | `false` | Explicitly opts in to native 7z metadata parsing; keep disabled unless the parser is patched and isolated |
-| `SEVEN_ZIP_BINARY` | Auto-detect | Optional path or command name for `7zz`, `7z`, or `7za` after 7z preview is enabled |
-| `SEVEN_ZIP_PREVIEW_TIMEOUT_MS` | `20000` | Maximum runtime for a metadata-only 7z listing; accepted values are clamped to 1–120 seconds |
+| `SEVEN_ZIP_PREVIEW_ENABLED` | `true` | Enables the bounded pure-JavaScript 7z metadata parser; set to `false` for an explicit policy override |
+| `SEVEN_ZIP_PREVIEW_TIMEOUT_MS` | `20000` | Maximum runtime for the disposable JavaScript parser worker; accepted values are clamped to 1–120 seconds |
 | `SESSION_SECRET` | Example value | Secret used to sign session cookies |
 | `ADMIN_ACCESS_DISABLED` | `false` | Disables administrator creation, login, sessions, privileges, and `/admin` routes when set to `true`, `on`, `yes`, or `1` |
 | `ADMIN_USERNAME` | `admin` | Username for the first administrator when administrator access is enabled |

@@ -89,60 +89,6 @@ async function spreadsheetBuffer() {
 }
 
 
-function createFakeSevenZipBinary(tempRoot) {
-  const binaryPath = path.join(tempRoot, 'fake-7zz.mjs');
-  const argsPath = path.join(tempRoot, 'fake-7zz-args.json');
-  const output = [
-    '7-Zip fake test binary',
-    '',
-    'Listing archive: fixture.7z',
-    '',
-    '--',
-    'Path = fixture.7z',
-    'Type = 7z',
-    'Physical Size = 64',
-    'Headers Size = 32',
-    'Method = LZMA2:12',
-    'Solid = +',
-    'Blocks = 1',
-    '',
-    '----------',
-    'Path = folder',
-    'Size = 0',
-    'Packed Size = 0',
-    'Modified = 2026-07-20 10:00:00',
-    'Attributes = D_ drwxr-xr-x',
-    'Folder = +',
-    'Encrypted = -',
-    '',
-    'Path = folder/nested.txt',
-    'Size = 12',
-    'Packed Size = 8',
-    'Modified = 2026-07-20 10:01:00',
-    'Attributes = A_ -rw-r--r--',
-    'Folder = -',
-    'Encrypted = -',
-    '',
-    'Path = root.txt',
-    'Size = 5',
-    'Packed Size = 4',
-    'Modified = 2026-07-20 10:02:00',
-    'Attributes = A_ -rw-r--r--',
-    'Folder = -',
-    'Encrypted = -',
-    ''
-  ].join('\n');
-  const script = [
-    '#!/usr/bin/env node',
-    "import fs from 'node:fs';",
-    `fs.writeFileSync(${JSON.stringify(argsPath)}, JSON.stringify(process.argv.slice(2)));`,
-    `process.stdout.write(${JSON.stringify(output)});`
-  ].join('\n');
-  fs.writeFileSync(binaryPath, script, { mode: 0o755 });
-  fs.chmodSync(binaryPath, 0o755);
-  return { binaryPath, argsPath };
-}
-
 const minimalPdf = Buffer.from(
   '%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n' +
   '2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n' +
@@ -151,10 +97,8 @@ const minimalPdf = Buffer.from(
 
 test('previews PDF, XLSX, ZIP, and 7z files in the repository details pane', async (t) => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-preview-test-'));
-  const fakeSevenZip = createFakeSevenZipBinary(tempRoot);
   const config = testConfig(tempRoot, {
     sevenZipPreviewEnabled: true,
-    sevenZipBinary: fakeSevenZip.binaryPath,
     sevenZipPreviewTimeoutMs: 5000
   });
   const app = createApplication({ config });
@@ -186,7 +130,7 @@ test('previews PDF, XLSX, ZIP, and 7z files in the repository details pane', asy
     .attach('files', await spreadsheetBuffer(), 'workbook.xlsx')
     .attach('files', fs.readFileSync(new URL('./fixtures/sample.zip', import.meta.url)), 'archive.zip')
     .attach('files', fs.readFileSync(new URL('./fixtures/encrypted.zip', import.meta.url)), 'protected.zip')
-    .attach('files', Buffer.from('metadata-only-7z-fixture'), 'archive.7z')
+    .attach('files', fs.readFileSync(new URL('./fixtures/sample.7z', import.meta.url)), 'archive.7z')
     .expect(302)
     .expect('Location', `/repositories/${repositoryId}`);
 
@@ -259,15 +203,10 @@ test('previews PDF, XLSX, ZIP, and 7z files in the repository details pane', asy
   assert.equal(sevenZipResponse.body.kind, '7z');
   assert.equal(sevenZipResponse.body.metadataOnly, true);
   assert.equal(sevenZipResponse.body.encrypted, false);
-  assert.equal(sevenZipResponse.body.totalEntries, 3);
+  assert.equal(sevenZipResponse.body.parserEngine, 'javascript');
+  assert.equal(sevenZipResponse.body.totalEntries, 4);
   assert.ok(sevenZipResponse.body.entries.some((entry) => entry.name === 'folder/nested.txt'));
   assert.ok(sevenZipResponse.body.entries.some((entry) => entry.name === 'root.txt'));
-
-  const sevenZipArgs = JSON.parse(fs.readFileSync(fakeSevenZip.argsPath, 'utf8'));
-  assert.equal(sevenZipArgs[0], 'l');
-  assert.ok(sevenZipArgs.includes('-slt'));
-  assert.ok(sevenZipArgs.includes('--'));
-  assert.ok(!['e', 'x'].includes(sevenZipArgs[0]));
 
   await grantViewPermission(ownerAgent, repositoryId, viewer.id);
   await grantViewPermission(ownerAgent, repositoryId, hiddenCollaborator.id);

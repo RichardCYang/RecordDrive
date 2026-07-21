@@ -70,7 +70,6 @@ function previewErrorMessage(req, error) {
     ZIP_TOO_LARGE: req.t('The ZIP archive is too large to preview safely.'),
     INVALID_7Z: req.t('The 7z archive preview could not be generated.'),
     SEVEN_ZIP_DISABLED: req.t('7z preview is disabled by the server security policy.'),
-    SEVEN_ZIP_UNAVAILABLE: req.t('7z preview is unavailable because 7-Zip is not installed on the server.'),
     SEVEN_ZIP_TIMEOUT: req.t('The 7z archive took too long to inspect safely.'),
     SEVEN_ZIP_METADATA_LIMIT: req.t('The 7z archive contains too much metadata to preview safely.'),
     PREVIEW_BUSY: req.t('The preview service is busy. Try again shortly.')
@@ -880,7 +879,6 @@ export function createRepositoriesRouter(db, config) {
         }
         return createSevenZipPreview(opened.filePath, opened.stats, {
           enabled: config.sevenZipPreviewEnabled === true,
-          binary: config.sevenZipBinary,
           timeoutMs: config.sevenZipPreviewTimeoutMs
         });
       });
@@ -894,7 +892,7 @@ export function createRepositoriesRouter(db, config) {
       if (error instanceof FilePreviewError) {
         const status = ['XLSX_TOO_LARGE', 'ZIP_TOO_LARGE', 'SEVEN_ZIP_METADATA_LIMIT'].includes(error.code)
           ? 413
-          : (['PREVIEW_BUSY', 'SEVEN_ZIP_DISABLED', 'SEVEN_ZIP_UNAVAILABLE', 'SEVEN_ZIP_TIMEOUT'].includes(error.code) ? 503 : 422);
+          : (['PREVIEW_BUSY', 'SEVEN_ZIP_DISABLED', 'SEVEN_ZIP_TIMEOUT'].includes(error.code) ? 503 : 422);
         if (['PREVIEW_BUSY', 'SEVEN_ZIP_TIMEOUT'].includes(error.code)) res.set('Retry-After', '2');
         return res.status(status).json({ error: previewErrorMessage(req, error), code: error.code });
       }
