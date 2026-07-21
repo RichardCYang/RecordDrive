@@ -133,7 +133,7 @@ CycloneDX SBOM version: 1.5
 SBOM components: 266
 ```
 
-The generated `SECURITY_SBOM.cdx.json` uses canonical public-registry distribution URLs and contains no environment-specific internal host names.
+The generated [`SECURITY_SBOM.cdx.json`](SECURITY_SBOM.cdx.json) uses canonical public-registry distribution URLs and contains no environment-specific internal host names.
 
 ## Actual CVE applicability validation
 
@@ -245,11 +245,11 @@ No additional item in these areas met the evidence threshold for a confirmed vul
 - `test/security-poc.test.js`
 - `security-poc/repository-growth.mjs`
 - `security-poc/recovery-code-retention.mjs`
-- `security-poc/README.md`
-- `SECURITY_AUDIT_2026-07-12.md`
-- `SECURITY_REVIEW.md`
-- `SECURITY_POC_RESULTS.txt`
-- `SECURITY_SBOM.cdx.json`
+- `docs/security/SECURITY_POC_GUIDE.md`
+- `docs/security/SECURITY_AUDIT_2026-07-12.md`
+- `docs/security/SECURITY_REVIEW.md`
+- `docs/security/SECURITY_POC_RESULTS.txt`
+- `docs/security/SECURITY_SBOM.cdx.json`
 
 The `.git` directory and its original history are retained as explicitly required.
 

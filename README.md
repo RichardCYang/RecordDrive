@@ -85,6 +85,10 @@ Permissions are checked independently on every server request. A user with no `V
 - Administrators can enable native HTTPS, validate Posh-ACME certificate files, redirect HTTP requests, and reload renewed certificates without interrupting existing TLS connections. Corrupt or undecryptable saved TLS settings stop startup instead of silently disabling HTTPS.
 - Startup resolves storage paths through existing filesystem ancestors and rejects filesystem roots, project parents, static files, source files, views, Git metadata, symbolic-link final components, and any database path inside the upload root.
 
+## Security documentation
+
+Security audit reports, proof-of-concept evidence, reproduction guidance, and the CycloneDX SBOM are centralized in [`docs/security`](docs/security/README.md).
+
 ## Two-step verification
 
 Administrators and regular users can open **Settings → Security** to enable either or both of these methods:

@@ -1,6 +1,6 @@
 # Security PoC Guide
 
-All PoCs use temporary local databases and files. They do not target a remote service.
+Run all commands from the repository root. All PoCs use temporary local databases and files; they do not target a remote service.
 
 ## Patched repository-creation boundary
 
