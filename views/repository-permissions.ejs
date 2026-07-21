@@ -33,30 +33,33 @@
       <div class="permission-layout">
         <section class="panel sticky-panel">
           <div class="panel-header"><div><span class="eyebrow"><%= t('NEW GRANT') %></span><h2><%= t('Share with a user') %></h2></div></div>
-          <% if (availableUsers.length) { %>
-            <form action="/repositories/<%= repository.id %>/permissions" method="post" class="stack-form">
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <label class="field">
-                <span><%= t('User account') %></span>
-                <select name="userId" required>
-                  <option value=""><%= t('Select a user') %></option>
-                  <% availableUsers.forEach((user) => { %>
-                    <option value="<%= user.id %>"><%= user.display_name %> (@<%= user.username %>)</option>
-                  <% }) %>
-                </select>
-              </label>
-              <fieldset class="permission-fieldset">
-                <legend><%= t('Allowed actions') %></legend>
-                <label><input type="checkbox" name="canView" value="1"><span><strong><%= t('View') %></strong><small><%= t('Open and browse') %></small></span></label>
-                <label><input type="checkbox" name="canUpload" value="1"><span><strong><%= t('Upload') %></strong><small><%= t('Add new files') %></small></span></label>
-                <label><input type="checkbox" name="canDownload" value="1"><span><strong><%= t('Download') %></strong><small><%= t('Retrieve file data') %></small></span></label>
-                <label class="permission-danger"><input type="checkbox" name="canDelete" value="1"><span><strong><%= t('Delete') %></strong><small><%= t('Files only') %></small></span></label>
-              </fieldset>
-              <button class="button button-primary button-block" type="submit"><%= t('Save permission grant') %></button>
-            </form>
-          <% } else { %>
-            <div class="inline-empty compact"><%= t('Every eligible user already has a permission grant.') %><br><%= t('Update or revoke an existing grant below.') %></div>
-          <% } %>
+          <form action="/repositories/<%= repository.id %>/permissions" method="post" class="stack-form">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <label class="field">
+              <span><%= t('User account') %></span>
+              <input
+                type="text"
+                name="username"
+                required
+                minlength="3"
+                maxlength="32"
+                pattern="[a-z0-9_.-]{3,32}"
+                placeholder="<%= t('Enter the exact username') %>"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+              >
+              <small><%= t('Usernames are not listed to protect account privacy.') %></small>
+            </label>
+            <fieldset class="permission-fieldset">
+              <legend><%= t('Allowed actions') %></legend>
+              <label><input type="checkbox" name="canView" value="1"><span><strong><%= t('View') %></strong><small><%= t('Open and browse') %></small></span></label>
+              <label><input type="checkbox" name="canUpload" value="1"><span><strong><%= t('Upload') %></strong><small><%= t('Add new files') %></small></span></label>
+              <label><input type="checkbox" name="canDownload" value="1"><span><strong><%= t('Download') %></strong><small><%= t('Retrieve file data') %></small></span></label>
+              <label class="permission-danger"><input type="checkbox" name="canDelete" value="1"><span><strong><%= t('Delete') %></strong><small><%= t('Files only') %></small></span></label>
+            </fieldset>
+            <button class="button button-primary button-block" type="submit"><%= t('Save permission grant') %></button>
+          </form>
         </section>
 
         <section class="panel">

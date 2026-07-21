@@ -92,8 +92,8 @@ function completeSecurityReauthentication(req, res, next) {
   });
 }
 
-function revokeOtherUserSessions(req, db) {
-  return purgeUserSessions(db, req.currentUser.id, req.sessionID);
+function revokeOtherUserSessions(req, db, config) {
+  return purgeUserSessions(db, req.currentUser.id, req.sessionID, config.sessionSecret);
 }
 
 function pendingTotpFromSession(req, config) {
@@ -281,7 +281,7 @@ export function createSettingsRouter(db, config) {
       if (countActiveRecoveryCodes(db, req.currentUser.id) === 0) {
         storeNewRecoveryCodes(req, createRecoveryCodes(db, req.currentUser.id, config), config);
       }
-      revokeOtherUserSessions(req, db);
+      revokeOtherUserSessions(req, db, config);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'TOTP_ENABLED',
@@ -308,7 +308,7 @@ export function createSettingsRouter(db, config) {
       if (!getMfaState(db, req.currentUser.id).enabled) {
         db.prepare('DELETE FROM recovery_codes WHERE user_id = ?').run(req.currentUser.id);
       }
-      revokeOtherUserSessions(req, db);
+      revokeOtherUserSessions(req, db, config);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'TOTP_DISABLED',
@@ -457,7 +457,7 @@ export function createSettingsRouter(db, config) {
       if (countActiveRecoveryCodes(db, req.currentUser.id) === 0) {
         storeNewRecoveryCodes(req, createRecoveryCodes(db, req.currentUser.id, config), config);
       }
-      revokeOtherUserSessions(req, db);
+      revokeOtherUserSessions(req, db, config);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'PASSKEY_REGISTERED',
@@ -491,7 +491,7 @@ export function createSettingsRouter(db, config) {
       if (!getMfaState(db, req.currentUser.id).enabled) {
         db.prepare('DELETE FROM recovery_codes WHERE user_id = ?').run(req.currentUser.id);
       }
-      revokeOtherUserSessions(req, db);
+      revokeOtherUserSessions(req, db, config);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'PASSKEY_REMOVED',

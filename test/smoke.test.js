@@ -62,10 +62,10 @@ async function createRepository(agent, name, description = '') {
   return Number(response.headers.location.split('/').at(-1));
 }
 
-async function grantPermissions(ownerAgent, repositoryId, userId, permissions) {
+async function grantPermissions(ownerAgent, repositoryId, username, permissions) {
   const page = await ownerAgent.get(`/repositories/${repositoryId}/permissions`).expect(200);
   const csrf = csrfFrom(page.text);
-  const body = { _csrf: csrf, userId };
+  const body = { _csrf: csrf, username };
   if (permissions.view) body.canView = '1';
   if (permissions.upload) body.canUpload = '1';
   if (permissions.download) body.canDownload = '1';
@@ -95,6 +95,65 @@ async function updatePermissions(ownerAgent, repositoryId, userId, permissions) 
     .expect(302)
     .expect('Location', `/repositories/${repositoryId}/permissions`);
 }
+
+test('does not expose the account directory on repository permission pages', async (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-permission-privacy-'));
+  const config = testConfig(tempRoot);
+  const app = createApplication({ config });
+  const db = app.recorddrive.db;
+  const adminAgent = request.agent(app);
+
+  t.after(() => {
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  await login(adminAgent, 'admin', 'TestPassword123!');
+  await createUser(adminAgent, {
+    displayName: 'Repository Owner',
+    username: 'privacy.owner',
+    password: 'OwnerPassword123!'
+  });
+  await createUser(adminAgent, {
+    displayName: 'Known Collaborator',
+    username: 'known.collaborator',
+    password: 'CollaboratorPassword123!'
+  });
+  await createUser(adminAgent, {
+    displayName: 'Unrelated Account',
+    username: 'unrelated.account',
+    password: 'UnrelatedPassword123!'
+  });
+
+  const ownerAgent = request.agent(app);
+  await login(ownerAgent, 'privacy.owner', 'OwnerPassword123!');
+  const repositoryId = await createRepository(ownerAgent, 'Private Sharing Test');
+  let permissionPage = await ownerAgent.get(`/repositories/${repositoryId}/permissions`).expect(200);
+
+  assert.match(permissionPage.text, /name="username"/);
+  assert.doesNotMatch(permissionPage.text, /name="userId"/);
+  assert.doesNotMatch(permissionPage.text, /known\.collaborator|Known Collaborator/);
+  assert.doesNotMatch(permissionPage.text, /unrelated\.account|Unrelated Account/);
+
+  await ownerAgent
+    .post(`/repositories/${repositoryId}/permissions`)
+    .type('form')
+    .send({
+      _csrf: csrfFrom(permissionPage.text),
+      username: 'known.collaborator',
+      canView: '1'
+    })
+    .expect(302)
+    .expect('Location', `/repositories/${repositoryId}/permissions`);
+
+  permissionPage = await ownerAgent.get(`/repositories/${repositoryId}/permissions`).expect(200);
+  assert.match(permissionPage.text, /known\.collaborator/);
+  assert.doesNotMatch(permissionPage.text, /unrelated\.account|Unrelated Account/);
+
+  const collaboratorAgent = request.agent(app);
+  await login(collaboratorAgent, 'known.collaborator', 'CollaboratorPassword123!');
+  await collaboratorAgent.get(`/repositories/${repositoryId}`).expect(200);
+});
 
 test('supports personal repositories and independent per-user permissions', async (t) => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-test-'));
@@ -232,7 +291,7 @@ test('supports personal repositories and independent per-user permissions', asyn
     .expect(404);
   assert.ok(db.prepare('SELECT 1 FROM repositories WHERE id = ?').get(repositoryId));
 
-  await grantPermissions(ownerAgent, repositoryId, viewer.id, { view: true });
+  await grantPermissions(ownerAgent, repositoryId, viewer.username, { view: true });
   const viewOnlyGrant = db.prepare(`
     SELECT * FROM repository_permissions WHERE repository_id = ? AND user_id = ?
   `).get(repositoryId, viewer.id);
@@ -300,7 +359,7 @@ test('supports personal repositories and independent per-user permissions', asyn
   `).get(delegatedRepositoryId, 'delegated-delete.txt');
   assert.ok(delegatedFile);
 
-  await grantPermissions(ownerAgent, delegatedRepositoryId, deleteDelegate.id, {
+  await grantPermissions(ownerAgent, delegatedRepositoryId, deleteDelegate.username, {
     view: true,
     delete: true
   });

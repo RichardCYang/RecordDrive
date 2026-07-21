@@ -20,6 +20,7 @@ import {
 } from '../src/security-service.js';
 import { loadTlsSettings, saveTlsSettings } from '../src/tls-settings.js';
 import { safeInternalPath } from '../src/utils.js';
+import { sessionStorageKey } from '../src/session-store.js';
 
 function csrfFrom(html) {
   const match = html.match(/name="_csrf" value="([^"]+)"/);
@@ -110,6 +111,36 @@ test('does not persist anonymous sessions and preserves safe post-login redirect
     .expect('Location', '/repositories/123?sort=name-asc');
 
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions').get().count, 1);
+});
+
+test('stores a keyed session identifier instead of the reusable browser session ID', async (t) => {
+  resetAuthenticationRateLimits();
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-session-storage-key-'));
+  const config = testConfig(tempRoot);
+  const app = createApplication({ config });
+  const db = app.recorddrive.db;
+  const agent = request.agent(app);
+
+  t.after(() => {
+    resetAuthenticationRateLimits();
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  const response = await passwordLogin(agent);
+  const sessionCookie = response.headers['set-cookie']
+    .find((value) => value.startsWith('recorddrive.sid='));
+  assert.ok(sessionCookie);
+  const encodedValue = sessionCookie.split(';', 1)[0].split('=', 2)[1];
+  const signedValue = decodeURIComponent(encodedValue);
+  assert.match(signedValue, /^s:/);
+  const browserSessionId = signedValue.slice(2).split('.', 1)[0];
+  const storedSession = db.prepare('SELECT sid FROM sessions').get();
+
+  assert.notEqual(storedSession.sid, browserSessionId);
+  assert.equal(storedSession.sid, sessionStorageKey(browserSessionId, config.sessionSecret));
+  assert.match(storedSession.sid, /^[a-f0-9]{64}$/);
+  await agent.get('/').expect(200);
 });
 
 test('rotates the session after password reauthentication and revokes other sessions after MFA changes', async (t) => {
@@ -391,6 +422,7 @@ test('defaults development listeners to loopback and fails closed for external H
 
   assert.equal(config.externallyReachable, true);
   assert.equal(config.requireHttps, true);
+  assert.equal(config.exposeDetailedErrors, false);
   const plainLogin = await request(app).get('/login').expect(426);
   assert.equal(plainLogin.text, 'HTTPS is required for this listener.');
   assert.equal(plainLogin.headers['set-cookie'], undefined);
@@ -416,6 +448,7 @@ test('keeps confidential runtime objects out of template locals', (t) => {
   assert.equal(app.locals.networkSettings, undefined);
   assert.equal(app.recorddrive.db, db);
   assert.equal(app.recorddrive.config.sessionSecret, config.sessionSecret);
+  assert.equal(config.exposeDetailedErrors, true);
   assert.equal(app.locals.administratorAccessDisabled, false);
 });
 

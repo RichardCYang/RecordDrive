@@ -309,18 +309,15 @@ function getPermissionPageData(db, repository) {
     ORDER BY u.display_name COLLATE NOCASE
   `).all(repository.id);
 
-  const availableUsers = db.prepare(`
-    SELECT id, username, display_name
-    FROM users
-    WHERE role = 'USER'
-      AND id != ?
-      AND id NOT IN (
-        SELECT user_id FROM repository_permissions WHERE repository_id = ?
-      )
-    ORDER BY display_name COLLATE NOCASE
-  `).all(repository.created_by ?? -1, repository.id);
+  return { grants };
+}
 
-  return { grants, availableUsers };
+function findPermissionTargetByUsername(db, repository, value) {
+  const username = String(value || '').trim().toLowerCase();
+  if (!/^[a-z0-9_.-]{3,32}$/.test(username)) return null;
+  const user = db.prepare("SELECT * FROM users WHERE username = ? AND role = 'USER'").get(username);
+  if (!user || Number(user.id) === Number(repository.created_by)) return null;
+  return user;
 }
 
 function validatePermissionTarget(db, repository, userId) {
@@ -458,12 +455,11 @@ export function createRepositoriesRouter(db, config) {
   });
 
   router.get('/:repositoryId/permissions', requireManager, (req, res) => {
-    const { grants, availableUsers } = getPermissionPageData(db, req.repository);
+    const { grants } = getPermissionPageData(db, req.repository);
     return res.render('repository-permissions', {
       title: req.t('REPOSITORY PERMISSIONS'),
       repository: req.repository,
       grants,
-      availableUsers,
       isAdmin: canUseAdministratorAccess(config, req.currentUser)
     });
   });
@@ -539,8 +535,7 @@ export function createRepositoriesRouter(db, config) {
   });
 
   router.post('/:repositoryId/permissions', requireManager, (req, res) => {
-    const userId = Number.parseInt(req.body.userId, 10);
-    const user = validatePermissionTarget(db, req.repository, userId);
+    const user = findPermissionTargetByUsername(db, req.repository, req.body.username);
     const permissions = permissionPayload(req.body);
 
     if (!user) {

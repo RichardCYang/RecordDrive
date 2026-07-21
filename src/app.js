@@ -92,7 +92,7 @@ export function createApplication(options = {}) {
   app.use(session({
     name: 'recorddrive.sid',
     secret: config.sessionSecret,
-    store: new SQLiteSessionStore(db, { defaultTtlMs: sessionIdleMs }),
+    store: new SQLiteSessionStore(db, { defaultTtlMs: sessionIdleMs, secret: config.sessionSecret }),
     resave: false,
     saveUninitialized: false,
     rolling: true,
@@ -236,9 +236,9 @@ export function createApplication(options = {}) {
     }
 
     console.error(error);
-    const message = config.isProduction
-      ? req.t('An error occurred while processing the request.')
-      : error.message;
+    const message = config.exposeDetailedErrors
+      ? error.message
+      : req.t('An error occurred while processing the request.');
     if (requestWantsJson(req) || req.path.includes('/passkeys/')) {
       return res.status(500).json({ error: message });
     }

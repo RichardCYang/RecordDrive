@@ -222,5 +222,6 @@ export function applyRuntimeConfidentialityPolicy(config, networkSettings = {}) 
 
   config.externallyReachable = externallyReachable;
   config.requireHttps = Boolean(config.isProduction || externallyReachable);
+  config.exposeDetailedErrors = Boolean(!config.isProduction && !externallyReachable);
   return config;
 }

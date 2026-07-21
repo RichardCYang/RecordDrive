@@ -104,7 +104,7 @@ function saveLimitedAuthenticationSession(req, next, db, config, userId, onSaved
   return req.session.save((saveError) => {
     if (saveError) return next(saveError);
     try {
-      pruneUserSessions(db, userId, req.sessionID, config.maxSessionsPerUser);
+      pruneUserSessions(db, userId, req.sessionID, config.maxSessionsPerUser, config.sessionSecret);
       return onSaved();
     } catch (error) {
       return next(error);

@@ -181,7 +181,7 @@ test('repository owners and administrators control file access time updates', as
     .type('form')
     .send({
       _csrf: csrfFrom(permissionPage.text),
-      userId: shared.id,
+      username: shared.username,
       canView: '1',
       canDownload: '1'
     })

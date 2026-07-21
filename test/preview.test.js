@@ -60,12 +60,12 @@ async function createRepository(agent, name) {
   return Number(response.headers.location.split('/').at(-1));
 }
 
-async function grantViewPermission(ownerAgent, repositoryId, userId) {
+async function grantViewPermission(ownerAgent, repositoryId, username) {
   const page = await ownerAgent.get(`/repositories/${repositoryId}/permissions`).expect(200);
   await ownerAgent
     .post(`/repositories/${repositoryId}/permissions`)
     .type('form')
-    .send({ _csrf: csrfFrom(page.text), userId, canView: '1' })
+    .send({ _csrf: csrfFrom(page.text), username, canView: '1' })
     .expect(302)
     .expect('Location', `/repositories/${repositoryId}/permissions`);
 }
@@ -208,8 +208,8 @@ test('previews PDF, XLSX, ZIP, and 7z files in the repository details pane', asy
   assert.ok(sevenZipResponse.body.entries.some((entry) => entry.name === 'folder/nested.txt'));
   assert.ok(sevenZipResponse.body.entries.some((entry) => entry.name === 'root.txt'));
 
-  await grantViewPermission(ownerAgent, repositoryId, viewer.id);
-  await grantViewPermission(ownerAgent, repositoryId, hiddenCollaborator.id);
+  await grantViewPermission(ownerAgent, repositoryId, viewer.username);
+  await grantViewPermission(ownerAgent, repositoryId, hiddenCollaborator.username);
   const viewerAgent = request.agent(app);
   await login(viewerAgent, viewer.username, 'ViewerPassword123!');
   const viewerPage = await viewerAgent.get(`/repositories/${repositoryId}`).expect(200);
