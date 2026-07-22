@@ -1,0 +1,60 @@
+RecordDrive session-revocation race evidence
+Date: 2026-07-22
+Scope: confidentiality / revoked-session reuse
+
+[Original implementation]
+Scenario:
+- stolen session loaded by an in-flight request
+- another request purges all other sessions for the same user
+- stale request completes and calls store.touch()
+
+Observed result:
+{
+  "purged": 1,
+  "rowsAfterPurge": 0,
+  "resurrected": true,
+  "resurrectedUserId": 7
+}
+
+Verdict: VULNERABLE
+
+[Patched implementation]
+Command:
+node security-poc/session-revocation-race.mjs
+
+Observed result:
+{
+  "purged": 1,
+  "rowsAfterPurge": 0,
+  "tombstonesAfterPurge": 1,
+  "delayedTouchAttempted": true,
+  "resurrected": false,
+  "rowsAfterDelayedTouch": 0,
+  "verdict": "BLOCKED"
+}
+
+[Focused regression suites]
+Command:
+node --test test/session-confidentiality.test.js test/session-revocation-race.test.js
+
+Result:
+- tests: 11
+- passed: 11
+- failed: 0
+
+[Syntax validation]
+Scope:
+- all *.js, *.mjs, and *.cjs files outside .git and node_modules
+
+Result:
+- checked: 120
+- failed: 0
+
+[Dependency-test limitation]
+A complete npm install and registry-backed npm audit were not available because the configured package registry returned HTTP 503 for a locked package artifact. Minimal local import-shape stubs were used only for focused tests and are excluded from the delivered archive.
+
+[Git integrity]
+- .git entries checked: 44
+- regular files checked: 28
+- path/type/mode/size/SHA-256 differences: 0
+- copied repository git fsck --full --strict: PASS

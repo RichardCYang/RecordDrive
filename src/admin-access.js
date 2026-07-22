@@ -1,4 +1,4 @@
-import { createSessionPayloadProtector } from './session-store.js';
+import { createSessionPayloadProtector, revokeStoredSession } from './session-store.js';
 
 export const ADMIN_ROLE = 'ADMIN';
 
@@ -25,10 +25,9 @@ export function purgeAdministratorSessions(db, sessionSecret) {
   if (administratorIds.size === 0) return 0;
 
   const payloadProtector = createSessionPayloadProtector(sessionSecret);
-  const deleteSession = db.prepare('DELETE FROM sessions WHERE sid = ?');
   let purgedCount = 0;
 
-  for (const row of db.prepare('SELECT sid, sess FROM sessions').all()) {
+  for (const row of db.prepare('SELECT sid, sess, expires FROM sessions').all()) {
     let storedSession;
     try {
       storedSession = payloadProtector.decrypt(row.sess, row.sid).session;
@@ -44,8 +43,10 @@ export function purgeAdministratorSessions(db, sessionSecret) {
     ].map(Number);
 
     if (referencedUserIds.some((userId) => administratorIds.has(userId))) {
-      deleteSession.run(row.sid);
-      purgedCount += 1;
+      purgedCount += revokeStoredSession(db, row.sid, {
+        expires: row.expires,
+        storedSession
+      });
     }
   }
 

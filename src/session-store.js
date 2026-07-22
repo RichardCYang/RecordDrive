@@ -7,6 +7,7 @@ const SESSION_PAYLOAD_AAD_CONTEXT = 'recorddrive/session-payload/v1';
 const SESSION_PAYLOAD_VERSION = 'v1';
 const SESSION_PAYLOAD_IV_BYTES = 12;
 const SESSION_PAYLOAD_TAG_BYTES = 16;
+const MINIMUM_REVOCATION_TTL_MS = 60_000;
 
 function normalizeSessionSecret(secret) {
   const candidate = Array.isArray(secret) ? secret[0] : secret;
@@ -107,6 +108,60 @@ export function parseStoredSessionPayload(serializedSession, storageId, secret) 
   return createSessionPayloadProtector(secret).decrypt(serializedSession, storageId);
 }
 
+export function ensureSessionRevocationSchema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS revoked_sessions (
+      sid TEXT PRIMARY KEY,
+      expires INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_revoked_sessions_expires
+      ON revoked_sessions(expires);
+  `);
+}
+
+function revocationExpiry(storedSession, storedExpiry, defaultTtlMs = 0, now = Date.now()) {
+  const durationCandidates = [
+    defaultTtlMs,
+    storedSession?.cookie?.originalMaxAge,
+    storedSession?.cookie?.maxAge
+  ].map(Number).filter((value) => Number.isFinite(value) && value > 0);
+  const duration = Math.max(MINIMUM_REVOCATION_TTL_MS, ...durationCandidates);
+  const persistedExpiry = Number(storedExpiry);
+  return Math.max(
+    now + duration,
+    Number.isFinite(persistedExpiry) ? persistedExpiry : 0
+  );
+}
+
+export function revokeStoredSession(db, storageId, options = {}) {
+  ensureSessionRevocationSchema(db);
+  let normalizedStorageId;
+  try {
+    normalizedStorageId = normalizeStorageId(storageId);
+  } catch {
+    // Rows from versions predating HMAC-indexed session identifiers are not
+    // reachable by the current store and therefore cannot be resurrected by
+    // touch(). Delete them without copying the raw identifier into a tombstone.
+    return db.prepare('DELETE FROM sessions WHERE sid = ?').run(String(storageId || '')).changes;
+  }
+  const expires = revocationExpiry(
+    options.storedSession,
+    options.expires,
+    options.defaultTtlMs
+  );
+
+  // Write the tombstone before deleting the live row. A concurrent writer will
+  // then either observe the tombstone and refuse the write, or finish first and
+  // have its row removed by the delete below.
+  db.prepare(`
+    INSERT INTO revoked_sessions (sid, expires)
+    VALUES (?, ?)
+    ON CONFLICT(sid) DO UPDATE SET
+      expires = MAX(revoked_sessions.expires, excluded.expires)
+  `).run(normalizedStorageId, expires);
+  return db.prepare('DELETE FROM sessions WHERE sid = ?').run(normalizedStorageId).changes;
+}
+
 
 export function migrateLegacySessionPayloads(db, sessionSecret) {
   const payloadProtector = createSessionPayloadProtector(sessionSecret);
@@ -155,19 +210,30 @@ export class SQLiteSessionStore extends session.Store {
     this.defaultTtlMs = options.defaultTtlMs || 1000 * 60 * 60 * 12;
     this.storageKey = createSessionStorageKeyFactory(options.secret);
     this.payloadProtector = createSessionPayloadProtector(options.secret);
+    ensureSessionRevocationSchema(db);
 
     this.getStatement = db.prepare('SELECT sess, expires FROM sessions WHERE sid = ?');
     this.setStatement = db.prepare(`
       INSERT INTO sessions (sid, sess, expires)
-      VALUES (?, ?, ?)
+      SELECT ?, ?, ?
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM revoked_sessions
+        WHERE sid = ? AND expires >= ?
+      )
       ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expires = excluded.expires
     `);
     this.destroyStatement = db.prepare('DELETE FROM sessions WHERE sid = ?');
+    this.getRevocationStatement = db.prepare('SELECT expires FROM revoked_sessions WHERE sid = ?');
+    this.deleteRevocationStatement = db.prepare('DELETE FROM revoked_sessions WHERE sid = ?');
     this.cleanupStatement = db.prepare('DELETE FROM sessions WHERE expires < ?');
+    this.cleanupRevocationsStatement = db.prepare('DELETE FROM revoked_sessions WHERE expires < ?');
 
     this.cleanupTimer = setInterval(() => {
       try {
-        this.cleanupStatement.run(Date.now());
+        const now = Date.now();
+        this.cleanupStatement.run(now);
+        this.cleanupRevocationsStatement.run(now);
       } catch (error) {
         this.emit('disconnect', error);
       }
@@ -185,8 +251,18 @@ export class SQLiteSessionStore extends session.Store {
   get(sid, callback) {
     try {
       const storageId = this.storageKey(sid);
+      const now = Date.now();
+      const revocation = this.getRevocationStatement.get(storageId);
+      if (revocation) {
+        if (Number(revocation.expires) >= now) {
+          this.destroyStatement.run(storageId);
+          return callback(null, null);
+        }
+        this.deleteRevocationStatement.run(storageId);
+      }
+
       const row = this.getStatement.get(storageId);
-      if (!row || row.expires < Date.now()) {
+      if (!row || row.expires < now) {
         if (row) this.destroyStatement.run(storageId);
         return callback(null, null);
       }
@@ -200,11 +276,17 @@ export class SQLiteSessionStore extends session.Store {
       }
 
       if (parsed.legacyPlaintext) {
-        this.setStatement.run(
+        const migrationResult = this.setStatement.run(
           storageId,
           this.payloadProtector.encrypt(parsed.session, storageId),
-          row.expires
+          row.expires,
+          storageId,
+          Date.now()
         );
+        if (migrationResult.changes === 0) {
+          this.destroyStatement.run(storageId);
+          return callback(null, null);
+        }
       }
       return callback(null, parsed.session);
     } catch (error) {
@@ -215,11 +297,14 @@ export class SQLiteSessionStore extends session.Store {
   set(sid, sess, callback = () => {}) {
     try {
       const storageId = this.storageKey(sid);
-      this.setStatement.run(
+      const result = this.setStatement.run(
         storageId,
         this.payloadProtector.encrypt(sess, storageId),
-        this.calculateExpiry(sess)
+        this.calculateExpiry(sess),
+        storageId,
+        Date.now()
       );
+      if (result.changes === 0) this.destroyStatement.run(storageId);
       callback(null);
     } catch (error) {
       callback(error);
@@ -228,7 +313,21 @@ export class SQLiteSessionStore extends session.Store {
 
   destroy(sid, callback = () => {}) {
     try {
-      this.destroyStatement.run(this.storageKey(sid));
+      const storageId = this.storageKey(sid);
+      const row = this.getStatement.get(storageId);
+      let storedSession = null;
+      if (row) {
+        try {
+          storedSession = this.payloadProtector.decrypt(row.sess, storageId).session;
+        } catch {
+          // A corrupt payload must still be revoked and removed.
+        }
+      }
+      revokeStoredSession(this.db, storageId, {
+        expires: row?.expires,
+        storedSession,
+        defaultTtlMs: this.defaultTtlMs
+      });
       callback(null);
     } catch (error) {
       callback(error);
@@ -302,7 +401,9 @@ export function pruneUserSessions(
     sessions.push({
       sid: row.sid,
       current: row.sid === currentStorageId,
-      activityTime: sessionActivityTime(storedSession, row.expires)
+      activityTime: sessionActivityTime(storedSession, row.expires),
+      expires: row.expires,
+      storedSession
     });
   }
 
@@ -312,7 +413,12 @@ export function pruneUserSessions(
     return left.sid.localeCompare(right.sid);
   });
 
-  for (const sessionRecord of sessions.slice(limit)) deleteSession.run(sessionRecord.sid);
+  for (const sessionRecord of sessions.slice(limit)) {
+    revokeStoredSession(db, sessionRecord.sid, {
+      expires: sessionRecord.expires,
+      storedSession: sessionRecord.storedSession
+    });
+  }
   return Math.max(0, sessions.length - limit);
 }
 
@@ -339,7 +445,7 @@ export function purgeUserSessions(db, userId, exceptSessionId = '', sessionSecre
 
     const storedSession = parseSessionRow(row, payloadProtector);
     if (!storedSession || referencedUserId(storedSession) !== normalizedUserId) continue;
-    deleted += deleteSession.run(row.sid).changes;
+    deleted += revokeStoredSession(db, row.sid, { expires: row.expires, storedSession });
   }
   return deleted;
 }

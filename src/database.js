@@ -204,6 +204,14 @@ export function createDatabase(providedConfig) {
 
     CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires);
 
+    CREATE TABLE IF NOT EXISTS revoked_sessions (
+      sid TEXT PRIMARY KEY,
+      expires INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_revoked_sessions_expires
+      ON revoked_sessions(expires);
+
     CREATE TABLE IF NOT EXISTS app_settings (
       setting_key TEXT PRIMARY KEY,
       setting_value TEXT NOT NULL,
