@@ -2,6 +2,11 @@ import crypto from 'node:crypto';
 import session from 'express-session';
 
 const SESSION_STORE_KEY_CONTEXT = 'recorddrive/session-store/v1';
+const SESSION_PAYLOAD_KEY_CONTEXT = 'recorddrive/session-payload/v1';
+const SESSION_PAYLOAD_AAD_CONTEXT = 'recorddrive/session-payload/v1';
+const SESSION_PAYLOAD_VERSION = 'v1';
+const SESSION_PAYLOAD_IV_BYTES = 12;
+const SESSION_PAYLOAD_TAG_BYTES = 16;
 
 function normalizeSessionSecret(secret) {
   const candidate = Array.isArray(secret) ? secret[0] : secret;
@@ -10,10 +15,14 @@ function normalizeSessionSecret(secret) {
   return normalized;
 }
 
-function createSessionStorageKeyFactory(secret) {
-  const derivedKey = crypto.createHmac('sha256', normalizeSessionSecret(secret))
-    .update(SESSION_STORE_KEY_CONTEXT)
+function deriveKey(secret, context) {
+  return crypto.createHmac('sha256', normalizeSessionSecret(secret))
+    .update(context)
     .digest();
+}
+
+function createSessionStorageKeyFactory(secret) {
+  const derivedKey = deriveKey(secret, SESSION_STORE_KEY_CONTEXT);
   return (sid) => {
     const normalizedSid = String(sid || '');
     if (!normalizedSid) throw new Error('A session identifier is required.');
@@ -21,8 +30,122 @@ function createSessionStorageKeyFactory(secret) {
   };
 }
 
+function normalizeStorageId(storageId) {
+  const normalized = String(storageId || '');
+  if (!/^[a-f0-9]{64}$/i.test(normalized)) {
+    throw new Error('A protected session storage identifier is required.');
+  }
+  return normalized.toLowerCase();
+}
+
+function sessionPayloadAdditionalData(storageId) {
+  return Buffer.from(`${SESSION_PAYLOAD_AAD_CONTEXT}\0${normalizeStorageId(storageId)}`, 'utf8');
+}
+
+export function createSessionPayloadProtector(secret) {
+  const encryptionKey = deriveKey(secret, SESSION_PAYLOAD_KEY_CONTEXT);
+
+  return {
+    encrypt(storedSession, storageId) {
+      const iv = crypto.randomBytes(SESSION_PAYLOAD_IV_BYTES);
+      const cipher = crypto.createCipheriv('aes-256-gcm', encryptionKey, iv, {
+        authTagLength: SESSION_PAYLOAD_TAG_BYTES
+      });
+      cipher.setAAD(sessionPayloadAdditionalData(storageId));
+      const plaintext = Buffer.from(JSON.stringify(storedSession), 'utf8');
+      const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+      const authenticationTag = cipher.getAuthTag();
+      return [
+        SESSION_PAYLOAD_VERSION,
+        iv.toString('base64url'),
+        authenticationTag.toString('base64url'),
+        ciphertext.toString('base64url')
+      ].join('.');
+    },
+
+    decrypt(serializedSession, storageId) {
+      const serialized = String(serializedSession || '');
+      if (!serialized.startsWith(`${SESSION_PAYLOAD_VERSION}.`)) {
+        return { session: JSON.parse(serialized), legacyPlaintext: true };
+      }
+
+      const parts = serialized.split('.');
+      if (parts.length !== 4 || parts[0] !== SESSION_PAYLOAD_VERSION) {
+        throw new Error('The protected session payload has an invalid format.');
+      }
+      const iv = Buffer.from(parts[1], 'base64url');
+      const authenticationTag = Buffer.from(parts[2], 'base64url');
+      const ciphertext = Buffer.from(parts[3], 'base64url');
+      if (
+        iv.length !== SESSION_PAYLOAD_IV_BYTES
+        || authenticationTag.length !== SESSION_PAYLOAD_TAG_BYTES
+        || ciphertext.length < 1
+      ) {
+        throw new Error('The protected session payload has invalid cryptographic parameters.');
+      }
+
+      const decipher = crypto.createDecipheriv('aes-256-gcm', encryptionKey, iv, {
+        authTagLength: SESSION_PAYLOAD_TAG_BYTES
+      });
+      decipher.setAAD(sessionPayloadAdditionalData(storageId));
+      decipher.setAuthTag(authenticationTag);
+      const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+      return { session: JSON.parse(plaintext.toString('utf8')), legacyPlaintext: false };
+    }
+  };
+}
+
 export function sessionStorageKey(sid, secret) {
   return createSessionStorageKeyFactory(secret)(sid);
+}
+
+export function encryptSessionPayload(storedSession, storageId, secret) {
+  return createSessionPayloadProtector(secret).encrypt(storedSession, storageId);
+}
+
+export function parseStoredSessionPayload(serializedSession, storageId, secret) {
+  return createSessionPayloadProtector(secret).decrypt(serializedSession, storageId);
+}
+
+
+export function migrateLegacySessionPayloads(db, sessionSecret) {
+  const payloadProtector = createSessionPayloadProtector(sessionSecret);
+  const rows = db.prepare(`
+    SELECT sid, sess, expires
+    FROM sessions
+    WHERE substr(sess, 1, 3) <> ?
+  `).all(`${SESSION_PAYLOAD_VERSION}.`);
+  if (rows.length === 0) return { migrated: 0, discarded: 0 };
+
+  db.exec('PRAGMA secure_delete = ON;');
+  const updateSession = db.prepare('UPDATE sessions SET sess = ? WHERE sid = ?');
+  const deleteSession = db.prepare('DELETE FROM sessions WHERE sid = ?');
+  let migrated = 0;
+  let discarded = 0;
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    for (const row of rows) {
+      try {
+        const storedSession = JSON.parse(row.sess);
+        updateSession.run(payloadProtector.encrypt(storedSession, row.sid), row.sid);
+        migrated += 1;
+      } catch {
+        discarded += deleteSession.run(row.sid).changes;
+      }
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+
+  try {
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+  } catch {
+    // The encrypted rows are already committed; checkpointing can be retried by SQLite later.
+  }
+  return { migrated, discarded };
 }
 
 export class SQLiteSessionStore extends session.Store {
@@ -31,6 +154,7 @@ export class SQLiteSessionStore extends session.Store {
     this.db = db;
     this.defaultTtlMs = options.defaultTtlMs || 1000 * 60 * 60 * 12;
     this.storageKey = createSessionStorageKeyFactory(options.secret);
+    this.payloadProtector = createSessionPayloadProtector(options.secret);
 
     this.getStatement = db.prepare('SELECT sess, expires FROM sessions WHERE sid = ?');
     this.setStatement = db.prepare(`
@@ -66,7 +190,23 @@ export class SQLiteSessionStore extends session.Store {
         if (row) this.destroyStatement.run(storageId);
         return callback(null, null);
       }
-      return callback(null, JSON.parse(row.sess));
+
+      let parsed;
+      try {
+        parsed = this.payloadProtector.decrypt(row.sess, storageId);
+      } catch {
+        this.destroyStatement.run(storageId);
+        return callback(null, null);
+      }
+
+      if (parsed.legacyPlaintext) {
+        this.setStatement.run(
+          storageId,
+          this.payloadProtector.encrypt(parsed.session, storageId),
+          row.expires
+        );
+      }
+      return callback(null, parsed.session);
     } catch (error) {
       return callback(error);
     }
@@ -74,7 +214,12 @@ export class SQLiteSessionStore extends session.Store {
 
   set(sid, sess, callback = () => {}) {
     try {
-      this.setStatement.run(this.storageKey(sid), JSON.stringify(sess), this.calculateExpiry(sess));
+      const storageId = this.storageKey(sid);
+      this.setStatement.run(
+        storageId,
+        this.payloadProtector.encrypt(sess, storageId),
+        this.calculateExpiry(sess)
+      );
       callback(null);
     } catch (error) {
       callback(error);
@@ -120,6 +265,14 @@ function sessionActivityTime(storedSession, expires) {
   return candidates.length ? Math.max(...candidates) : 0;
 }
 
+function parseSessionRow(row, payloadProtector) {
+  try {
+    return payloadProtector.decrypt(row.sess, row.sid).session;
+  } catch {
+    return null;
+  }
+}
+
 export function pruneUserSessions(
   db,
   userId,
@@ -133,6 +286,7 @@ export function pruneUserSessions(
     throw new Error('A valid user identifier is required to limit sessions.');
   }
   const currentStorageId = sessionStorageKey(currentSessionId, sessionSecret);
+  const payloadProtector = createSessionPayloadProtector(sessionSecret);
 
   const now = Date.now();
   const sessions = [];
@@ -143,13 +297,8 @@ export function pruneUserSessions(
       continue;
     }
 
-    let storedSession;
-    try {
-      storedSession = JSON.parse(row.sess);
-    } catch {
-      continue;
-    }
-    if (referencedUserId(storedSession) !== normalizedUserId) continue;
+    const storedSession = parseSessionRow(row, payloadProtector);
+    if (!storedSession || referencedUserId(storedSession) !== normalizedUserId) continue;
     sessions.push({
       sid: row.sid,
       current: row.sid === currentStorageId,
@@ -176,6 +325,7 @@ export function purgeUserSessions(db, userId, exceptSessionId = '', sessionSecre
   const excludedSessionId = exceptSessionId
     ? sessionStorageKey(exceptSessionId, sessionSecret)
     : '';
+  const payloadProtector = createSessionPayloadProtector(sessionSecret);
   const now = Date.now();
   const deleteSession = db.prepare('DELETE FROM sessions WHERE sid = ?');
   let deleted = 0;
@@ -187,13 +337,8 @@ export function purgeUserSessions(db, userId, exceptSessionId = '', sessionSecre
     }
     if (row.sid === excludedSessionId) continue;
 
-    let storedSession;
-    try {
-      storedSession = JSON.parse(row.sess);
-    } catch {
-      continue;
-    }
-    if (referencedUserId(storedSession) !== normalizedUserId) continue;
+    const storedSession = parseSessionRow(row, payloadProtector);
+    if (!storedSession || referencedUserId(storedSession) !== normalizedUserId) continue;
     deleted += deleteSession.run(row.sid).changes;
   }
   return deleted;

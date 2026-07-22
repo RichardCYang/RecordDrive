@@ -77,7 +77,7 @@ Permissions are checked independently on every server request. A user with no `V
 - Stored files are opened with symbolic-link following disabled. Storage paths are canonicalized, symbolic-link ancestors are rejected during use, and repository/database paths reject symbolic links.
 - File names shown to users are normalized and length-limited.
 - File size, per-request file count, repository storage, total storage, and file-count limits are stored in SQLite. Administrators can update server-wide values from **Admin → Storage**, while repository owners and administrators can set per-repository file-size and storage overrides. New upload requests use changes immediately. Upload CSRF validation and quota checks occur before and during disk writes, and multipart field nesting is disabled.
-- Production, every non-loopback listener, and every deployment with `TRUST_PROXY` enabled reject application requests that are not recognized as HTTPS before static files, body parsing, sessions, or authentication are reached. Those externally reachable modes also reject the example session secret, the example administrator password, and undersized encryption keys. Session cookies require HTTPS in those modes, and authenticated sessions have both rolling idle expiration and a server-enforced absolute lifetime. CSRF protection, Helmet headers, bcrypt password hashing, and login/MFA rate limiting are enabled.
+- Production, every non-loopback listener, and every deployment with `TRUST_PROXY` enabled reject application requests that are not recognized as HTTPS before static files, body parsing, sessions, or authentication are reached. Those externally reachable modes also reject the example session secret, the example administrator password, and undersized encryption keys. Session cookies require HTTPS in those modes, and authenticated sessions have both rolling idle expiration and a server-enforced absolute lifetime. Server-side session identifiers are HMAC-protected and session payloads are encrypted with AES-256-GCM in SQLite; the encrypted payload is authenticated against its storage identifier so copied or modified rows are rejected. Existing plaintext session rows are encrypted during startup. CSRF protection, Helmet headers, bcrypt password hashing, and login/MFA rate limiting are enabled.
 - TOTP secrets, saved TLS passphrases, and one-time recovery-code display data are protected with authenticated encryption.
 - Administrators can enable native HTTPS, validate Posh-ACME certificate files, redirect HTTP requests, and reload renewed certificates without interrupting existing TLS connections. Corrupt or undecryptable saved TLS settings stop startup instead of silently disabling HTTPS.
 - Startup resolves storage paths through existing filesystem ancestors and rejects filesystem roots, project parents, static files, source files, views, Git metadata, symbolic-link final components, and any database path inside the upload root.
@@ -99,7 +99,7 @@ Security-sensitive changes require a recent password verification or sign-in. TO
 
 The first successful TOTP or passkey registration creates eight recovery keys. Users can add more keys in batches, up to 32 active keys, or replace all existing keys. Plaintext recovery keys are displayed only once after creation and are encrypted while temporarily stored in the server-side session. Register multiple passkeys to avoid relying on a single device.
 
-WebAuthn requires HTTPS except for trusted localhost development. In production, configure `WEBAUTHN_ORIGIN` as the exact public origin, including a non-default port when applicable, and configure `WEBAUTHN_RP_ID` as the public host name without a scheme or port. Changing these values makes previously registered passkeys unavailable until the original relying-party values are restored.
+WebAuthn requires HTTPS except for trusted localhost development. In production and every externally reachable deployment, configure `WEBAUTHN_ORIGIN` as the exact trusted public origin, including a non-default port when applicable, and configure `WEBAUTHN_RP_ID` as the public host name without a scheme or port. RecordDrive does not derive these values from the request `Host` header in externally reachable modes. Changing these values makes previously registered passkeys unavailable until the original relying-party values are restored.
 
 ## Language settings
 
@@ -114,7 +114,7 @@ The saved preference is stored in an HTTP-only browser cookie and remains availa
 - SQLite through Node's built-in `node:sqlite` module
 - Multer for multipart uploads
 - ExcelJS for XLSX preview parsing, yauzl for ZIP directory inspection, and a pinned pure-JavaScript 7z header parser for metadata-only 7z previews
-- `express-session` with a custom SQLite session store
+- `express-session` with a custom HMAC-indexed, AES-256-GCM-encrypted SQLite session store
 - bcryptjs and Helmet
 - otplib for RFC-compatible TOTP, QRCode for enrollment images, and SimpleWebAuthn Server for FIDO2 verification
 - Node's built-in test runner with Supertest
@@ -198,7 +198,7 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `SEVEN_ZIP_PREVIEW_TIMEOUT_MS` | `60000` | Maximum runtime for the disposable JavaScript parser worker; accepted values are clamped to 1–300 seconds |
 | `SEVEN_ZIP_PREVIEW_MAX_HEADER_MB` | `128` | Maximum expanded or compressed 7z metadata-header size in MiB; accepted values are clamped to 16–256 MiB and the worker memory budget scales with this bounded value |
 | `SEVEN_ZIP_PREVIEW_MAX_SCANNED_ENTRIES` | `100000` | Maximum number of 7z entries inspected for metadata; accepted values are clamped to 10,000–250,000 |
-| `SESSION_SECRET` | Example value | Secret used to sign session cookies |
+| `SESSION_SECRET` | Example value | Secret used to sign session cookies and derive purpose-separated keys for session identifiers and encrypted session payloads |
 | `ADMIN_ACCESS_DISABLED` | `false` | Disables administrator creation, login, sessions, privileges, and `/admin` routes when set to `true`, `on`, `yes`, or `1` |
 | `ADMIN_USERNAME` | `admin` | Username for the first administrator when administrator access is enabled |
 | `ADMIN_PASSWORD` | `ChangeMe123!` | Password for the first administrator |
@@ -206,8 +206,8 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `MFA_ENCRYPTION_KEY` | `SESSION_SECRET` | Stable key source used for TOTP, recovery-code, and saved TLS passphrase protection |
 | `MFA_ISSUER` | `RecordDrive` | Issuer name displayed by authenticator applications |
 | `WEBAUTHN_RP_NAME` | `RecordDrive` | Friendly relying-party name displayed during passkey registration |
-| `WEBAUTHN_RP_ID` | Empty | Public host name used as the WebAuthn relying-party ID; required for production passkey use |
-| `WEBAUTHN_ORIGIN` | Empty | Exact public origin accepted for WebAuthn responses; required for production passkey use |
+| `WEBAUTHN_RP_ID` | Empty | Public host name used as the WebAuthn relying-party ID; required for production and externally reachable passkey use |
+| `WEBAUTHN_ORIGIN` | Empty | Exact trusted public origin accepted for WebAuthn responses; required for production and externally reachable passkey use |
 | `MAX_REPOSITORIES_PER_USER` | `1000` | Maximum repository records owned by one regular user |
 | `MAX_TOTAL_REPOSITORIES` | `10000` | Maximum repository records across the service |
 | `MAX_ACTIVITY_LOG_ENTRIES` | `100000` | Maximum retained audit-log records; the oldest records are removed in bounded batches |

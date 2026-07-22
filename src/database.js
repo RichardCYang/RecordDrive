@@ -325,7 +325,7 @@ export function createDatabase(providedConfig) {
       `).run(config.adminUsername, config.adminDisplayName, passwordHash);
     }
   } else {
-    purgeAdministratorSessions(db);
+    purgeAdministratorSessions(db, config.sessionSecret);
   }
 
   configureActivityLogRetention(db, config.maxActivityLogEntries);

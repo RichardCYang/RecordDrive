@@ -227,6 +227,16 @@ export function clearSecurityVerification(req) {
 }
 
 export function resolveWebAuthnSettings(req, config) {
+  const requiresExplicitWebAuthnConfiguration = Boolean(
+    config.isProduction || config.externallyReachable
+  );
+  if (requiresExplicitWebAuthnConfiguration && !config.webAuthnOrigin) {
+    throw new Error('WEBAUTHN_ORIGIN must be configured for production or externally reachable deployments.');
+  }
+  if (requiresExplicitWebAuthnConfiguration && !config.webAuthnRpId) {
+    throw new Error('WEBAUTHN_RP_ID must be configured for production or externally reachable deployments.');
+  }
+
   const requestOrigin = `${req.protocol}://${req.get('host')}`;
   const origin = String(config.webAuthnOrigin || requestOrigin).trim();
   let parsedOrigin;
@@ -245,18 +255,10 @@ export function resolveWebAuthnSettings(req, config) {
     throw new Error('WebAuthn requires HTTPS except when using localhost.');
   }
 
-  if (config.isProduction && !config.webAuthnOrigin) {
-    throw new Error('WEBAUTHN_ORIGIN must be configured in production.');
-  }
-
   const rpID = String(config.webAuthnRpId || parsedOrigin.hostname).trim().toLowerCase();
   if (!rpID || rpID.includes('://') || rpID.includes('/') || rpID.includes(':')) {
     throw new Error('WEBAUTHN_RP_ID must be a host name without a scheme, path, or port.');
   }
-  if (config.isProduction && !config.webAuthnRpId) {
-    throw new Error('WEBAUTHN_RP_ID must be configured in production.');
-  }
-
   return {
     origin: parsedOrigin.origin,
     rpID,

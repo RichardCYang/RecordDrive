@@ -28,7 +28,11 @@ const USERNAME_PATTERN = /^[a-z0-9_.-]{3,32}$/;
 function listUsers(db) {
   return db.prepare(`
     SELECT
-      u.*,
+      u.id,
+      u.username,
+      u.display_name,
+      u.role,
+      u.created_at,
       CASE
         WHEN u.role = 'ADMIN' THEN (SELECT COUNT(*) FROM repositories)
         ELSE (
@@ -193,13 +197,13 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
   router.post('/users/:userId/delete', (req, res, next) => {
     try {
       const userId = Number.parseInt(req.params.userId, 10);
-      const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+      const user = db.prepare('SELECT id, username, display_name, role FROM users WHERE id = ?').get(userId);
       if (!user) {
         setFlash(req, 'error', req.t('The account to delete could not be found.'));
       } else if (user.role === 'ADMIN') {
         setFlash(req, 'error', req.t('Administrator accounts cannot be deleted.'));
       } else {
-        purgeUserSessions(db, userId);
+        purgeUserSessions(db, userId, '', config.sessionSecret);
         db.prepare('DELETE FROM users WHERE id = ?').run(userId);
         logActivity(db, {
           actorId: req.currentUser.id,

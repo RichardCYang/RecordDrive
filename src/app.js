@@ -10,7 +10,7 @@ import { applyRuntimeConfidentialityPolicy, loadConfig } from './config.js';
 import { createDatabase } from './database.js';
 import { startNetworkServers } from './network-server.js';
 import { createDefaultTlsSettings, loadTlsSettings } from './tls-settings.js';
-import { SQLiteSessionStore } from './session-store.js';
+import { migrateLegacySessionPayloads, SQLiteSessionStore } from './session-store.js';
 import { csrfTokenMiddleware, verifyCsrf } from './middleware/csrf.js';
 import {
   blockDisabledAdministratorSession,
@@ -42,7 +42,8 @@ export function createApplication(options = {}) {
   const db = options.db || createDatabase(config);
   applyStoredRepositoryStorageRoot(db, config);
   ensureSecureUploadRoot(config);
-  if (config.adminAccessDisabled) purgeAdministratorSessions(db);
+  migrateLegacySessionPayloads(db, config.sessionSecret);
+  if (config.adminAccessDisabled) purgeAdministratorSessions(db, config.sessionSecret);
   const runtimeControl = options.runtimeControl || {};
   const networkSettings = loadTlsSettings(db, config);
   applyRuntimeConfidentialityPolicy(config, networkSettings);

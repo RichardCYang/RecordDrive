@@ -1,3 +1,5 @@
+import { createSessionPayloadProtector } from './session-store.js';
+
 export const ADMIN_ROLE = 'ADMIN';
 
 export function isAdministrator(user) {
@@ -16,19 +18,20 @@ export function isBlockedAdministrator(config, user) {
   return isAdministrator(user) && isAdministratorAccessDisabled(config);
 }
 
-export function purgeAdministratorSessions(db) {
+export function purgeAdministratorSessions(db, sessionSecret) {
   const administratorIds = new Set(
     db.prepare('SELECT id FROM users WHERE role = ?').all(ADMIN_ROLE).map(({ id }) => Number(id))
   );
   if (administratorIds.size === 0) return 0;
 
+  const payloadProtector = createSessionPayloadProtector(sessionSecret);
   const deleteSession = db.prepare('DELETE FROM sessions WHERE sid = ?');
   let purgedCount = 0;
 
   for (const row of db.prepare('SELECT sid, sess FROM sessions').all()) {
     let storedSession;
     try {
-      storedSession = JSON.parse(row.sess);
+      storedSession = payloadProtector.decrypt(row.sess, row.sid).session;
     } catch {
       continue;
     }

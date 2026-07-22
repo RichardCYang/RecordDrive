@@ -187,7 +187,11 @@ export function createAuthRouter(db, config) {
       const username = String(req.body.username || '').trim().toLowerCase();
       const password = String(req.body.password || '');
       const passwordWithinLimit = Buffer.byteLength(password, 'utf8') <= MAX_LOGIN_PASSWORD_BYTES;
-      const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+      const user = db.prepare(`
+        SELECT id, username, display_name, password_hash, role, created_at
+        FROM users
+        WHERE username = ?
+      `).get(username);
       const passwordHash = user?.password_hash || DUMMY_PASSWORD_HASH;
       const passwordMatches = await bcrypt.compare(passwordWithinLimit ? password : '', passwordHash);
 

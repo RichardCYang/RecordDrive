@@ -298,14 +298,14 @@ function getPermissionPageData(db, repository) {
 function findPermissionTargetByUsername(db, repository, value) {
   const username = String(value || '').trim().toLowerCase();
   if (!/^[a-z0-9_.-]{3,32}$/.test(username)) return null;
-  const user = db.prepare("SELECT * FROM users WHERE username = ? AND role = 'USER'").get(username);
+  const user = db.prepare("SELECT id, username, display_name, role FROM users WHERE username = ? AND role = 'USER'").get(username);
   if (!user || Number(user.id) === Number(repository.created_by)) return null;
   return user;
 }
 
 function validatePermissionTarget(db, repository, userId) {
   if (!Number.isInteger(userId)) return null;
-  const user = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'USER'").get(userId);
+  const user = db.prepare("SELECT id, username, display_name, role FROM users WHERE id = ? AND role = 'USER'").get(userId);
   if (!user || Number(user.id) === Number(repository.created_by)) return null;
   return user;
 }
@@ -550,7 +550,7 @@ export function createRepositoriesRouter(db, config) {
 
   router.post('/:repositoryId/permissions/:userId/delete', requireManager, (req, res) => {
     const userId = Number.parseInt(req.params.userId, 10);
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    const user = db.prepare('SELECT id, username, display_name, role FROM users WHERE id = ?').get(userId);
     const result = db.prepare(`
       DELETE FROM repository_permissions WHERE repository_id = ? AND user_id = ?
     `).run(req.repository.id, userId);
