@@ -1,22 +1,56 @@
 # RecordDrive Security Documentation
 
-This directory is the single location for RecordDrive security reports, validation evidence, proof-of-concept guidance, and the software bill of materials. All documentation in this directory is maintained in English.
+This directory is the canonical index for RecordDrive security reports, validation evidence, proof-of-concept guidance, the software bill of materials, and third-party security notices. All human-readable documentation is maintained in English.
 
-## Reports
+## Directory map
 
-- [`SECURITY_CONFIDENTIALITY_REVIEW_2026-07-21_REVERSE_PROXY.md`](SECURITY_CONFIDENTIALITY_REVIEW_2026-07-21_REVERSE_PROXY.md) — Follow-up confidentiality review and remediation for loopback-bound services published through a trusted reverse proxy.
-- [`SECURITY_CONFIDENTIALITY_REVIEW_2026-07-21_FINAL.md`](SECURITY_CONFIDENTIALITY_REVIEW_2026-07-21_FINAL.md) — Final confidentiality hardening pass covering deployment defaults, HTTPS fail-closed behavior, template-local secret exposure, and release integrity.
-- [`SEVEN_ZIP_PURE_JAVASCRIPT_PREVIEW_2026-07-21.md`](SEVEN_ZIP_PURE_JAVASCRIPT_PREVIEW_2026-07-21.md) — Design, threat model, validation, and residual-risk review for the external-executable-free 7z metadata parser.
+| Directory | Contents |
+| --- | --- |
+| [`reports/`](reports/) | Dated audits, confidentiality reviews, remediation records, and parser security reviews |
+| [`evidence/`](evidence/) | Reproduction instructions and exact proof-of-concept results |
+| [`sbom/`](sbom/) | CycloneDX software bill of materials |
+| [`notices/`](notices/) | Third-party license and security notices |
 
-- [`SECURITY_CONFIDENTIALITY_REVIEW_2026-07-20.md`](SECURITY_CONFIDENTIALITY_REVIEW_2026-07-20.md) — Confidentiality-focused deep-dive review and remediation report dated 2026-07-20.
-- [`SECURITY_AUDIT_2026-07-12.md`](SECURITY_AUDIT_2026-07-12.md) — Full security audit, findings, remediation details, dependency review, validation, and residual risks dated 2026-07-12.
-- [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md) — Concise executive summary of the 2026-07-12 audit.
+## Recommended reading order
+
+1. Start with the [2026-07-12 security review summary](reports/2026-07-12-security-review-summary.md).
+2. Use the [full 2026-07-12 audit](reports/2026-07-12-security-audit.md) for evidence, methodology, and residual risks.
+3. Read the confidentiality reviews in chronological order:
+   - [2026-07-20 confidentiality review](reports/2026-07-20-confidentiality-review.md)
+   - [2026-07-21 final hardening pass](reports/2026-07-21-confidentiality-final-hardening.md)
+   - [2026-07-21 confidentiality follow-up](reports/2026-07-21-confidentiality-follow-up.md)
+   - [2026-07-21 reverse-proxy review](reports/2026-07-21-reverse-proxy-review.md)
+4. Read the [7z preview security review](reports/2026-07-21-seven-zip-preview-review.md) for archive-parser design boundaries and residual risks.
+
+## Report index
+
+| Date | Document | Primary purpose |
+| --- | --- | --- |
+| 2026-07-21 | [Confidentiality follow-up](reports/2026-07-21-confidentiality-follow-up.md) | User-directory disclosure, external error-detail exposure, and session-store hardening |
+| 2026-07-21 | [Reverse-proxy confidentiality review](reports/2026-07-21-reverse-proxy-review.md) | Loopback services exposed through trusted reverse proxies |
+| 2026-07-21 | [Final confidentiality hardening pass](reports/2026-07-21-confidentiality-final-hardening.md) | Deployment defaults, HTTPS fail-closed behavior, template-local secret exposure, and build integrity |
+| 2026-07-21 | [Pure-JavaScript 7z preview review](reports/2026-07-21-seven-zip-preview-review.md) | Parser threat model, isolation, validation, and residual risk |
+| 2026-07-20 | [Confidentiality deep-dive review](reports/2026-07-20-confidentiality-review.md) | Sessions, uploaded-file rendering, parser execution, and participant-data exposure |
+| 2026-07-12 | [Security audit](reports/2026-07-12-security-audit.md) | Availability findings, supply-chain review, CVE applicability, and validation |
+| 2026-07-12 | [Security review summary](reports/2026-07-12-security-review-summary.md) | Executive overview of the 2026-07-12 audit |
 
 ## Evidence and supporting artifacts
 
-- [`SECURITY_POC_RESULTS.txt`](SECURITY_POC_RESULTS.txt) — Exact baseline and post-remediation proof-of-concept results.
-- [`SECURITY_POC_GUIDE.md`](SECURITY_POC_GUIDE.md) — Commands for reproducing the local proof-of-concept and regression checks from the repository root.
-- [`SECURITY_SBOM.cdx.json`](SECURITY_SBOM.cdx.json) — CycloneDX 1.5 software bill of materials.
-- [`THIRD_PARTY_7Z_PARSER_NOTICES.md`](THIRD_PARTY_7Z_PARSER_NOTICES.md) — License and fork notice for the JavaScript 7z parser dependencies.
+| Artifact | Purpose |
+| --- | --- |
+| [Security PoC guide](evidence/security-poc-guide.md) | Local reproduction and regression commands |
+| [2026-07-12 PoC results](evidence/2026-07-12-security-poc-results.txt) | Exact baseline and post-remediation outputs |
+| [CycloneDX SBOM](sbom/recorddrive-security-sbom.cdx.json) | Machine-readable dependency inventory |
+| [7z parser third-party notices](notices/third-party-seven-zip-parser-notices.md) | License and local-fork notice |
 
-The executable PoC scripts remain in the repository-root `security-poc/` directory because they are source utilities rather than reports.
+The executable proof-of-concept scripts remain in the repository-root `security-poc/` directory because they are source utilities, not documentation artifacts.
+
+## Documentation conventions
+
+- Use date-first, lowercase filenames: `YYYY-MM-DD-topic.md`.
+- Use one H1 title per Markdown document and a consistent H2/H3 hierarchy.
+- Keep exact evidence separate from narrative reports.
+- Preserve historical findings; add cross-links when a later report supersedes or supplements an earlier one.
+- Update this index whenever a security document is added, renamed, or archived.
+
+These conventions follow [GitHub's documentation style guidance](https://docs.github.com/en/contributing/style-guide-and-content-model/style-guide) and [OWASP's secure-development lifecycle guidance](https://devguide.owasp.org/en/02-foundations/02-secure-development/).

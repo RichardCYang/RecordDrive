@@ -1,6 +1,6 @@
 # RecordDrive Confidentiality Security Deep-Dive Review and Remediation Report
 
-> **7z update (2026-07-21):** The native-command 7z design described in this dated review has been superseded by the pure-JavaScript parser documented in [`SEVEN_ZIP_PURE_JAVASCRIPT_PREVIEW_2026-07-21.md`](SEVEN_ZIP_PURE_JAVASCRIPT_PREVIEW_2026-07-21.md).
+> **7z update (2026-07-21):** The native-command 7z design described in this dated review has been superseded by the pure-JavaScript parser documented in [`2026-07-21-seven-zip-preview-review.md`](2026-07-21-seven-zip-preview-review.md).
 
 
 - Review date: 2026-07-20 (KST)
@@ -111,7 +111,7 @@
 - `test/preview.test.js`
 - `test/security-hardening.test.js`
 - `test/seven-zip-preview.test.js`
-- `docs/security/SECURITY_CONFIDENTIALITY_REVIEW_2026-07-20.md` (this report; subsequently translated to English and centralized)
+- `docs/security/reports/2026-07-20-confidentiality-review.md` (this report; subsequently translated to English and centralized)
 
 ## 7. References
 

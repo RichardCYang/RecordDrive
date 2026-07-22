@@ -42,4 +42,4 @@ git diff --check: passed
 git fsck --full: passed
 ```
 
-The full evidence, exact PoC output, references, and residual risks are in [`SECURITY_AUDIT_2026-07-12.md`](SECURITY_AUDIT_2026-07-12.md) and [`SECURITY_POC_RESULTS.txt`](SECURITY_POC_RESULTS.txt). The original `.git` directory is retained.
+The full evidence, exact PoC output, references, and residual risks are in [`2026-07-12-security-audit.md`](2026-07-12-security-audit.md) and [`2026-07-12-security-poc-results.txt`](../evidence/2026-07-12-security-poc-results.txt). The original `.git` directory is retained.

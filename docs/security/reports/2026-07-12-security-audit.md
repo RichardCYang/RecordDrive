@@ -133,7 +133,7 @@ CycloneDX SBOM version: 1.5
 SBOM components: 266
 ```
 
-The generated [`SECURITY_SBOM.cdx.json`](SECURITY_SBOM.cdx.json) uses canonical public-registry distribution URLs and contains no environment-specific internal host names.
+The generated [`recorddrive-security-sbom.cdx.json`](../sbom/recorddrive-security-sbom.cdx.json) uses canonical public-registry distribution URLs and contains no environment-specific internal host names.
 
 ## Actual CVE applicability validation
 
@@ -245,11 +245,11 @@ No additional item in these areas met the evidence threshold for a confirmed vul
 - `test/security-poc.test.js`
 - `security-poc/repository-growth.mjs`
 - `security-poc/recovery-code-retention.mjs`
-- `docs/security/SECURITY_POC_GUIDE.md`
-- `docs/security/SECURITY_AUDIT_2026-07-12.md`
-- `docs/security/SECURITY_REVIEW.md`
-- `docs/security/SECURITY_POC_RESULTS.txt`
-- `docs/security/SECURITY_SBOM.cdx.json`
+- `docs/security/evidence/security-poc-guide.md`
+- `docs/security/reports/2026-07-12-security-audit.md`
+- `docs/security/reports/2026-07-12-security-review-summary.md`
+- `docs/security/evidence/2026-07-12-security-poc-results.txt`
+- `docs/security/sbom/recorddrive-security-sbom.cdx.json`
 
 The `.git` directory and its original history are retained as explicitly required.
 

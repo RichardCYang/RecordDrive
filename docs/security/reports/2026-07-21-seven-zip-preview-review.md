@@ -145,4 +145,4 @@ The full application test suite also exercises the 7z preview HTTP route alongsi
 - `xz-compat@1.2.7`: MIT license; locally forked to remove native add-on discovery and runtime installation.
 - The 7z container structure and identifiers used by the preflight validator follow the published 7z format and LZMA SDK documentation. No 7-Zip command-line executable or copied 7-Zip implementation is included.
 
-The upstream license files for the vendored decoder are retained under `vendor/xz-compat-purejs`.
+The upstream license files for the vendored decoder are retained under `vendor/xz-compat-purejs`. See the [third-party parser notices](../notices/third-party-seven-zip-parser-notices.md) for the consolidated license summary.

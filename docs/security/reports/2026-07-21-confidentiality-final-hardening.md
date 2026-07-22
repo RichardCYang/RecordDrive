@@ -6,7 +6,7 @@
 - Scope: deployment defaults, transport confidentiality, authentication and sessions, secret handling, template exposure, repository authorization, stored-file access, uploads and previews, parser isolation, dependency advisories, and Git-history secret scanning
 - Result: **One High-severity confidentiality weakness and one Medium-severity secret-exposure weakness were confirmed and remediated. One release-integrity defect affecting the hardened 7z preview dependency was also corrected. No unresolved Critical-severity confidentiality vulnerability was confirmed in the reviewed source.**
 
-This report supplements the 2026-07-20 confidentiality review and the 2026-07-21 pure-JavaScript 7z parser review already present in this directory.
+This report supplements the [2026-07-20 confidentiality review](2026-07-20-confidentiality-review.md) and the [2026-07-21 pure-JavaScript 7z parser review](2026-07-21-seven-zip-preview-review.md).
 
 ## 1. Methodology
 

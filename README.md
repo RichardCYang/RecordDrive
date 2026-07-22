@@ -21,7 +21,7 @@ Select a file in the repository explorer and open the **Preview** tab in the rig
 
 RecordDrive pins `7z-iterator` and supplies a project-local security fork of `xz-compat`. The fork permanently disables native add-on loading and runtime package installation, and startup refuses unexpected parser versions or native, executable, DLL, or WebAssembly payloads in the decoder package. This keeps Windows npm and PM2 deployments independent of a machine-wide 7-Zip installation.
 
-The parser runs in a disposable Node.js worker thread with a minimal environment and V8 memory limits. Password-protected headers or AES-encrypted stream metadata expose no entry names, entry count, or uncompressed-size totals. The server can still disable the feature explicitly with `SEVEN_ZIP_PREVIEW_ENABLED=false`. See [`docs/security/SEVEN_ZIP_PURE_JAVASCRIPT_PREVIEW_2026-07-21.md`](docs/security/SEVEN_ZIP_PURE_JAVASCRIPT_PREVIEW_2026-07-21.md) for the threat model, implementation boundaries, and residual risks.
+The parser runs in a disposable Node.js worker thread with a minimal environment and V8 memory limits. Password-protected headers or AES-encrypted stream metadata expose no entry names, entry count, or uncompressed-size totals. The server can still disable the feature explicitly with `SEVEN_ZIP_PREVIEW_ENABLED=false`. See [`docs/security/reports/2026-07-21-seven-zip-preview-review.md`](docs/security/reports/2026-07-21-seven-zip-preview-review.md) for the threat model, implementation boundaries, and residual risks.
 
 ## Repository folders
 
