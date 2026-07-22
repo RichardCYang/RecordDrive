@@ -7,6 +7,12 @@ import {
 } from '@simplewebauthn/server';
 import { requireAuth } from '../middleware/auth.js';
 import {
+  clearSecurityPasswordAttempts,
+  recordSecurityPasswordFailure,
+  releaseSecurityPasswordAttempt,
+  securityPasswordRateLimit
+} from '../middleware/login-rate-limit.js';
+import {
   clearLanguagePreference,
   createTranslator,
   detectBrowserLanguage,
@@ -34,8 +40,6 @@ import { setFlash } from '../utils.js';
 import { purgeUserSessions } from '../session-store.js';
 
 const ENROLLMENT_MAX_AGE_MS = 10 * 60 * 1000;
-const SECURITY_PASSWORD_WINDOW_MS = 10 * 60 * 1000;
-const SECURITY_PASSWORD_MAX_ATTEMPTS = 5;
 const MAX_SECURITY_PASSWORD_BYTES = 1024;
 
 function parseTransports(value) {
@@ -60,18 +64,6 @@ function requireRecentSecurityVerification(req, res, next) {
   setFlash(req, 'error', req.t('Confirm your password before changing security settings.'));
   return res.redirect('/settings#security-verification');
 }
-
-function consumeSecurityPasswordAttempt(req) {
-  const now = Date.now();
-  const record = req.session.securityPasswordAttempts;
-  if (!record || now - Number(record.startedAt || 0) > SECURITY_PASSWORD_WINDOW_MS) {
-    req.session.securityPasswordAttempts = { count: 1, startedAt: now };
-    return true;
-  }
-  record.count += 1;
-  return record.count <= SECURITY_PASSWORD_MAX_ATTEMPTS;
-}
-
 
 function completeSecurityReauthentication(req, res, next) {
   const userId = Number(req.currentUser.id);
@@ -218,22 +210,21 @@ export function createSettingsRouter(db, config) {
     return res.redirect('/settings');
   });
 
-  router.post('/settings/security/verify-password', requireAuth, async (req, res, next) => {
+  router.post('/settings/security/verify-password', requireAuth, securityPasswordRateLimit, async (req, res, next) => {
     try {
-      if (!consumeSecurityPasswordAttempt(req)) {
-        setFlash(req, 'error', req.t('Too many password confirmation attempts. Try again later.'));
-        return res.redirect('/settings#security-verification');
-      }
       const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.currentUser.id);
       const password = String(req.body.password || '');
       const passwordWithinLimit = Buffer.byteLength(password, 'utf8') <= MAX_SECURITY_PASSWORD_BYTES;
       const valid = user && passwordWithinLimit && await bcrypt.compare(password, user.password_hash);
       if (!valid) {
+        recordSecurityPasswordFailure(req, req.currentUser.id);
         setFlash(req, 'error', req.t('The password is incorrect.'));
         return res.redirect('/settings#security-verification');
       }
+      clearSecurityPasswordAttempts(req.currentUser.id, req);
       return completeSecurityReauthentication(req, res, next);
     } catch (error) {
+      releaseSecurityPasswordAttempt(req);
       return next(error);
     }
   });

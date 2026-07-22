@@ -1,0 +1,49 @@
+RecordDrive authentication rate-limit concurrency PoC
+Review date: 2026-07-22
+
+PRE-REMEDIATION ACTUAL MODULE OUTPUT
+Command:
+  node /mnt/data/recorddrive_audit_state/baseline-rate-limit-poc.mjs
+
+{
+  "loginAcceptedBeforeAnyFailureCompletes": 100,
+  "configuredLoginAccountLimit": 10,
+  "mfaAcceptedBeforeAnyFailureCompletes": 100,
+  "configuredMfaUserLimit": 10,
+  "securityReauthAcceptedBeforeSessionWritesMerge": 100,
+  "configuredSecurityReauthLimit": 5
+}
+
+POST-REMEDIATION PROJECT POC OUTPUT
+Command:
+  ATTEMPTS=100 node security-poc/authentication-rate-limit-race.mjs
+
+{
+  "attempts": 100,
+  "legacy": {
+    "loginAcceptedBeforeAnyFailureCompletes": 100,
+    "mfaAcceptedBeforeAnyFailureCompletes": 100,
+    "securityReauthAcceptedBeforeAnyFailureCompletes": 100
+  },
+  "patched": {
+    "loginAcceptedBeforeAnyFailureCompletes": 10,
+    "mfaAcceptedBeforeAnyFailureCompletes": 10,
+    "securityReauthAcceptedBeforeAnyFailureCompletes": 5
+  },
+  "limits": {
+    "loginAccount": 10,
+    "mfaUser": 10,
+    "securityReauthUser": 5
+  },
+  "legacyBypassed": true,
+  "patchedBounded": true
+}
+
+TARGETED REGRESSION OUTPUT
+Command:
+  node --test test/authentication-rate-limit-race.test.js
+
+Result:
+  tests 4
+  pass 4
+  fail 0

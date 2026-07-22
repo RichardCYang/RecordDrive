@@ -2,6 +2,20 @@
 
 Run all commands from the repository root. All PoCs use temporary local databases and files; they do not target a remote service.
 
+## Patched authentication rate-limit concurrency boundary
+
+```bash
+ATTEMPTS=100 node security-poc/authentication-rate-limit-race.mjs
+```
+
+Expected result: the modeled legacy check-then-record logic admits all 100 concurrent attempts, while the patched implementation admits only 10 password checks, 10 MFA checks, and 5 security-password reauthentication checks. The output must include `"legacyBypassed": true` and `"patchedBounded": true`.
+
+The focused regression suite can also be run without starting the web service:
+
+```bash
+node --test test/authentication-rate-limit-race.test.js
+```
+
 ## Patched repository-creation boundary
 
 ```bash

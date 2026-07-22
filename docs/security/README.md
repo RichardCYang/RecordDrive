@@ -20,12 +20,14 @@ This directory is the canonical index for RecordDrive security reports, validati
    - [2026-07-21 final hardening pass](reports/2026-07-21-confidentiality-final-hardening.md)
    - [2026-07-21 confidentiality follow-up](reports/2026-07-21-confidentiality-follow-up.md)
    - [2026-07-21 reverse-proxy review](reports/2026-07-21-reverse-proxy-review.md)
-4. Read the [7z preview security review](reports/2026-07-21-seven-zip-preview-review.md) for archive-parser design boundaries and residual risks.
+4. Read the [2026-07-22 authentication rate-limit concurrency review](reports/2026-07-22-authentication-rate-limit-race.md) for the parallel-attempt PoC and remediation.
+5. Read the [7z preview security review](reports/2026-07-21-seven-zip-preview-review.md) for archive-parser design boundaries and residual risks.
 
 ## Report index
 
 | Date | Document | Primary purpose |
 | --- | --- | --- |
+| 2026-07-22 | [Authentication rate-limit concurrency review](reports/2026-07-22-authentication-rate-limit-race.md) | Parallel password, MFA, and security-reauthentication throttling bypass and remediation |
 | 2026-07-21 | [Confidentiality follow-up](reports/2026-07-21-confidentiality-follow-up.md) | User-directory disclosure, external error-detail exposure, and session-store hardening |
 | 2026-07-21 | [Reverse-proxy confidentiality review](reports/2026-07-21-reverse-proxy-review.md) | Loopback services exposed through trusted reverse proxies |
 | 2026-07-21 | [Final confidentiality hardening pass](reports/2026-07-21-confidentiality-final-hardening.md) | Deployment defaults, HTTPS fail-closed behavior, template-local secret exposure, and build integrity |
@@ -39,6 +41,7 @@ This directory is the canonical index for RecordDrive security reports, validati
 | Artifact | Purpose |
 | --- | --- |
 | [Security PoC guide](evidence/security-poc-guide.md) | Local reproduction and regression commands |
+| [2026-07-22 authentication rate-limit PoC results](evidence/2026-07-22-authentication-rate-limit-race-results.txt) | Exact pre- and post-remediation concurrency output |
 | [2026-07-12 PoC results](evidence/2026-07-12-security-poc-results.txt) | Exact baseline and post-remediation outputs |
 | [CycloneDX SBOM](sbom/recorddrive-security-sbom.cdx.json) | Machine-readable dependency inventory |
 | [7z parser third-party notices](notices/third-party-seven-zip-parser-notices.md) | License and local-fork notice |

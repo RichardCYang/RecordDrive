@@ -12,7 +12,9 @@ import {
   clearMfaAttempts,
   loginRateLimit,
   recordLoginFailure,
-  recordMfaFailure
+  recordMfaFailure,
+  releaseLoginAttempt,
+  releaseMfaAttempt
 } from '../middleware/login-rate-limit.js';
 import {
   consumeRecoveryCode,
@@ -119,7 +121,7 @@ function completeLogin(req, res, next, db, config, user, returnTo, options = {})
     return rejectLogin(req, res, user.username, { json });
   }
 
-  clearMfaAttempts(user.id);
+  clearMfaAttempts(user.id, req);
   return req.session.regenerate((error) => {
     if (error) return next(error);
     const authenticatedAt = Date.now();
@@ -152,7 +154,7 @@ function renderMfa(req, res, db, config, options = {}) {
 }
 
 function rejectMfaRateLimit(req, res, db, config, context, options = {}) {
-  const limit = checkMfaRateLimit(req, context.user.id);
+  const limit = checkMfaRateLimit(req, context.user.id, { reserve: options.reserve === true });
   if (!limit.blocked) return false;
 
   res.set('Retry-After', String(limit.retrySeconds));
@@ -195,7 +197,7 @@ export function createAuthRouter(db, config) {
         return rejectLogin(req, res, username);
       }
 
-      clearLoginAttempts(username);
+      clearLoginAttempts(username, req);
       const returnTo = safeInternalPath(req.body.returnTo ?? req.session.returnTo, '/');
       const mfaState = getMfaState(db, user.id);
 
@@ -217,6 +219,7 @@ export function createAuthRouter(db, config) {
         });
       });
     } catch (error) {
+      releaseLoginAttempt(req);
       return next(error);
     }
   });
@@ -237,7 +240,7 @@ export function createAuthRouter(db, config) {
           error: req.t('Authenticator app verification is not available for this account.')
         });
       }
-      if (rejectMfaRateLimit(req, res, db, config, context)) return undefined;
+      if (rejectMfaRateLimit(req, res, db, config, context, { reserve: true })) return undefined;
 
       const verified = await verifyAndConsumeTotp(db, context.user.id, req.body.token, config);
       if (!verified) {
@@ -252,6 +255,7 @@ export function createAuthRouter(db, config) {
       clearPendingAuthentication(req);
       return completeLogin(req, res, next, db, config, context.user, returnTo);
     } catch (error) {
+      releaseMfaAttempt(req);
       return next(error);
     }
   });
@@ -260,7 +264,7 @@ export function createAuthRouter(db, config) {
     try {
       const context = getPendingMfa(req, db, config);
       if (!context) return res.redirect('/login');
-      if (rejectMfaRateLimit(req, res, db, config, context)) return undefined;
+      if (rejectMfaRateLimit(req, res, db, config, context, { reserve: true })) return undefined;
 
       const verified = consumeRecoveryCode(db, context.user.id, req.body.recoveryCode, config);
       if (!verified) {
@@ -275,6 +279,7 @@ export function createAuthRouter(db, config) {
       clearPendingAuthentication(req);
       return completeLogin(req, res, next, db, config, context.user, returnTo);
     } catch (error) {
+      releaseMfaAttempt(req);
       return next(error);
     }
   });
@@ -329,7 +334,7 @@ export function createAuthRouter(db, config) {
         delete req.session.webAuthnAuthentication;
         return res.status(401).json({ error: req.t('Your passkey challenge has expired. Try again.') });
       }
-      if (rejectMfaRateLimit(req, res, db, config, context, { json: true })) return undefined;
+      if (rejectMfaRateLimit(req, res, db, config, context, { json: true, reserve: true })) return undefined;
 
       const response = req.body?.credential;
       const stored = db.prepare(`
@@ -389,6 +394,7 @@ export function createAuthRouter(db, config) {
       clearPendingAuthentication(req);
       return completeLogin(req, res, next, db, config, context.user, returnTo, { json: true });
     } catch (error) {
+      releaseMfaAttempt(req);
       return next(error);
     }
   });
