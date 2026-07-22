@@ -2,6 +2,30 @@
 
 Run all commands from the repository root. All PoCs use temporary local databases and files; they do not target a remote service.
 
+## Patched request-error logging boundary
+
+Run the dependency-free before/after model. It uses a synthetic credential marker and does not write the marker itself to stderr:
+
+```bash
+node security-poc/request-error-log-object-poc.mjs
+```
+
+Expected result: the modeled legacy `console.error(error)` formatting contains the credential marker, submitted field name, and raw `body` property. The hardened logger retains `entity.parse.failed` but reports all three sensitive indicators as `false`; the output ends with `"verdict": "PASS"`.
+
+Run the focused dependency-free regression checks:
+
+```bash
+node --test --test-name-pattern='safe request error logging|request parsers run|localized' test/request-error-confidentiality.test.js
+```
+
+With dependencies installed, the full application route PoC is also available:
+
+```bash
+node security-poc/request-error-log-confidentiality.mjs
+```
+
+Expected result: malformed JSON is returned as HTTP 400, the parser error class is logged, and the synthetic credential marker, `currentPassword` field name, and raw body property are absent.
+
 ## Patched Host header and DNS rebinding boundary
 
 ```bash

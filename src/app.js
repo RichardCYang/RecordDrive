@@ -33,6 +33,7 @@ import {
 import { normalizeAndValidateStorageConfiguration } from './storage-path-security.js';
 import { applyStoredRepositoryStorageRoot } from './storage-settings.js';
 import { ensureSecureUploadRoot } from './file-access-time.js';
+import { logRequestErrorSafely, requestBodyClientErrorStatus } from './request-error-security.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -93,9 +94,11 @@ export function createApplication(options = {}) {
     maxAge: config.isProduction ? '7d' : 0,
     etag: true
   }));
+  // Install translation helpers before body parsing so parser failures can be
+  // handled by the application's error middleware without throwing again.
+  app.use(languageMiddleware);
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));
   app.use(express.json({ limit: '256kb' }));
-  app.use(languageMiddleware);
 
   app.use(session({
     name: 'recorddrive.sid',
@@ -217,12 +220,13 @@ export function createApplication(options = {}) {
 
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
+    const t = typeof req.t === 'function' ? req.t : (message) => message;
 
     if (error instanceof UploadCsrfError) {
-      const message = req.t('The security token is invalid or has expired. Refresh the page and try again.');
+      const message = t('The security token is invalid or has expired. Refresh the page and try again.');
       if (requestWantsJson(req)) return res.status(403).json({ error: message });
       return res.status(403).render('error', {
-        title: req.t('Request could not be verified'),
+        title: t('Request could not be verified'),
         statusCode: 403,
         message
       });
@@ -232,39 +236,55 @@ export function createApplication(options = {}) {
       const message = uploadQuotaErrorMessage(req, error, req.uploadQuotaSettings || config);
       if (requestWantsJson(req)) return res.status(413).json({ error: message });
       return res.status(413).render('error', {
-        title: req.t('Upload failed'),
+        title: t('Upload failed'),
         statusCode: 413,
         message
       });
     }
 
     if (error instanceof multer.MulterError) {
-      let message = req.t('An error occurred while uploading the file.');
+      let message = t('An error occurred while uploading the file.');
       if (error.code === 'LIMIT_FILE_SIZE') {
         const size = req.uploadQuotaSettings?.maxFileSizeMb ?? config.maxFileSizeMb;
-        message = req.t('Each file can be up to {{size}} MB.', { size });
+        message = t('Each file can be up to {{size}} MB.', { size });
       } else if (error.code === 'LIMIT_FILE_COUNT') {
         const count = req.uploadQuotaSettings?.maxFilesPerUpload ?? config.maxFilesPerUpload;
-        message = req.t('You can upload up to {{count}} files at a time.', { count });
+        message = t('You can upload up to {{count}} files at a time.', { count });
       }
       const statusCode = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
       if (requestWantsJson(req)) return res.status(statusCode).json({ error: message });
       return res.status(statusCode).render('error', {
-        title: req.t('Upload failed'),
+        title: t('Upload failed'),
         statusCode,
         message
       });
     }
 
-    console.error(error);
+    const requestBodyStatus = requestBodyClientErrorStatus(error);
+    if (requestBodyStatus) {
+      logRequestErrorSafely(error, 'Request body rejected');
+      const message = requestBodyStatus === 413
+        ? t('The request body is too large.')
+        : requestBodyStatus === 415
+          ? t('The request body format is not supported.')
+          : t('The request body is invalid.');
+      if (requestWantsJson(req)) return res.status(requestBodyStatus).json({ error: message });
+      return res.status(requestBodyStatus).render('error', {
+        title: t('Invalid request'),
+        statusCode: requestBodyStatus,
+        message
+      });
+    }
+
+    logRequestErrorSafely(error);
     const message = config.exposeDetailedErrors
       ? error.message
-      : req.t('An error occurred while processing the request.');
+      : t('An error occurred while processing the request.');
     if (requestWantsJson(req) || req.path.includes('/passkeys/')) {
       return res.status(500).json({ error: message });
     }
     return res.status(500).render('error', {
-      title: req.t('Server error'),
+      title: t('Server error'),
       statusCode: 500,
       message
     });

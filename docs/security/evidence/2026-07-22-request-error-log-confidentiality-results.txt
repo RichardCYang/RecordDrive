@@ -1,0 +1,47 @@
+RecordDrive request-error log confidentiality PoC
+Review date: 2026-07-22 KST
+Scope: local, synthetic error object matching the documented Express/body-parser error shape
+
+Command:
+  node security-poc/request-error-log-object-poc.mjs
+
+Result:
+{
+  "modeledBodyParserError": {
+    "status": 400,
+    "type": "entity.parse.failed",
+    "hasRawBodyProperty": true
+  },
+  "vulnerableLogger": {
+    "credentialMarkerPresent": true,
+    "submittedFieldNamePresent": true,
+    "rawBodyPropertyPresent": true
+  },
+  "hardenedLogger": {
+    "parserErrorClassPresent": true,
+    "credentialMarkerPresent": false,
+    "submittedFieldNamePresent": false,
+    "rawBodyPropertyPresent": false
+  },
+  "verdict": "PASS"
+}
+
+Focused dependency-free regression command:
+  node --test --test-name-pattern='safe request error logging|request parsers run|localized' test/request-error-confidentiality.test.js
+
+Focused result:
+  tests: 3
+  passed: 3
+  failed: 0
+
+Full application route regression included in:
+  test/request-error-confidentiality.test.js
+
+Expected route behavior with dependencies installed:
+  POST malformed application/json to /settings/security/verify-password
+  -> HTTP 400
+  -> log contains entity.parse.failed classification
+  -> log does not contain the submitted credential marker, currentPassword field name, parser message fragment, or raw body property
+
+Environment limitation:
+  npm ci could not complete because the configured package registry returned HTTP 503 for package tarballs. The source-level and dependency-free focused validations above ran successfully. The full application test remains part of npm run test:security for execution in an environment with dependencies installed and a supported Node.js runtime.

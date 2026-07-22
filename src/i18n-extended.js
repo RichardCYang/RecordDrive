@@ -1,5 +1,9 @@
 export const extendedTranslations = Object.freeze({
   "ja": {
+    "Invalid request": "無効なリクエスト",
+    "The request body is too large.": "リクエスト本文が大きすぎます。",
+    "The request body format is not supported.": "リクエスト本文の形式はサポートされていません。",
+    "The request body is invalid.": "リクエスト本文が無効です。",
     "Repository not found": "リポジトリが見つかりません",
     "The requested repository does not exist or is not available to your account.": "要求されたリポジトリは存在しないか、このアカウントでは利用できません。",
     "HTTPS and TLS Settings": "HTTPS と TLS の設定",
@@ -86,6 +90,10 @@ export const extendedTranslations = Object.freeze({
     "The saved TLS certificate configuration is valid.": "保存済みの TLS 証明書設定は有効です。"
   },
   "ko": {
+    "Invalid request": "잘못된 요청",
+    "The request body is too large.": "요청 본문이 너무 큽니다.",
+    "The request body format is not supported.": "요청 본문 형식은 지원되지 않습니다.",
+    "The request body is invalid.": "요청 본문이 올바르지 않습니다.",
     "Repository not found": "저장소를 찾을 수 없음",
     "The requested repository does not exist or is not available to your account.": "요청한 저장소가 존재하지 않거나 이 계정에서 사용할 수 없습니다.",
     "HTTPS and TLS Settings": "HTTPS 및 TLS 설정",
@@ -172,6 +180,10 @@ export const extendedTranslations = Object.freeze({
     "The saved TLS certificate configuration is valid.": "저장된 TLS 인증서 구성이 유효합니다."
   },
   "fr": {
+    "Invalid request": "Requête non valide",
+    "The request body is too large.": "Le corps de la requête est trop volumineux.",
+    "The request body format is not supported.": "Le format du corps de la requête n’est pas pris en charge.",
+    "The request body is invalid.": "Le corps de la requête n’est pas valide.",
     "Repository not found": "Dépôt introuvable",
     "The requested repository does not exist or is not available to your account.": "Le dépôt demandé n’existe pas ou n’est pas accessible à votre compte.",
     "HTTPS and TLS Settings": "Paramètres HTTPS et TLS",
@@ -267,6 +279,10 @@ export const extendedTranslations = Object.freeze({
     "Type": "Type"
   },
   "es": {
+    "Invalid request": "Solicitud no válida",
+    "The request body is too large.": "El cuerpo de la solicitud es demasiado grande.",
+    "The request body format is not supported.": "El formato del cuerpo de la solicitud no es compatible.",
+    "The request body is invalid.": "El cuerpo de la solicitud no es válido.",
     "Repository not found": "Repositorio no encontrado",
     "The requested repository does not exist or is not available to your account.": "El repositorio solicitado no existe o no está disponible para tu cuenta.",
     "HTTPS and TLS Settings": "Configuración de HTTPS y TLS",
@@ -354,6 +370,10 @@ export const extendedTranslations = Object.freeze({
     "Audio": "Audio"
   },
   "pt": {
+    "Invalid request": "Solicitação inválida",
+    "The request body is too large.": "O corpo da solicitação é muito grande.",
+    "The request body format is not supported.": "O formato do corpo da solicitação não é compatível.",
+    "The request body is invalid.": "O corpo da solicitação é inválido.",
     "Repository not found": "Repositório não encontrado",
     "The requested repository does not exist or is not available to your account.": "O repositório solicitado não existe ou não está disponível para sua conta.",
     "HTTPS and TLS Settings": "Configurações de HTTPS e TLS",
