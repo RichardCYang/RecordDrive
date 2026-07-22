@@ -88,10 +88,12 @@ test('bounds visible metadata and total scanned entry count', async () => {
   assert.equal(truncated.entries.length, 2);
   assert.equal(truncated.truncated, true);
 
-  await assert.rejects(
-    createSevenZipPreview(archivePath, stats, { maxScannedEntries: 2 }),
-    (error) => error?.code === 'SEVEN_ZIP_METADATA_LIMIT'
-  );
+  const scanLimited = await createSevenZipPreview(archivePath, stats, { maxScannedEntries: 2 });
+  assert.equal(scanLimited.entries.length, 2);
+  assert.equal(scanLimited.totalEntries, 2);
+  assert.equal(scanLimited.totalEntriesExact, false);
+  assert.equal(scanLimited.totalsExact, false);
+  assert.equal(scanLimited.truncated, true);
 });
 
 test('allows an explicit security-policy override to disable 7z preview', async () => {

@@ -18,11 +18,13 @@ const ZIP_MAX_SCANNED_ENTRIES = 10000;
 const ZIP_MAX_ENTRY_NAME_BYTES = 1024;
 const ZIP_MAX_VISIBLE_NAME_BYTES = 1024 * 1024;
 const SEVEN_ZIP_MAX_VISIBLE_ENTRIES = 2500;
-const SEVEN_ZIP_MAX_SCANNED_ENTRIES = 10000;
+const SEVEN_ZIP_MAX_SCANNED_ENTRIES = 250000;
 const SEVEN_ZIP_MAX_ENTRY_NAME_BYTES = 1024;
 const SEVEN_ZIP_MAX_VISIBLE_NAME_BYTES = 1024 * 1024;
-const SEVEN_ZIP_DEFAULT_TIMEOUT_MS = 20 * 1000;
-const PREVIEW_CONCURRENCY_LIMITS = Object.freeze({ xlsx: 2, zip: 4, '7z': 2 });
+const SEVEN_ZIP_DEFAULT_TIMEOUT_MS = 60 * 1000;
+const SEVEN_ZIP_DEFAULT_MAX_HEADER_BYTES = 128 * 1024 * 1024;
+const SEVEN_ZIP_MAX_HEADER_BYTES = 256 * 1024 * 1024;
+const PREVIEW_CONCURRENCY_LIMITS = Object.freeze({ xlsx: 2, zip: 4, '7z': 1 });
 const activePreviews = { xlsx: 0, zip: 0, '7z': 0 };
 
 export function previewFileSizeLimit(kind) {
@@ -519,8 +521,39 @@ function inspectSevenZipWithJavaScriptParser(source, stats, options) {
     options.timeoutMs,
     SEVEN_ZIP_DEFAULT_TIMEOUT_MS,
     1000,
-    120 * 1000
+    300 * 1000
   );
+  const maxHeaderBytes = normalizedPositiveInteger(
+    options.maxHeaderBytes,
+    SEVEN_ZIP_DEFAULT_MAX_HEADER_BYTES,
+    64 * 1024,
+    SEVEN_ZIP_MAX_HEADER_BYTES
+  );
+  const maxCompressedHeaderBytes = normalizedPositiveInteger(
+    options.maxCompressedHeaderBytes,
+    Math.min(maxHeaderBytes, 128 * 1024 * 1024),
+    64 * 1024,
+    Math.min(maxHeaderBytes, SEVEN_ZIP_MAX_HEADER_BYTES)
+  );
+  const maxSingleReadBytes = normalizedPositiveInteger(
+    options.maxSingleReadBytes,
+    Math.min(320 * 1024 * 1024, Math.max(maxHeaderBytes, maxCompressedHeaderBytes) + 1024 * 1024),
+    64 * 1024,
+    320 * 1024 * 1024
+  );
+  const maxTotalReadBytes = normalizedPositiveInteger(
+    options.maxTotalReadBytes,
+    Math.min(1024 * 1024 * 1024, (maxHeaderBytes * 3) + maxCompressedHeaderBytes + (16 * 1024 * 1024)),
+    1024 * 1024,
+    1024 * 1024 * 1024
+  );
+  const maxScannedEntries = normalizedPositiveInteger(
+    options.maxScannedEntries,
+    100_000,
+    1,
+    SEVEN_ZIP_MAX_SCANNED_ENTRIES
+  );
+  const workerOldGenerationMb = Math.min(640, Math.max(256, 128 + Math.ceil(maxHeaderBytes / (512 * 1024))));
   const expectedSize = sourceSize(source, stats);
   if (!Number.isSafeInteger(expectedSize) || expectedSize < 32) {
     throw new FilePreviewError('INVALID_7Z', 'The 7z archive size is invalid.');
@@ -535,23 +568,23 @@ function inspectSevenZipWithJavaScriptParser(source, stats, options) {
         expectedSize,
         options: {
           maxVisibleEntries: options.maxVisibleEntries,
-          maxScannedEntries: options.maxScannedEntries,
+          maxScannedEntries,
           maxEntryNameBytes: SEVEN_ZIP_MAX_ENTRY_NAME_BYTES,
           maxVisibleNameBytes: SEVEN_ZIP_MAX_VISIBLE_NAME_BYTES,
-          maxHeaderBytes: options.maxHeaderBytes,
-          maxCompressedHeaderBytes: options.maxCompressedHeaderBytes,
-          maxSingleReadBytes: options.maxSingleReadBytes,
-          maxTotalReadBytes: options.maxTotalReadBytes
+          maxHeaderBytes,
+          maxCompressedHeaderBytes,
+          maxSingleReadBytes,
+          maxTotalReadBytes
         }
       },
       env: { LZMA_NATIVE_DISABLE: '1' },
       execArgv: process.execArgv.filter((argument) => !/^(?:--input-type|--max-old-space-size|--max_old_space_size|--max-semi-space-size|--max_semi_space_size)(?:=|$)/u.test(argument)),
       name: 'recorddrive-7z',
       resourceLimits: {
-        maxOldGenerationSizeMb: 96,
-        maxYoungGenerationSizeMb: 16,
-        codeRangeSizeMb: 16,
-        stackSizeMb: 4
+        maxOldGenerationSizeMb: workerOldGenerationMb,
+        maxYoungGenerationSizeMb: 32,
+        codeRangeSizeMb: 32,
+        stackSizeMb: 8
       },
       trackUnmanagedFds: true
     });

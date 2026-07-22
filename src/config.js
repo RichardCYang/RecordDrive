@@ -78,6 +78,11 @@ export function loadConfig(overrides = {}) {
   const maxActivityLogEntries = Number.parseInt(env.MAX_ACTIVITY_LOG_ENTRIES || '100000', 10);
   const sessionIdleHours = Number.parseInt(env.SESSION_IDLE_HOURS || '12', 10);
   const sessionAbsoluteHours = Number.parseInt(env.SESSION_ABSOLUTE_HOURS || '168', 10);
+  const sevenZipPreviewMaxHeaderMb = Number.parseInt(env.SEVEN_ZIP_PREVIEW_MAX_HEADER_MB || '128', 10);
+  const sevenZipPreviewMaxScannedEntries = Number.parseInt(
+    env.SEVEN_ZIP_PREVIEW_MAX_SCANNED_ENTRIES || '100000',
+    10
+  );
   const httpRequestTimeoutMs = timeoutFromEnv(env.HTTP_REQUEST_TIMEOUT_MS, 60 * 60 * 1000);
   const configuredHttpHeadersTimeoutMs = timeoutFromEnv(
     env.HTTP_HEADERS_TIMEOUT_MS,
@@ -159,9 +164,15 @@ export function loadConfig(overrides = {}) {
     sevenZipPreviewEnabled: booleanFromEnv(env.SEVEN_ZIP_PREVIEW_ENABLED, true),
     sevenZipPreviewTimeoutMs: timeoutFromEnv(
       env.SEVEN_ZIP_PREVIEW_TIMEOUT_MS,
-      20 * 1000,
+      60 * 1000,
       { allowZero: false }
     ),
+    sevenZipPreviewMaxHeaderMb: Number.isFinite(sevenZipPreviewMaxHeaderMb)
+      ? Math.min(256, Math.max(16, sevenZipPreviewMaxHeaderMb))
+      : 128,
+    sevenZipPreviewMaxScannedEntries: Number.isFinite(sevenZipPreviewMaxScannedEntries)
+      ? Math.min(250_000, Math.max(10_000, sevenZipPreviewMaxScannedEntries))
+      : 100_000,
     dbPath: resolveFromCwd(env.DB_PATH || './data/recorddrive.db'),
     uploadRoot: resolveFromCwd(env.UPLOAD_ROOT || './data/uploads')
   };

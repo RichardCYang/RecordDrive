@@ -18,7 +18,8 @@ import {
   openStoredFile,
   readInitialAccessTimeMs,
   resolveStoredFilePath,
-  restoreRepositoryInitialAccessTimes
+  restoreRepositoryInitialAccessTimes,
+  withTrackedFileAccess
 } from '../file-access-time.js';
 import { filePreviewKind, requestWantsJson, safeOriginalName, setFlash } from '../utils.js';
 import {
@@ -135,24 +136,6 @@ function logUploadConnectionAbort(req, error) {
     + `receivedFileBytes=${receivedFileBytes}, contentLength=${expectedText}, `
     + `elapsedMs=${elapsedMs}, reason=${error.message || error.code || 'connection closed'}).`
   );
-}
-
-async function withTrackedFileAccess(tracker, operation) {
-  try {
-    const result = await operation();
-    tracker.complete();
-    return result;
-  } catch (error) {
-    try {
-      tracker.complete();
-    } catch (completionError) {
-      throw new AggregateError(
-        [error, completionError],
-        'The file operation and access time update both failed.'
-      );
-    }
-    throw error;
-  }
 }
 
 class RepositoryCreationError extends Error {
@@ -844,7 +827,7 @@ export function createRepositoriesRouter(db, config) {
     let opened;
     try {
       opened = openStoredFile(config, req.repository.id, file.stored_name);
-      const tracker = createFileAccessTracker(db, req.repository, file, opened.fd);
+      const tracker = createFileAccessTracker(db, req.repository, file, opened);
       res.set('Cache-Control', 'private, no-store');
 
       if (previewKind === 'pdf') {
@@ -874,7 +857,10 @@ export function createRepositoriesRouter(db, config) {
         }
         return createSevenZipPreview(opened.filePath, opened.stats, {
           enabled: config.sevenZipPreviewEnabled === true,
-          timeoutMs: config.sevenZipPreviewTimeoutMs
+          timeoutMs: config.sevenZipPreviewTimeoutMs,
+          maxHeaderBytes: config.sevenZipPreviewMaxHeaderMb * 1024 * 1024,
+          maxCompressedHeaderBytes: config.sevenZipPreviewMaxHeaderMb * 1024 * 1024,
+          maxScannedEntries: config.sevenZipPreviewMaxScannedEntries
         });
       });
       return res.json(preview);
@@ -915,7 +901,7 @@ export function createRepositoriesRouter(db, config) {
     let opened;
     try {
       opened = openStoredFile(config, req.repository.id, file.stored_name);
-      const tracker = createFileAccessTracker(db, req.repository, file, opened.fd);
+      const tracker = createFileAccessTracker(db, req.repository, file, opened);
       res.type(file.mime_type || 'application/octet-stream');
       res.set('Content-Length', String(opened.stats.size));
       res.set('Content-Disposition', contentDisposition('attachment', file.original_name));

@@ -111,10 +111,28 @@ export function openStoredFile(config, repositoryId, storedName) {
   }
 }
 
+function normalizeFileReference(fileReference) {
+  if (typeof fileReference === 'number' && Number.isInteger(fileReference)) {
+    return { fd: fileReference, filePath: null };
+  }
+  if (typeof fileReference === 'string' && fileReference) {
+    return { fd: null, filePath: fileReference };
+  }
+  if (fileReference && typeof fileReference === 'object') {
+    const fd = Number.isInteger(fileReference.fd) ? fileReference.fd : null;
+    const filePath = typeof fileReference.filePath === 'string' && fileReference.filePath
+      ? fileReference.filePath
+      : null;
+    if (fd !== null || filePath) return { fd, filePath };
+  }
+  throw new TypeError('A valid stored-file reference is required.');
+}
+
 function fileStats(fileReference) {
-  return typeof fileReference === 'number'
-    ? fs.fstatSync(fileReference)
-    : fs.statSync(fileReference);
+  const reference = normalizeFileReference(fileReference);
+  return reference.fd !== null
+    ? fs.fstatSync(reference.fd)
+    : fs.statSync(reference.filePath);
 }
 
 export function readInitialAccessTimeMs(fileReference) {
@@ -138,13 +156,78 @@ function storedInitialAccessTimeMs(db, file, fileReference) {
   return Number(saved?.initial_access_time_ms ?? detectedValue);
 }
 
+function canRetryFutimeByPath(error, reference) {
+  return Boolean(
+    reference.filePath
+    && ['EPERM', 'EACCES'].includes(error?.code)
+    && (!error?.syscall || ['futime', 'futimes'].includes(error.syscall))
+  );
+}
+
+function requirePathToReferenceOpenFile(reference) {
+  const openedStats = fs.fstatSync(reference.fd, { bigint: true });
+  const pathStats = fs.lstatSync(reference.filePath, { bigint: true });
+  if (
+    !openedStats.isFile()
+    || !pathStats.isFile()
+    || pathStats.isSymbolicLink()
+    || openedStats.dev !== pathStats.dev
+    || openedStats.ino !== pathStats.ino
+  ) {
+    const error = new Error('The stored file changed before its access time could be updated.');
+    error.code = 'ESTALE';
+    throw error;
+  }
+}
+
 function applyAccessTimeMs(fileReference, targetAccessTimeMs) {
-  const stats = fileStats(fileReference);
+  const reference = normalizeFileReference(fileReference);
+  const stats = reference.fd !== null
+    ? fs.fstatSync(reference.fd)
+    : fs.statSync(reference.filePath);
   if (Math.abs(stats.atimeMs - targetAccessTimeMs) <= ACCESS_TIME_TOLERANCE_MS) return;
-  if (typeof fileReference === 'number') {
-    fs.futimesSync(fileReference, targetAccessTimeMs / 1000, stats.mtimeMs / 1000);
-  } else {
-    fs.utimesSync(fileReference, targetAccessTimeMs / 1000, stats.mtimeMs / 1000);
+
+  const accessTimeSeconds = targetAccessTimeMs / 1000;
+  const modifiedTimeSeconds = stats.mtimeMs / 1000;
+  if (reference.fd === null) {
+    fs.utimesSync(reference.filePath, accessTimeSeconds, modifiedTimeSeconds);
+    return;
+  }
+
+  try {
+    fs.futimesSync(reference.fd, accessTimeSeconds, modifiedTimeSeconds);
+  } catch (error) {
+    if (!canRetryFutimeByPath(error, reference)) throw error;
+
+    // On Windows, a descriptor opened read-only can lack FILE_WRITE_ATTRIBUTES,
+    // causing futime to fail with EPERM. Verify the path still names the exact
+    // open regular file before using the path-based SetFileTime fallback.
+    requirePathToReferenceOpenFile(reference);
+    fs.utimesSync(reference.filePath, accessTimeSeconds, modifiedTimeSeconds);
+  }
+}
+
+export async function withTrackedFileAccess(tracker, operation, onCompletionError = null) {
+  try {
+    const result = await operation();
+    tracker.complete();
+    return result;
+  } catch (error) {
+    try {
+      tracker.complete();
+    } catch (completionError) {
+      if (typeof onCompletionError === 'function') {
+        onCompletionError(completionError, error);
+      } else {
+        console.error(
+          'File access time update failed after the file operation failed.',
+          completionError
+        );
+      }
+    }
+    // Preserve the domain error from the operation (for example
+    // SEVEN_ZIP_METADATA_LIMIT) instead of replacing it with AggregateError.
+    throw error;
   }
 }
 
@@ -182,8 +265,8 @@ export function restoreRepositoryInitialAccessTimes(db, config, repositoryId) {
     let opened;
     try {
       opened = openStoredFile(config, file.repository_id, file.stored_name);
-      const initialAccessTimeMs = storedInitialAccessTimeMs(db, file, opened.fd);
-      applyAccessTimeMs(opened.fd, initialAccessTimeMs);
+      const initialAccessTimeMs = storedInitialAccessTimeMs(db, file, opened);
+      applyAccessTimeMs(opened, initialAccessTimeMs);
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     } finally {

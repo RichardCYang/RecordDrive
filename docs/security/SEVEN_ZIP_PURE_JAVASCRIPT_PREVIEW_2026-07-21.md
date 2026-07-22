@@ -61,20 +61,22 @@ The worker receives a minimal environment containing only `LZMA_NATIVE_DISABLE=1
 
 The implementation applies independent limits to:
 
-- worker runtime;
-- old-generation and young-generation V8 heap;
+- worker runtime (60-second default, clamped to 1-300 seconds);
+- old-generation and young-generation V8 heap (the old-generation budget scales from a 384 MiB default to a bounded 640 MiB maximum);
 - code range and worker stack;
 - single metadata read;
 - cumulative metadata bytes read;
 - Next Header bytes;
 - compressed metadata bytes;
 - encoded-header folders, coders, input/output streams, and properties;
-- scanned entries;
+- scanned entries (100,000 default, clamped to 10,000-250,000; larger parsed lists return bounded partial totals instead of discarding the whole preview);
 - visible entries;
 - individual UTF-8 name length; and
 - cumulative visible name bytes.
 
 The random-access source truncates reads at end-of-file, as the parser API expects, while rejecting reads that start outside the file. It verifies the file size again inside the worker to reduce time-of-check/time-of-use ambiguity.
+
+Expanded and compressed metadata headers use a 128 MiB default with a hard 256 MiB ceiling. Only one 7z worker runs concurrently, limiting aggregate parser pressure while still permitting large archive metadata previews.
 
 ## Path handling
 
@@ -119,7 +121,8 @@ The regression suite includes:
 - a real encrypted-header 7z archive;
 - default-enabled behavior;
 - explicit disable behavior;
-- visible-entry and scanned-entry limits;
+- visible-entry limits and partial-result behavior at the scanned-entry limit;
+- 128 MiB large-header defaults and 256 MiB configuration clamping;
 - malformed signatures;
 - corrupted Next Header CRC;
 - oversized Next Header declarations;

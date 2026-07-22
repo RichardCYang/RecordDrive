@@ -195,7 +195,9 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `HTTP_REQUEST_TIMEOUT_MS` | `3600000` | Maximum time to receive a complete HTTP request body; the 1-hour default replaces Node.js's 5-minute default for large uploads, and `0` disables the limit |
 | `HTTP_HEADERS_TIMEOUT_MS` | `60000` | Maximum time to receive complete HTTP headers; automatically clamped to `HTTP_REQUEST_TIMEOUT_MS` when that limit is enabled |
 | `SEVEN_ZIP_PREVIEW_ENABLED` | `true` | Enables the bounded pure-JavaScript 7z metadata parser; set to `false` for an explicit policy override |
-| `SEVEN_ZIP_PREVIEW_TIMEOUT_MS` | `20000` | Maximum runtime for the disposable JavaScript parser worker; accepted values are clamped to 1–120 seconds |
+| `SEVEN_ZIP_PREVIEW_TIMEOUT_MS` | `60000` | Maximum runtime for the disposable JavaScript parser worker; accepted values are clamped to 1–300 seconds |
+| `SEVEN_ZIP_PREVIEW_MAX_HEADER_MB` | `128` | Maximum expanded or compressed 7z metadata-header size in MiB; accepted values are clamped to 16–256 MiB and the worker memory budget scales with this bounded value |
+| `SEVEN_ZIP_PREVIEW_MAX_SCANNED_ENTRIES` | `100000` | Maximum number of 7z entries inspected for metadata; accepted values are clamped to 10,000–250,000 |
 | `SESSION_SECRET` | Example value | Secret used to sign session cookies |
 | `ADMIN_ACCESS_DISABLED` | `false` | Disables administrator creation, login, sessions, privileges, and `/admin` routes when set to `true`, `on`, `yes`, or `1` |
 | `ADMIN_USERNAME` | `admin` | Username for the first administrator when administrator access is enabled |

@@ -150,7 +150,9 @@ class Cursor {
       const value = this.buffer.readBigUInt64LE(this.offset);
       this.offset += 8;
       const number = bigintToSafeNumber(value, label);
-      if (number > maximum) throw new ParserLimitError(`${label} exceeds its safety limit.`);
+      if (number > maximum) {
+        throw new ParserLimitError(`${label} (${number}) exceeds its safety limit (${maximum}).`);
+      }
       return number;
     }
 
@@ -169,7 +171,9 @@ class Cursor {
     }
     this.offset += extraBytes;
     const number = bigintToSafeNumber(value, label);
-    if (number > maximum) throw new ParserLimitError(`${label} exceeds its safety limit.`);
+    if (number > maximum) {
+      throw new ParserLimitError(`${label} (${number}) exceeds its safety limit (${maximum}).`);
+    }
     return number;
   }
 }
@@ -505,17 +509,17 @@ function addCapped(total, value) {
 async function parseArchive() {
   const options = workerData?.options || {};
   const limits = {
-    maxHeaderBytes: safeInteger(options.maxHeaderBytes, 16 * 1024 * 1024, 64 * 1024, 32 * 1024 * 1024),
-    maxCompressedHeaderBytes: safeInteger(options.maxCompressedHeaderBytes, 16 * 1024 * 1024, 64 * 1024, 32 * 1024 * 1024),
-    maxSingleReadBytes: safeInteger(options.maxSingleReadBytes, 20 * 1024 * 1024, 64 * 1024, 40 * 1024 * 1024),
-    maxTotalReadBytes: safeInteger(options.maxTotalReadBytes, 64 * 1024 * 1024, 1024 * 1024, 128 * 1024 * 1024),
+    maxHeaderBytes: safeInteger(options.maxHeaderBytes, 128 * 1024 * 1024, 64 * 1024, 256 * 1024 * 1024),
+    maxCompressedHeaderBytes: safeInteger(options.maxCompressedHeaderBytes, 128 * 1024 * 1024, 64 * 1024, 256 * 1024 * 1024),
+    maxSingleReadBytes: safeInteger(options.maxSingleReadBytes, 160 * 1024 * 1024, 64 * 1024, 320 * 1024 * 1024),
+    maxTotalReadBytes: safeInteger(options.maxTotalReadBytes, 512 * 1024 * 1024, 1024 * 1024, 1024 * 1024 * 1024),
     maxCoders: 8,
     maxStreams: 16,
     maxPackStreams: 4,
     maxFolders: 4,
     maxCoderPropertyBytes: 4096
   };
-  const maxScannedEntries = safeInteger(options.maxScannedEntries, 10_000, 1, 100_000);
+  const maxScannedEntries = safeInteger(options.maxScannedEntries, 100_000, 1, 250_000);
   const maxVisibleEntries = Math.min(
     maxScannedEntries,
     safeInteger(options.maxVisibleEntries, 2500, 1, 2500)
@@ -566,17 +570,17 @@ async function parseArchive() {
     }
 
     const parsedEntries = parser.getEntries();
-    if (parsedEntries.length > maxScannedEntries) {
-      throw new ParserLimitError('The 7z archive contains too many entries to inspect safely.');
-    }
+    const scannedEntryCount = Math.min(parsedEntries.length, maxScannedEntries);
+    const scanLimited = parsedEntries.length > scannedEntryCount;
 
     const entries = [];
     let totalEntries = 0;
     let totalUncompressedSize = 0;
     let visibleNameBytes = 0;
-    let omitted = false;
+    let omitted = scanLimited;
 
-    for (const parsed of parsedEntries) {
+    for (let index = 0; index < scannedEntryCount; index += 1) {
+      const parsed = parsedEntries[index];
       if (parsed?.isAntiFile) {
         omitted = true;
         continue;
@@ -614,10 +618,10 @@ async function parseArchive() {
       encrypted: false,
       entries,
       totalEntries,
-      totalEntriesExact: true,
+      totalEntriesExact: !scanLimited,
       totalCompressedSize: source.getSize(),
       totalUncompressedSize,
-      totalsExact: true,
+      totalsExact: !scanLimited,
       truncated: omitted || entries.length < totalEntries
     };
   } finally {
