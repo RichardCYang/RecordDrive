@@ -3,6 +3,7 @@ import process from 'node:process';
 import { isIP } from 'node:net';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
+import { parseAllowedHosts } from './middleware/host-header.js';
 
 dotenv.config({ quiet: true });
 
@@ -113,6 +114,7 @@ export function loadConfig(overrides = {}) {
     nodeEnv,
     isProduction,
     trustProxy: trustProxyFromEnv(env.TRUST_PROXY),
+    allowedHosts: parseAllowedHosts(env.ALLOWED_HOSTS || ''),
     httpRequestTimeoutMs,
     httpHeadersTimeoutMs,
     sessionSecret,
@@ -239,7 +241,12 @@ export function applyRuntimeConfidentialityPolicy(config, networkSettings = {}) 
   // signal, not only an Express request-parsing option.
   const externallyReachable = hasTrustedProxyExposure(config.trustProxy)
     || activeHosts.some((host) => !isLoopbackListenerHost(host));
-  if (externallyReachable) validateExternallyReachableSecrets(config);
+  if (externallyReachable) {
+    validateExternallyReachableSecrets(config);
+    if (parseAllowedHosts(config.allowedHosts || []).length === 0) {
+      throw new Error('An externally reachable deployment requires at least one ALLOWED_HOSTS entry.');
+    }
+  }
 
   config.externallyReachable = externallyReachable;
   config.requireHttps = Boolean(config.isProduction || externallyReachable);

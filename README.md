@@ -73,6 +73,7 @@ Permissions are checked independently on every server request. A user with no `V
 - Access is denied by default unless the requester is an administrator, the repository owner, or has the required explicit permission.
 - Repository access is checked on every view, folder creation, upload, download, file or folder deletion, repository deletion, and permission-management request. Repository deletion is restricted to the owner and administrators.
 - Unauthorized repository requests return a generic not-found response to avoid exposing repository existence.
+- HTTP `Host` authorities are parsed strictly before static files, body parsing, sessions, or authentication. Direct loopback use accepts only loopback host names and addresses; externally reachable deployments require an exact `ALLOWED_HOSTS` allowlist. Malformed, duplicate, untrusted, wildcard, encoded/confusable IP, and legacy numeric IPv4 authorities are rejected with HTTP 421 and no session cookie.
 - Uploaded files receive generated storage names and are stored outside the public web directory.
 - Stored files are opened with symbolic-link following disabled. Storage paths are canonicalized, symbolic-link ancestors are rejected during use, and repository/database paths reject symbolic links.
 - File names shown to users are normalized and length-limited.
@@ -140,7 +141,7 @@ ADMIN_PASSWORD=ChangeMe123!
 
 Set `ADMIN_ACCESS_DISABLED=true` (also accepts `on`, `yes`, or `1`) to disable administrator account creation, password login, MFA completion, existing administrator sessions, administrator-only routes, and implicit administrator repository privileges. Regular user login remains available. Existing administrator records are retained in SQLite so access can be restored later by changing the flag and restarting the service.
 
-The example password and session secret are accepted only for direct loopback development without proxy trust. RecordDrive refuses to start on a non-loopback listener or when `TRUST_PROXY` is enabled until `SESSION_SECRET` is unique and at least 32 UTF-8 bytes and, when administrator access is enabled, `ADMIN_PASSWORD` is non-default and meets the password-length limits. The bootstrap password is used only when no administrator account exists.
+The example password and session secret are accepted only for direct loopback development without proxy trust. In that mode, incoming requests are also restricted to `localhost`, subdomains of `.localhost`, `127.0.0.0/8`, `::1`, and any exact entries in `ALLOWED_HOSTS`. RecordDrive refuses to start on a non-loopback listener or when `TRUST_PROXY` is enabled until `ALLOWED_HOSTS` contains at least one exact public host name or IP literal, `SESSION_SECRET` is unique and at least 32 UTF-8 bytes, and, when administrator access is enabled, `ADMIN_PASSWORD` is non-default and meets the password-length limits. The bootstrap password is used only when no administrator account exists.
 
 ## Available commands
 
@@ -193,6 +194,7 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `TLS_RELOAD_INTERVAL_MINUTES` | `5` | Certificate file change check interval |
 | `NODE_ENV` | `development` | Enables production validation, secure transport enforcement, production error behavior, and static asset caching |
 | `TRUST_PROXY` | `false` | Explicit Express proxy trust setting; enabling it activates externally reachable deployment checks even when the application binds only to loopback |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1,::1` in `.env.example` | Comma-separated exact HTTP Host names or IP literals, without schemes, ports, or wildcards; mandatory for externally reachable deployments |
 | `HTTP_REQUEST_TIMEOUT_MS` | `3600000` | Maximum time to receive a complete HTTP request body; the 1-hour default replaces Node.js's 5-minute default for large uploads, and `0` disables the limit |
 | `HTTP_HEADERS_TIMEOUT_MS` | `60000` | Maximum time to receive complete HTTP headers; automatically clamped to `HTTP_REQUEST_TIMEOUT_MS` when that limit is enabled |
 | `SEVEN_ZIP_PREVIEW_ENABLED` | `true` | Enables the bounded pure-JavaScript 7z metadata parser; set to `false` for an explicit policy override |
@@ -220,7 +222,7 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 
 Upload and storage limits are not runtime environment settings. They are persisted in SQLite and edited through **Admin → Storage**. Legacy `MAX_FILE_SIZE_MB`, `MAX_FILES_PER_UPLOAD`, `MAX_REPOSITORY_STORAGE_MB`, `MAX_TOTAL_STORAGE_MB`, `MAX_REPOSITORY_FILES`, and `MAX_TOTAL_FILES` values are used only to seed missing database keys during an upgrade or first initialization; after the keys exist, the database is authoritative.
 
-Every environment other than `development` and `test` uses production validation. Startup rejects a weak session secret, a weak or bcrypt-truncated bootstrap administrator password, and a separately configured MFA encryption key shorter than 32 UTF-8 bytes. The same secret-strength validation is applied in development or test whenever an active HTTP or HTTPS listener is not loopback-only or `TRUST_PROXY` is enabled. Production and externally reachable deployments require requests to be recognized as HTTPS; use native TLS or a narrowly trusted TLS-terminating reverse proxy.
+Every environment other than `development` and `test` uses production validation. Startup rejects a weak session secret, a weak or bcrypt-truncated bootstrap administrator password, and a separately configured MFA encryption key shorter than 32 UTF-8 bytes. The same secret-strength validation is applied in development or test whenever an active HTTP or HTTPS listener is not loopback-only or `TRUST_PROXY` is enabled. Externally reachable deployments also fail closed when `ALLOWED_HOSTS` is empty. Production and externally reachable deployments require requests to be recognized as HTTPS; use native TLS or a narrowly trusted TLS-terminating reverse proxy, preserve the intended public `Host` value, and list it exactly in `ALLOWED_HOSTS`.
 
 ## Large file uploads
 
@@ -284,11 +286,11 @@ Create `.env`, replace the example secrets, and choose either native HTTPS or a 
 
 ```bash
 cp .env.example .env
-# Edit SESSION_SECRET and ADMIN_PASSWORD; configure native TLS or TRUST_PROXY for your proxy.
+# Edit SESSION_SECRET, ADMIN_PASSWORD, and ALLOWED_HOSTS; configure native TLS or TRUST_PROXY for your proxy.
 docker compose up --build -d
 ```
 
-The Compose file explicitly forces `NODE_ENV=production` and in-container listeners on `0.0.0.0`, so values from `.env` cannot downgrade the container to development behavior. Host ports are published only on `127.0.0.1` by default. The application still requires HTTPS because the container listeners are non-loopback; terminate TLS in RecordDrive on port 3443 or send traffic through a reverse proxy whose exact topology is configured with `TRUST_PROXY`. Weak example secrets cause startup to fail.
+The Compose file explicitly forces `NODE_ENV=production` and in-container listeners on `0.0.0.0`, so values from `.env` cannot downgrade the container to development behavior. Host ports are published only on `127.0.0.1` by default, and Compose supplies a loopback-only `ALLOWED_HOSTS` default. Replace that value with the exact public host name before publishing through a reverse proxy or non-loopback interface. The application still requires HTTPS because the container listeners are non-loopback; terminate TLS in RecordDrive on port 3443 or send traffic through a reverse proxy whose exact topology is configured with `TRUST_PROXY`. Weak example secrets cause startup to fail.
 
 The Compose configuration stores the database and uploaded files in the `recorddrive_data` volume. If the administrator selects different ports, update the Compose port mappings to match. Do not change host publication to `0.0.0.0` unless HTTPS is already working and the network exposure is intentional.
 
@@ -365,7 +367,7 @@ RecordDrive/
 
 ## Deployment notes
 
-Use either the native HTTPS listener or a trusted HTTPS reverse proxy with `NODE_ENV=production`. The application returns HTTP 426 for every request that Express does not recognize as HTTPS in production, on any non-loopback listener, or whenever `TRUST_PROXY` is enabled; this check runs before static serving, body parsing, sessions, and authentication. Authentication cookies are always marked `Secure` in those modes. Enabling proxy trust also forces strong-secret and non-default administrator-password validation, even when the application listener itself is loopback-only. Proxy trust is disabled by default; set `TRUST_PROXY` only when the exact proxy topology is known, because forwarded client and protocol headers are otherwise attacker-controlled. Universal trust values such as `true` are rejected. Do not expose the application listener directly when it is configured to trust a reverse proxy. Keep secrets outside source control, protect the persistent data volume and certificate files with filesystem permissions, and maintain regular backups.
+Use either the native HTTPS listener or a trusted HTTPS reverse proxy with `NODE_ENV=production`. Every externally reachable deployment must set `ALLOWED_HOSTS` to the exact public host names or IP literals accepted from clients; schemes, ports, wildcard suffixes, and forwarded-host fallback are intentionally unsupported. The reverse proxy must overwrite the upstream `Host` header with one of those values. Host validation runs before static serving, body parsing, sessions, and authentication. The application then returns HTTP 426 for every request that Express does not recognize as HTTPS in production, on any non-loopback listener, or whenever `TRUST_PROXY` is enabled. Authentication cookies are always marked `Secure` in those modes. Enabling proxy trust also forces strong-secret and non-default administrator-password validation, even when the application listener itself is loopback-only. Proxy trust is disabled by default; set `TRUST_PROXY` only when the exact proxy topology is known, because forwarded client and protocol headers are otherwise attacker-controlled. Universal trust values such as `true` are rejected. Do not expose the application listener directly when it is configured to trust a reverse proxy. Keep secrets outside source control, protect the persistent data volume and certificate files with filesystem permissions, and maintain regular backups.
 
 Browser upload forms already place `_csrf` before file parts. Custom multipart clients must do the same or send the token in the `X-CSRF-Token` header so the request can be authenticated before any file bytes are opened on disk.
 

@@ -2,6 +2,20 @@
 
 Run all commands from the repository root. All PoCs use temporary local databases and files; they do not target a remote service.
 
+## Patched Host header and DNS rebinding boundary
+
+```bash
+node security-poc/host-header-dns-rebinding.mjs
+```
+
+Expected result: the baseline loopback model accepts `Host: attacker.example`, establishes demonstration session/CSRF state, and returns a synthetic confidential marker after the documented example credentials are submitted. The patched production Host policy returns HTTP 421 before setting a cookie, while `Host: localhost` remains functional. The output must end with `Result: PASS - hostile Host requests are rejected before session establishment.`
+
+The focused parser and middleware regression suite can be run without external dependencies:
+
+```bash
+node --test test/host-header-confidentiality.test.js
+```
+
 ## Patched authentication rate-limit concurrency boundary
 
 ```bash

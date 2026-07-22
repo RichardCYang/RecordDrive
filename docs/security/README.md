@@ -20,15 +20,17 @@ This directory is the canonical index for RecordDrive security reports, validati
    - [2026-07-21 final hardening pass](reports/2026-07-21-confidentiality-final-hardening.md)
    - [2026-07-21 confidentiality follow-up](reports/2026-07-21-confidentiality-follow-up.md)
    - [2026-07-21 reverse-proxy review](reports/2026-07-21-reverse-proxy-review.md)
-4. Read the [2026-07-22 session-payload confidentiality hardening](reports/2026-07-22-session-payload-confidentiality-hardening.md) for encrypted server-side sessions, data minimization, and externally reachable WebAuthn configuration.
-5. Read the [2026-07-22 initial-password confidentiality hardening](reports/2026-07-22-initial-password-confidentiality-hardening.md) for forced temporary-password replacement and session revocation.
-6. Read the [2026-07-22 authentication rate-limit concurrency review](reports/2026-07-22-authentication-rate-limit-race.md) for the parallel-attempt PoC and remediation.
-7. Read the [7z preview security review](reports/2026-07-21-seven-zip-preview-review.md) for archive-parser design boundaries and residual risks.
+4. Read the [2026-07-22 Host header and DNS rebinding hardening](reports/2026-07-22-host-header-dns-rebinding-hardening.md) for the loopback-origin boundary, local PoC, and exact Host allowlist.
+5. Read the [2026-07-22 session-payload confidentiality hardening](reports/2026-07-22-session-payload-confidentiality-hardening.md) for encrypted server-side sessions, data minimization, and externally reachable WebAuthn configuration.
+6. Read the [2026-07-22 initial-password confidentiality hardening](reports/2026-07-22-initial-password-confidentiality-hardening.md) for forced temporary-password replacement and session revocation.
+7. Read the [2026-07-22 authentication rate-limit concurrency review](reports/2026-07-22-authentication-rate-limit-race.md) for the parallel-attempt PoC and remediation.
+8. Read the [7z preview security review](reports/2026-07-21-seven-zip-preview-review.md) for archive-parser design boundaries and residual risks.
 
 ## Report index
 
 | Date | Document | Primary purpose |
 | --- | --- | --- |
+| 2026-07-22 | [Host header and DNS rebinding hardening](reports/2026-07-22-host-header-dns-rebinding-hardening.md) | Strict pre-session Host validation, loopback-origin protection, exact external allowlist, and local PoC |
 | 2026-07-22 | [Initial-password confidentiality hardening](reports/2026-07-22-initial-password-confidentiality-hardening.md) | Forced replacement of administrator-issued temporary passwords, protected-route blocking, and active-session revocation |
 | 2026-07-22 | [Session-payload confidentiality hardening](reports/2026-07-22-session-payload-confidentiality-hardening.md) | AES-GCM session payload storage, secret-field query minimization, and explicit external WebAuthn relying-party settings |
 | 2026-07-22 | [Authentication rate-limit concurrency review](reports/2026-07-22-authentication-rate-limit-race.md) | Parallel password, MFA, and security-reauthentication throttling bypass and remediation |
@@ -45,6 +47,8 @@ This directory is the canonical index for RecordDrive security reports, validati
 | Artifact | Purpose |
 | --- | --- |
 | [Security PoC guide](evidence/security-poc-guide.md) | Local reproduction and regression commands |
+| [2026-07-22 Host header/DNS rebinding PoC results](evidence/2026-07-22-host-header-dns-rebinding-results.txt) | Exact baseline and patched authority-boundary output |
+| [2026-07-22 Host header validation results](evidence/2026-07-22-host-header-validation-results.txt) | Syntax, focused tests, static assertions, dependency limitation, and `.git` integrity result |
 | [2026-07-22 authentication rate-limit PoC results](evidence/2026-07-22-authentication-rate-limit-race-results.txt) | Exact pre- and post-remediation concurrency output |
 | [2026-07-12 PoC results](evidence/2026-07-12-security-poc-results.txt) | Exact baseline and post-remediation outputs |
 | [CycloneDX SBOM](sbom/recorddrive-security-sbom.cdx.json) | Machine-readable dependency inventory |

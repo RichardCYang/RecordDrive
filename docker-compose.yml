@@ -10,6 +10,7 @@ services:
       NODE_ENV: production
       HTTP_HOST: 0.0.0.0
       HTTPS_HOST: 0.0.0.0
+      ALLOWED_HOSTS: "${ALLOWED_HOSTS:-localhost,127.0.0.1,::1}"
     volumes:
       - recorddrive_data:/app/data
       # Mount a host Posh-ACME order directory as read-only when native HTTPS is enabled.

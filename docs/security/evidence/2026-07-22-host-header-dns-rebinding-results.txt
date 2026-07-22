@@ -1,0 +1,11 @@
+{
+  "hostileHost": "attacker.example",
+  "legacyHostileLoginPageStatus": 200,
+  "legacyHostileLoginStatus": 200,
+  "legacyConfidentialMarkerReturned": true,
+  "patchedHostileStatus": 421,
+  "patchedHostileSetCookie": false,
+  "patchedLocalLoginStatus": 200,
+  "patchedLocalConfidentialMarkerReturned": true
+}
+Result: PASS - hostile Host requests are rejected before session establishment.

@@ -23,6 +23,7 @@ import { createAdminRouter } from './routes/admin.js';
 import { createRepositoriesRouter } from './routes/repositories.js';
 import { fileKind, filePreviewKind, formatBytes, formatDate, requestWantsJson } from './utils.js';
 import { languageMiddleware } from './i18n.js';
+import { createHostHeaderProtection } from './middleware/host-header.js';
 import { createSettingsRouter } from './routes/settings.js';
 import {
   UploadCsrfError,
@@ -46,7 +47,12 @@ export function createApplication(options = {}) {
   if (config.adminAccessDisabled) purgeAdministratorSessions(db, config.sessionSecret);
   const runtimeControl = options.runtimeControl || {};
   const networkSettings = loadTlsSettings(db, config);
-  applyRuntimeConfidentialityPolicy(config, networkSettings);
+  try {
+    applyRuntimeConfidentialityPolicy(config, networkSettings);
+  } catch (error) {
+    if (!options.db) db.close();
+    throw error;
+  }
   const sessionIdleMs = (Number(config.sessionIdleHours) || 12) * 60 * 60 * 1000;
   const sessionAbsoluteMs = (Number(config.sessionAbsoluteHours) || 168) * 60 * 60 * 1000;
   const app = express();
@@ -77,6 +83,7 @@ export function createApplication(options = {}) {
       }
     }
   }));
+  app.use(createHostHeaderProtection(config));
   app.use((req, res, next) => {
     if (!config.requireHttps || req.secure) return next();
     res.set('Cache-Control', 'no-store');

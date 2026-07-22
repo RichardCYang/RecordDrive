@@ -34,6 +34,7 @@ function testConfig(tempRoot) {
     nodeEnv: 'test',
     isProduction: false,
     trustProxy: false,
+    allowedHosts: ['localhost', '127.0.0.1', '::1'],
     sessionSecret: 'hardening-test-session-secret-with-more-than-thirty-two-characters',
     mfaEncryptionKey: 'hardening-test-mfa-key-with-more-than-thirty-two-characters',
     mfaIssuer: 'RecordDrive Hardening Test',
@@ -447,6 +448,14 @@ test('fails closed for non-loopback and trusted reverse-proxy exposure', async (
   assert.equal(config.externallyReachable, true);
   assert.equal(config.requireHttps, true);
   assert.equal(config.exposeDetailedErrors, false);
+  const hostileHost = await request(app)
+    .get('/login')
+    .set('Host', 'attacker.example')
+    .set('X-Forwarded-Proto', 'https')
+    .expect(421);
+  assert.equal(hostileHost.text, 'The request Host header is not allowed.');
+  assert.equal(hostileHost.headers['set-cookie'], undefined);
+
   const plainLogin = await request(app).get('/login').expect(426);
   assert.equal(plainLogin.text, 'HTTPS is required for this listener.');
   assert.equal(plainLogin.headers['set-cookie'], undefined);

@@ -1,0 +1,23 @@
+RecordDrive Host Header Confidentiality Validation
+Date: 2026-07-22
+Runtime: v22.16.0
+
+Syntax checks: PASS (112 JavaScript/MJS/CJS files)
+Focused dependency-free tests: PASS (13 passed, 0 failed)
+Safe local baseline/patched PoC: PASS
+PoC evidence reproducibility: PASS
+.git entries exact-match: 43
+
+Static assertions:
+host_before_static: PASS
+host_before_body_parser: PASS
+host_before_session: PASS
+baseline_had_no_host_gate: PASS
+no_non_include_raw_ejs: PASS
+no_browser_html_code_sinks: PASS
+
+Dependency-backed validation limitation:
+- npm ci was attempted twice with scripts and audit disabled.
+- The configured package gateway returned HTTP 503 for locked transitive package tarballs.
+- The full integration suite and npm audit therefore could not run in this environment.
+- The available runtime was Node.js v22.16.0, below the minimum ranges declared by package.json.
