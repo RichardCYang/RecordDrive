@@ -276,7 +276,9 @@ function renderSecurityPasswordLimit(req, res, retrySeconds) {
     type: 'error',
     message: req.t('Too many password confirmation attempts. Try again later.')
   };
-  return res.redirect('/settings#security-verification');
+  return res.redirect(req.path === '/settings/password'
+    ? '/settings/password'
+    : '/settings#security-verification');
 }
 
 export function securityPasswordRateLimit(req, res, next) {

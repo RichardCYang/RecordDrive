@@ -21,6 +21,7 @@
       </section>
 
       <nav class="settings-section-nav" aria-label="<%= t('Settings sections') %>">
+        <a href="/settings/password"><%= t('Password') %></a>
         <a href="#security"><%= t('Security') %></a>
         <a href="#totp"><%= t('Authenticator app') %></a>
         <a href="#passkeys"><%= t('Passkeys') %></a>
@@ -36,6 +37,13 @@
           </div>
 
           <div class="settings-panel-body">
+            <div class="security-verification-card">
+              <div>
+                <h3><%= t('Password') %></h3>
+                <p><%= t('Change your password and end every other active session for this account.') %></p>
+              </div>
+              <a class="button button-secondary" href="/settings/password"><%= t('Change password') %></a>
+            </div>
             <div class="security-overview-grid">
               <div class="security-overview-item">
                 <span><%= t('Authenticator app') %></span>

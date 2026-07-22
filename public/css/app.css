@@ -2350,3 +2350,13 @@ button:disabled { cursor: not-allowed; opacity: .55; }
   .quota-status-grid,
   .quota-settings-grid { grid-template-columns: 1fr; }
 }
+
+/* Password confidentiality hardening */
+.password-change-shell { max-width: 820px; }
+.password-change-panel { overflow: visible; }
+.password-change-panel .panel-header > p { max-width: 390px; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; text-align: right; }
+.password-change-form { max-width: 560px; }
+.status-warning { border-color: #fcd34d; color: #92400e; background: #fffbeb; }
+@media (max-width: 640px) {
+  .password-change-panel .panel-header > p { text-align: left; }
+}

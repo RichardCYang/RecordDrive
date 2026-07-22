@@ -147,7 +147,7 @@ export function createApplication(options = {}) {
   app.use((req, res, next) => {
     const userId = Number(req.session?.userId);
     req.currentUser = Number.isInteger(userId)
-      ? db.prepare('SELECT id, username, display_name, role, created_at FROM users WHERE id = ?').get(userId)
+      ? db.prepare('SELECT id, username, display_name, role, must_change_password, created_at FROM users WHERE id = ?').get(userId)
       : null;
 
     if (userId && !req.currentUser && req.session) delete req.session.userId;
@@ -167,6 +167,19 @@ export function createApplication(options = {}) {
   app.use(blockDisabledAdministratorSession);
   app.use(csrfTokenMiddleware);
   app.use(verifyCsrf);
+
+  app.use((req, res, next) => {
+    if (!req.currentUser || Number(req.currentUser.must_change_password) !== 1) return next();
+    if (req.path === '/settings/password' || req.path === '/logout' || req.path === '/health') return next();
+
+    res.set('Cache-Control', 'private, no-store');
+    const message = req.t('You must replace your temporary password before using RecordDrive.');
+    if (requestWantsJson(req) || req.path.includes('/passkeys/')) {
+      return res.status(403).json({ error: message, passwordChangeUrl: '/settings/password' });
+    }
+    req.session.flash = { type: 'error', message };
+    return res.redirect('/settings/password');
+  });
 
   app.get('/health', (req, res) => {
     const databaseOk = db.prepare('SELECT 1 AS ok').get().ok === 1;

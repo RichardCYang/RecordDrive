@@ -110,6 +110,7 @@ export function createDatabase(providedConfig) {
       display_name TEXT NOT NULL,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'USER' CHECK (role IN ('ADMIN', 'USER')),
+      must_change_password INTEGER NOT NULL DEFAULT 0 CHECK (must_change_password IN (0, 1)),
       totp_enabled INTEGER NOT NULL DEFAULT 0 CHECK (totp_enabled IN (0, 1)),
       totp_secret_encrypted TEXT,
       totp_last_used_step INTEGER,
@@ -255,6 +256,16 @@ export function createDatabase(providedConfig) {
   }
   if (!userColumns.has('totp_last_used_step')) {
     db.exec('ALTER TABLE users ADD COLUMN totp_last_used_step INTEGER;');
+  }
+  if (!userColumns.has('must_change_password')) {
+    db.exec(`
+      ALTER TABLE users
+      ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0
+      CHECK (must_change_password IN (0, 1));
+      UPDATE users
+      SET must_change_password = 1
+      WHERE role = 'USER';
+    `);
   }
 
   const repositoryColumns = new Set(

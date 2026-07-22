@@ -36,11 +36,53 @@ import {
   userIdBuffer,
   verifyTotpToken
 } from '../security-service.js';
-import { setFlash } from '../utils.js';
+import { safeInternalPath, setFlash } from '../utils.js';
 import { purgeUserSessions } from '../session-store.js';
+import {
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  passwordMeetsPolicy
+} from '../password-policy.js';
 
 const ENROLLMENT_MAX_AGE_MS = 10 * 60 * 1000;
 const MAX_SECURITY_PASSWORD_BYTES = 1024;
+
+function renderPasswordChange(req, res, options = {}) {
+  res.set('Cache-Control', 'private, no-store');
+  return res.status(options.status || 200).render('change-password', {
+    title: req.t('Change password'),
+    error: options.error || null,
+    forced: Number(req.currentUser.must_change_password) === 1,
+    minimumPasswordLength: MIN_PASSWORD_LENGTH,
+    maximumPasswordLength: MAX_PASSWORD_LENGTH
+  });
+}
+
+function completePasswordChange(req, res, next, db, config, destination) {
+  const userId = Number(req.currentUser.id);
+  const username = req.currentUser.username;
+  const now = Date.now();
+
+  purgeUserSessions(db, userId, req.sessionID, config.sessionSecret);
+  return req.session.regenerate((error) => {
+    if (error) return next(error);
+    req.session.userId = userId;
+    req.session.authenticatedAt = now;
+    req.session.sessionCreatedAt = now;
+    req.session.securityVerifiedAt = now;
+    setFlash(req, 'success', req.t('Your password was changed. Other signed-in sessions were ended.'));
+    logActivity(db, {
+      actorId: userId,
+      action: 'PASSWORD_CHANGED',
+      targetType: 'USER',
+      targetLabel: username
+    });
+    return req.session.save((saveError) => {
+      if (saveError) return next(saveError);
+      return res.redirect(destination);
+    });
+  });
+}
 
 function parseTransports(value) {
   try {
@@ -134,6 +176,70 @@ function consumeNewRecoveryCodes(req, config) {
 
 export function createSettingsRouter(db, config) {
   const router = express.Router();
+
+  router.get('/settings/password', requireAuth, (req, res) => {
+    return renderPasswordChange(req, res);
+  });
+
+  router.post('/settings/password', requireAuth, securityPasswordRateLimit, async (req, res, next) => {
+    try {
+      const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.currentUser.id);
+      const currentPassword = String(req.body.currentPassword || '');
+      const newPassword = String(req.body.newPassword || '');
+      const confirmation = String(req.body.confirmPassword || '');
+      const currentPasswordWithinLimit = Buffer.byteLength(currentPassword, 'utf8') <= MAX_SECURITY_PASSWORD_BYTES;
+      const currentPasswordValid = user
+        && currentPasswordWithinLimit
+        && await bcrypt.compare(currentPassword, user.password_hash);
+
+      if (!currentPasswordValid) {
+        recordSecurityPasswordFailure(req, req.currentUser.id);
+        return renderPasswordChange(req, res, {
+          status: 401,
+          error: req.t('The current password is incorrect.')
+        });
+      }
+      if (!passwordMeetsPolicy(newPassword) || bcrypt.truncates(newPassword)) {
+        releaseSecurityPasswordAttempt(req);
+        return renderPasswordChange(req, res, {
+          status: 400,
+          error: req.t('The new password must be {{minimum}} to {{maximum}} characters and no more than 72 UTF-8 bytes.', {
+            minimum: MIN_PASSWORD_LENGTH,
+            maximum: MAX_PASSWORD_LENGTH
+          })
+        });
+      }
+      if (newPassword !== confirmation) {
+        releaseSecurityPasswordAttempt(req);
+        return renderPasswordChange(req, res, {
+          status: 400,
+          error: req.t('The new passwords do not match.')
+        });
+      }
+      if (await bcrypt.compare(newPassword, user.password_hash)) {
+        releaseSecurityPasswordAttempt(req);
+        return renderPasswordChange(req, res, {
+          status: 400,
+          error: req.t('Choose a new password that is different from the current password.')
+        });
+      }
+
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+      const destination = Number(req.currentUser.must_change_password) === 1
+        ? safeInternalPath(req.session.postPasswordChangeReturnTo, '/')
+        : '/settings#security';
+      db.prepare(`
+        UPDATE users
+        SET password_hash = ?, must_change_password = 0
+        WHERE id = ?
+      `).run(passwordHash, req.currentUser.id);
+      clearSecurityPasswordAttempts(req.currentUser.id, req);
+      return completePasswordChange(req, res, next, db, config, destination);
+    } catch (error) {
+      releaseSecurityPasswordAttempt(req);
+      return next(error);
+    }
+  });
 
   router.get('/settings', requireAuth, async (req, res, next) => {
     try {

@@ -22,6 +22,11 @@ import {
   QuotaSettingsError,
   updateGlobalQuotaSettings
 } from '../quota-settings.js';
+import {
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  passwordMeetsPolicy
+} from '../password-policy.js';
 
 const USERNAME_PATTERN = /^[a-z0-9_.-]{3,32}$/;
 
@@ -32,6 +37,7 @@ function listUsers(db) {
       u.username,
       u.display_name,
       u.role,
+      u.must_change_password,
       u.created_at,
       CASE
         WHEN u.role = 'ADMIN' THEN (SELECT COUNT(*) FROM repositories)
@@ -159,8 +165,11 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
         formError = req.t('Use 3-32 lowercase letters, numbers, periods, underscores, or hyphens for the username.');
       } else if (displayName.length < 2 || displayName.length > 50) {
         formError = req.t('The display name must be between 2 and 50 characters.');
-      } else if (password.length < 8 || password.length > 128 || bcrypt.truncates(password)) {
-        formError = req.t('The password must be 8 to 128 characters and no more than 72 UTF-8 bytes.');
+      } else if (!passwordMeetsPolicy(password) || bcrypt.truncates(password)) {
+        formError = req.t('The password must be {{minimum}} to {{maximum}} characters and no more than 72 UTF-8 bytes.', {
+          minimum: MIN_PASSWORD_LENGTH,
+          maximum: MAX_PASSWORD_LENGTH
+        });
       } else if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(username)) {
         formError = req.t('That username is already in use.');
       }
@@ -177,8 +186,8 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
 
       const passwordHash = await bcrypt.hash(password, 12);
       db.prepare(`
-        INSERT INTO users (username, display_name, password_hash, role)
-        VALUES (?, ?, ?, 'USER')
+        INSERT INTO users (username, display_name, password_hash, role, must_change_password)
+        VALUES (?, ?, ?, 'USER', 1)
       `).run(username, displayName, passwordHash);
 
       logActivity(db, {

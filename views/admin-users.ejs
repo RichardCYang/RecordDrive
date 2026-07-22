@@ -17,7 +17,7 @@
             <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <label class="field"><span><%= t('Display name') %></span><input type="text" name="displayName" value="<%= form.displayName %>" placeholder="<%= t('e.g. Jordan Lee') %>" minlength="2" maxlength="50" required></label>
             <label class="field"><span><%= t('Username') %></span><input type="text" name="username" value="<%= form.username %>" placeholder="<%= t('e.g. jordan.lee') %>" pattern="[a-z0-9_.-]{3,32}" required><small><%= t('Lowercase letters, numbers, periods, underscores, and hyphens · 3–32 characters') %></small></label>
-            <label class="field"><span><%= t('Initial password') %></span><div class="input-with-icon no-leading-icon"><input type="password" name="password" minlength="8" maxlength="128" required data-password-input><button type="button" class="password-toggle" aria-label="<%= t('Show password') %>" data-password-toggle><%= t('Show') %></button></div><small><%= t('Use at least 8 characters and share the password securely with the user.') %></small></label>
+            <label class="field"><span><%= t('Temporary password') %></span><div class="input-with-icon no-leading-icon"><input type="password" name="password" minlength="12" maxlength="128" autocomplete="new-password" required data-password-input><button type="button" class="password-toggle" aria-label="<%= t('Show password') %>" data-password-toggle><%= t('Show') %></button></div><small><%= t('Use at least 12 characters. The user must replace this temporary password immediately after signing in.') %></small></label>
             <button class="button button-primary button-block" type="submit"><%= t('Create account') %></button>
           </form>
         </section>
@@ -30,7 +30,7 @@
               <tbody>
                 <% users.forEach((user) => { %>
                   <tr>
-                    <td><div class="user-cell"><span class="avatar"><%= user.display_name.slice(0, 1).toUpperCase() %></span><div><strong><%= user.display_name %></strong><small>@<%= user.username %></small></div></div></td>
+                    <td><div class="user-cell"><span class="avatar"><%= user.display_name.slice(0, 1).toUpperCase() %></span><div><strong><%= user.display_name %></strong><small>@<%= user.username %></small><% if (user.must_change_password) { %><small><%= t('Password change required') %></small><% } %></div></div></td>
                     <td><span class="role-badge <%= user.role === 'ADMIN' ? 'role-admin' : '' %>"><%= user.role === 'ADMIN' ? t('Administrator') : t('User') %></span></td>
                     <td><%= user.repository_count %></td>
                     <td><%= user.uploaded_file_count %></td>

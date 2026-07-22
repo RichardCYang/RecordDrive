@@ -60,7 +60,7 @@ function getPendingMfa(req, db, config) {
     return null;
   }
   const user = db.prepare(`
-    SELECT id, username, display_name, role, created_at
+    SELECT id, username, display_name, role, must_change_password, created_at
     FROM users
     WHERE id = ?
   `).get(pending.userId);
@@ -128,6 +128,10 @@ function completeLogin(req, res, next, db, config, user, returnTo, options = {})
     req.session.userId = user.id;
     req.session.authenticatedAt = authenticatedAt;
     req.session.sessionCreatedAt = authenticatedAt;
+    const intendedRedirect = safeInternalPath(returnTo, '/');
+    if (Number(user.must_change_password) === 1) {
+      req.session.postPasswordChangeReturnTo = intendedRedirect;
+    }
     return saveLimitedAuthenticationSession(req, next, db, config, user.id, () => {
       logActivity(db, {
         actorId: user.id,
@@ -135,7 +139,9 @@ function completeLogin(req, res, next, db, config, user, returnTo, options = {})
         targetType: 'USER',
         targetLabel: user.username
       });
-      const redirect = safeInternalPath(returnTo, '/');
+      const redirect = Number(user.must_change_password) === 1
+        ? '/settings/password'
+        : intendedRedirect;
       if (json) return res.json({ verified: true, redirect });
       return res.redirect(redirect);
     });
@@ -188,7 +194,7 @@ export function createAuthRouter(db, config) {
       const password = String(req.body.password || '');
       const passwordWithinLimit = Buffer.byteLength(password, 'utf8') <= MAX_LOGIN_PASSWORD_BYTES;
       const user = db.prepare(`
-        SELECT id, username, display_name, password_hash, role, created_at
+        SELECT id, username, display_name, password_hash, role, must_change_password, created_at
         FROM users
         WHERE username = ?
       `).get(username);
