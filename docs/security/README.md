@@ -29,12 +29,14 @@ This directory is the canonical index for RecordDrive security reports, validati
 10. Read the [2026-07-23 tombstone-expiry hardening](reports/2026-07-23-confidentiality-tombstone-expiry-hardening.md) for the residual delayed-`touch()` resurrection after tombstone cleanup, update-only touch semantics, absolute-lifetime enforcement, and regression evidence.
 11. Read the [2026-07-23 in-flight disclosure revocation hardening](reports/2026-07-23-in-flight-disclosure-revocation-hardening.md) for permission/session revocation during active downloads and PDF previews, the bounded protected file pump, and before/after PoC.
 12. Read the [2026-07-23 generated-preview disclosure revocation hardening](reports/2026-07-23-generated-preview-disclosure-revocation-hardening.md) for the residual one-shot XLSX/ZIP/7z JSON response gap, bounded protected buffer streaming, and reproducible PoC.
-13. Read the [7z preview security review](reports/2026-07-21-seven-zip-preview-review.md) for archive-parser design boundaries and residual risks.
+13. Read the [2026-07-23 live session-state disclosure revocation hardening](reports/2026-07-23-session-state-disclosure-revocation-hardening.md) for encrypted session identity binding and absolute-timeout enforcement during active responses.
+14. Read the [7z preview security review](reports/2026-07-21-seven-zip-preview-review.md) for archive-parser design boundaries and residual risks.
 
 ## Report index
 
 | Date | Document | Primary purpose |
 | --- | --- | --- |
+| 2026-07-23 | [Live session-state disclosure revocation hardening](reports/2026-07-23-session-state-disclosure-revocation-hardening.md) | Current encrypted session identity and absolute lifetime enforcement during active downloads/previews, PoC, and fail-closed regression coverage |
 | 2026-07-23 | [Generated-preview disclosure revocation hardening](reports/2026-07-23-generated-preview-disclosure-revocation-hardening.md) | Active XLSX/ZIP/7z JSON confidentiality after permission or session revocation, protected buffer pump, PoC, and regression validation |
 | 2026-07-23 | [In-flight disclosure revocation hardening](reports/2026-07-23-in-flight-disclosure-revocation-hardening.md) | Active download/PDF confidentiality after permission or session revocation, current-state authorizer, bounded file pump, PoC, and regression validation |
 | 2026-07-23 | [Confidentiality tombstone-expiry hardening](reports/2026-07-23-confidentiality-tombstone-expiry-hardening.md) | Revoked-session resurrection after tombstone expiry, update-only touch semantics, absolute-lifetime persistence enforcement, PoC, and regression validation |
@@ -56,6 +58,7 @@ This directory is the canonical index for RecordDrive security reports, validati
 
 | Artifact | Purpose |
 | --- | --- |
+| [2026-07-23 live session-state disclosure revocation results](evidence/2026-07-23-session-state-disclosure-revocation-results.txt) | Exact original and patched session-payload identity/absolute-expiry PoC output, focused tests, limitations, and integrity verification |
 | [2026-07-23 generated-preview disclosure revocation results](evidence/2026-07-23-generated-preview-disclosure-revocation-results.txt) | Exact one-shot baseline and protected-buffer permission/session revocation output, focused tests, limitations, and final integrity results |
 | [2026-07-23 in-flight disclosure revocation results](evidence/2026-07-23-in-flight-disclosure-revocation-results.txt) | Exact authorize-once baseline and patched permission/session revocation output, focused tests, limitations, and final integrity results |
 | [Security PoC guide](evidence/security-poc-guide.md) | Local reproduction and regression commands |

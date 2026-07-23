@@ -7,7 +7,10 @@ import { Writable } from 'node:stream';
 import { DatabaseSync } from 'node:sqlite';
 import { createFileDisclosureAuthorizer } from '../src/disclosure-authorization.js';
 import { streamProtectedFile } from '../src/protected-file-stream.js';
-import { sessionStorageKey } from '../src/session-store.js';
+import {
+  encryptSessionPayload,
+  sessionStorageKey
+} from '../src/session-store.js';
 
 const SESSION_SECRET = 'in-flight-disclosure-poc-secret-at-least-thirty-two-characters';
 const SESSION_ID = 'in-flight-disclosure-poc-session';
@@ -86,12 +89,23 @@ function createDatabase() {
 
 function resetAuthorization(db) {
   const storageId = sessionStorageKey(SESSION_ID, SESSION_SECRET);
+  const now = Date.now();
+  const storedSession = {
+    cookie: { maxAge: 10 * 60 * 1000, originalMaxAge: 10 * 60 * 1000 },
+    userId: USER_ID,
+    authenticatedAt: now,
+    sessionCreatedAt: now
+  };
   db.prepare('DELETE FROM revoked_sessions WHERE sid = ?').run(storageId);
   db.prepare(`
     INSERT INTO sessions (sid, sess, expires)
     VALUES (?, ?, ?)
     ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expires = excluded.expires
-  `).run(storageId, '{}', Date.now() + 10 * 60 * 1000);
+  `).run(
+    storageId,
+    encryptSessionPayload(storedSession, storageId, SESSION_SECRET),
+    now + 10 * 60 * 1000
+  );
   db.prepare(`
     UPDATE repository_permissions
     SET can_download = 1

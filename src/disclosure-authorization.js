@@ -1,6 +1,8 @@
 import { getRepositoryAccess } from './repository-access.js';
 import { createStoredSessionActivityChecker } from './session-store.js';
 
+const DEFAULT_SESSION_ABSOLUTE_HOURS = 168;
+
 function requiredPositiveInteger(value, label) {
   const normalized = Number(value);
   if (!Number.isSafeInteger(normalized) || normalized <= 0) {
@@ -20,10 +22,16 @@ export function createFileDisclosureAuthorizer(db, config, context = {}) {
   const userId = requiredPositiveInteger(context.userId, 'The user identifier');
   const repositoryId = requiredPositiveInteger(context.repositoryId, 'The repository identifier');
   const fileId = requiredIdentifier(context.fileId, 'The file identifier');
+  const configuredAbsoluteHours = Number(config?.sessionAbsoluteHours);
+  const absoluteHours = Number.isFinite(configuredAbsoluteHours) && configuredAbsoluteHours > 0
+    ? configuredAbsoluteHours
+    : DEFAULT_SESSION_ABSOLUTE_HOURS;
+  const absoluteTtlMs = absoluteHours * 60 * 60 * 1000;
   const sessionIsActive = createStoredSessionActivityChecker(
     db,
     sessionId,
-    config?.sessionSecret
+    config?.sessionSecret,
+    { userId, absoluteTtlMs }
   );
   const getUser = db.prepare(`
     SELECT id, role, must_change_password

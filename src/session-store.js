@@ -119,29 +119,50 @@ export function ensureSessionRevocationSchema(db) {
   `);
 }
 
-export function createStoredSessionActivityChecker(db, sid, secret) {
+export function createStoredSessionActivityChecker(db, sid, secret, options = {}) {
   ensureSessionRevocationSchema(db);
   const storageId = sessionStorageKey(sid, secret);
+  const payloadProtector = createSessionPayloadProtector(secret);
+  const expectedUserId = Number(options.userId);
+  const requiresExpectedUser = Number.isSafeInteger(expectedUserId) && expectedUserId > 0;
+  const absoluteTtlMs = Number(options.absoluteTtlMs) > 0
+    ? Number(options.absoluteTtlMs)
+    : 0;
   const statement = db.prepare(`
-    SELECT CASE WHEN
-      EXISTS (
-        SELECT 1
-        FROM sessions
-        WHERE sid = ? AND expires >= ?
-      )
+    SELECT sess
+    FROM sessions
+    WHERE sid = ?
+      AND expires >= ?
       AND NOT EXISTS (
         SELECT 1
         FROM revoked_sessions
         WHERE sid = ? AND expires >= ?
       )
-      THEN 1 ELSE 0
-    END AS active
+    LIMIT 1
   `);
 
   return (now = Date.now()) => {
     const checkedAt = Number(now);
     if (!Number.isFinite(checkedAt)) return false;
-    return Boolean(statement.get(storageId, checkedAt, storageId, checkedAt).active);
+
+    const row = statement.get(storageId, checkedAt, storageId, checkedAt);
+    if (!row) return false;
+
+    let storedSession;
+    try {
+      storedSession = payloadProtector.decrypt(row.sess, storageId).session;
+    } catch {
+      return false;
+    }
+
+    if (requiresExpectedUser) {
+      if (Number(storedSession?.userId) !== expectedUserId) return false;
+      const createdAt = authenticatedSessionCreatedAt(storedSession);
+      if (createdAt === null) return false;
+      if (absoluteTtlMs > 0 && checkedAt - createdAt > absoluteTtlMs) return false;
+    }
+
+    return true;
   };
 }
 

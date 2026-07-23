@@ -158,3 +158,12 @@ The baseline commands are intentionally local resource-consumption demonstration
 ```bash
 git worktree remove ../recorddrive-baseline --force
 ```
+
+## Live session-state disclosure revocation
+
+```bash
+node security-poc/session-state-disclosure-revocation.mjs
+node --test test/session-state-disclosure-revocation.test.js
+```
+
+The PoC keeps the server-side session row and rolling idle expiry live while first removing the authenticated identity from the encrypted payload and then exceeding a short absolute lifetime. RecordDrive 2.0.4 continues authorizing both states; 2.0.5 fails closed.

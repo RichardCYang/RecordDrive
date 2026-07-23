@@ -1,0 +1,118 @@
+RecordDrive live session-state disclosure revocation evidence
+Date: 2026-07-23
+Original application version: 2.0.4
+Patched application version: 2.0.5
+
+[Confirmed boundary]
+Original createStoredSessionActivityChecker behavior:
+- checks HMAC-indexed session row exists
+- checks idle row expiry
+- checks no active revocation tombstone
+- does not decrypt the current session payload
+- does not bind current session userId to the disclosure user
+- does not enforce the authenticated session's absolute lifetime during a running response
+
+[PoC command]
+node security-poc/session-state-disclosure-revocation.mjs
+
+[Original 2.0.4 PoC]
+{
+  "absoluteTtlMs": 1000,
+  "initial": {
+    "legacyRowOnly": true,
+    "currentAuthorizer": true
+  },
+  "afterAuthenticationRemoval": {
+    "legacyRowOnly": true,
+    "currentAuthorizer": true
+  },
+  "afterAbsoluteExpiry": {
+    "legacyRowOnly": true,
+    "currentAuthorizer": true
+  },
+  "vulnerable": true,
+  "blocked": false
+}
+
+[Patched 2.0.5 PoC]
+{
+  "absoluteTtlMs": 1000,
+  "initial": {
+    "legacyRowOnly": true,
+    "currentAuthorizer": true
+  },
+  "afterAuthenticationRemoval": {
+    "legacyRowOnly": true,
+    "currentAuthorizer": false
+  },
+  "afterAbsoluteExpiry": {
+    "legacyRowOnly": true,
+    "currentAuthorizer": false
+  },
+  "vulnerable": false,
+  "blocked": true
+}
+
+[Focused production disclosure tests]
+Command:
+node --test test/in-flight-disclosure-revocation.test.js test/session-state-disclosure-revocation.test.js
+
+Result:
+- tests: 5
+- passed: 5
+- failed: 0
+
+[Additional dependency-free security/confidentiality suites]
+- authentication rate-limit concurrency: 4 passed
+- file descriptor/access-time safety: 3 passed
+- generated preview revocation: 4 passed
+- Host header confidentiality: 5 passed
+- password policy: 1 passed
+- session revocation/tombstone races: 8 passed
+- session-state disclosure revocation: 3 passed
+- request-error confidentiality static/unit cases: 3 passed
+Total: 33 passed, 0 failed
+
+[Static validation]
+- npm run check: passed
+- JavaScript/ESM/CommonJS syntax: 128 files checked, 0 failures
+- JSON parse validation: 6 files checked, 0 failures
+
+[Dependency installation limitation]
+Command:
+npm ci --ignore-scripts --no-audit --no-fund
+
+Result:
+- failed before integration testing
+- registry/proxy response: HTTP 503
+- unavailable artifact: zip-stream@4.1.1
+- runtime warning: Node.js 22.16.0 is below the declared 22.x minimum 22.23.0
+- failure class: assessment environment/package availability, not an application assertion
+
+[Dependency advisory applicability]
+- multer lock: 2.2.0; patched for the reviewed June 2026 advisories
+- multer application configuration: fieldNestingDepth: 0; strict fields/parts/header limits
+- yauzl lock: 3.4.0; CVE-2026-31988 affects 3.2.0 and is patched in 3.2.1
+- uuid lock: 11.1.1; patched version for GHSA-w5hq-g745-h8pq on the 11.x line
+
+[Temporary test dependency]
+- a minimal express-session Store import-shape stub was used only for isolated tests
+- node_modules was removed after validation
+- the stub is absent from the final project and archive
+
+[Git preservation requirement]
+- original .git was copied with archive metadata preserved before source changes
+- no command wrote inside .git
+- exact pre/post path, type, mode, uid/gid, mtime, size, symlink target, and file SHA-256 comparison is performed before packaging
+- the final archive is extracted and its .git tree is compared again before delivery
+
+[Pre-packaging exact .git verification]
+- exact match: true
+- entries including .git root: 44
+- compared fields: path, type, mode, uid, gid, mtime_ns, size, symlink target, SHA-256 content
+- canonical manifest SHA-256: 34439c93990b981143caa430c8813d4a653a0dd7d2036056c09a0f939642bd28
+
+[Original versus fixed project outside .git/node_modules]
+- added: 4
+- modified: 8
+- deleted: 0
