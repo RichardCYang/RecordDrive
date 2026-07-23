@@ -119,6 +119,32 @@ export function ensureSessionRevocationSchema(db) {
   `);
 }
 
+export function createStoredSessionActivityChecker(db, sid, secret) {
+  ensureSessionRevocationSchema(db);
+  const storageId = sessionStorageKey(sid, secret);
+  const statement = db.prepare(`
+    SELECT CASE WHEN
+      EXISTS (
+        SELECT 1
+        FROM sessions
+        WHERE sid = ? AND expires >= ?
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM revoked_sessions
+        WHERE sid = ? AND expires >= ?
+      )
+      THEN 1 ELSE 0
+    END AS active
+  `);
+
+  return (now = Date.now()) => {
+    const checkedAt = Number(now);
+    if (!Number.isFinite(checkedAt)) return false;
+    return Boolean(statement.get(storageId, checkedAt, storageId, checkedAt).active);
+  };
+}
+
 function revocationExpiry(storedSession, storedExpiry, defaultTtlMs = 0, now = Date.now()) {
   const durationCandidates = [
     defaultTtlMs,

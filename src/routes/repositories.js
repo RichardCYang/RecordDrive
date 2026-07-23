@@ -13,6 +13,8 @@ import {
   permissionPayload
 } from '../repository-access.js';
 import { deleteRepository } from '../repository-service.js';
+import { createFileDisclosureAuthorizer } from '../disclosure-authorization.js';
+import { streamProtectedFile } from '../protected-file-stream.js';
 import {
   createFileAccessTracker,
   openStoredFile,
@@ -233,34 +235,28 @@ function enforceUploadQuotas(db, settings, repositoryId, uploadedFiles) {
   }
 }
 
-function streamOpenedFile(opened, tracker, res, next) {
-  let finalized = false;
-  const finalize = (streamError = null) => {
-    if (finalized) return;
-    finalized = true;
-    let error = streamError;
-    try {
-      tracker.complete();
-    } catch (completionError) {
-      console.error(`File access time update failed: ${completionError.message}`);
-      if (!error) error = completionError;
-    }
-    try {
-      fs.closeSync(opened.fd);
-    } catch (closeError) {
-      if (closeError.code !== 'EBADF') {
-        console.error(`Stored file close failed: ${closeError.message}`);
-        if (!error) error = closeError;
-      }
-    }
-    if (error && !res.headersSent) next(error);
-  };
+function createRequestFileDisclosureAuthorizer(db, config, req, file) {
+  return createFileDisclosureAuthorizer(db, config, {
+    sessionId: req.sessionID,
+    userId: req.currentUser.id,
+    repositoryId: req.repository.id,
+    fileId: file.id
+  });
+}
 
-  const stream = fs.createReadStream(opened.filePath, { fd: opened.fd, autoClose: false });
-  stream.on('error', finalize);
-  res.on('finish', () => finalize());
-  res.on('close', () => finalize());
-  stream.pipe(res);
+function streamAuthorizedFile(opened, tracker, res, next, isAuthorized) {
+  return streamProtectedFile({
+    opened,
+    tracker,
+    destination: res,
+    isAuthorized,
+    onError(error) {
+      if (!res.headersSent) next(error);
+    },
+    onAuthorizationError() {
+      console.error('File disclosure authorization re-check failed; the response was terminated.');
+    }
+  });
 }
 
 function readOpenedFile(opened) {
@@ -827,6 +823,12 @@ export function createRepositoriesRouter(db, config) {
     let opened;
     try {
       opened = openStoredFile(config, req.repository.id, file.stored_name);
+      const authorizeDisclosure = createRequestFileDisclosureAuthorizer(db, config, req, file);
+      if (!authorizeDisclosure()) {
+        fs.closeSync(opened.fd);
+        opened = null;
+        return res.status(404).json({ error: req.t('The requested file does not exist.') });
+      }
       const tracker = createFileAccessTracker(db, req.repository, file, opened);
       res.set('Cache-Control', 'private, no-store');
 
@@ -838,7 +840,7 @@ export function createRepositoriesRouter(db, config) {
         res.set('Referrer-Policy', 'no-referrer');
         res.set('Permissions-Policy', 'camera=(), geolocation=(), microphone=(), payment=(), usb=()');
         res.set('Cross-Origin-Resource-Policy', 'same-origin');
-        streamOpenedFile(opened, tracker, res, next);
+        streamAuthorizedFile(opened, tracker, res, next, authorizeDisclosure);
         opened = null;
         return;
       }
@@ -863,6 +865,9 @@ export function createRepositoriesRouter(db, config) {
           maxScannedEntries: config.sevenZipPreviewMaxScannedEntries
         });
       });
+      if (!authorizeDisclosure()) {
+        return res.status(404).json({ error: req.t('The requested file does not exist.') });
+      }
       return res.json(preview);
     } catch (error) {
       if (error?.code === 'ENOENT') {
@@ -901,11 +906,23 @@ export function createRepositoriesRouter(db, config) {
     let opened;
     try {
       opened = openStoredFile(config, req.repository.id, file.stored_name);
+      const authorizeDisclosure = createRequestFileDisclosureAuthorizer(db, config, req, file);
+      if (!authorizeDisclosure()) {
+        fs.closeSync(opened.fd);
+        opened = null;
+        const message = req.t('The requested file does not exist.');
+        if (requestWantsJson(req)) return res.status(404).json({ error: message });
+        return res.status(404).render('error', {
+          title: req.t('File not found'),
+          statusCode: 404,
+          message
+        });
+      }
       const tracker = createFileAccessTracker(db, req.repository, file, opened);
       res.type(file.mime_type || 'application/octet-stream');
       res.set('Content-Length', String(opened.stats.size));
       res.set('Content-Disposition', contentDisposition('attachment', file.original_name));
-      streamOpenedFile(opened, tracker, res, next);
+      streamAuthorizedFile(opened, tracker, res, next, authorizeDisclosure);
       opened = null;
       return;
     } catch (error) {

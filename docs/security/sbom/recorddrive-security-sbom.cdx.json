@@ -5,7 +5,7 @@
   "serialNumber": "urn:uuid:f54bb7d5-f3e2-4b95-96ea-275febaec264",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-21T05:51:55.894Z",
+    "timestamp": "2026-07-23T00:00:00.000Z",
     "lifecycles": [
       {
         "phase": "build"
@@ -19,13 +19,13 @@
       }
     ],
     "component": {
-      "bom-ref": "recorddrive@2.0.1",
+      "bom-ref": "recorddrive@2.0.3",
       "type": "library",
-      "name": "recorddrive_js_parser_work",
-      "version": "2.0.1",
+      "name": "recorddrive",
+      "version": "2.0.3",
       "scope": "required",
       "description": "A sky-blue team file drive built with Node.js",
-      "purl": "pkg:npm/recorddrive@2.0.1",
+      "purl": "pkg:npm/recorddrive@2.0.3",
       "properties": [
         {
           "name": "cdx:npm:package:path",
@@ -14009,7 +14009,7 @@
   ],
   "dependencies": [
     {
-      "ref": "recorddrive@2.0.1",
+      "ref": "recorddrive@2.0.3",
       "dependsOn": [
         "@simplewebauthn/server@13.3.2",
         "7z-iterator@2.2.9",

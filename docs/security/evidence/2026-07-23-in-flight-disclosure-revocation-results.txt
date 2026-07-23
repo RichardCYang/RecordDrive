@@ -1,0 +1,120 @@
+RecordDrive in-flight disclosure revocation evidence
+Date: 2026-07-23
+Patched project version: RecordDrive 2.0.3
+
+[Confirmed original-code security boundary]
+Original route behavior:
+- repository download permission checked once by route middleware
+- stored file opened through the validated no-follow path
+- fs.createReadStream(...).pipe(res) continued without a current-state authorization/session check
+
+Threat scenario:
+- an authorized user or stolen authenticated session starts a deliberately slow large download/PDF preview
+- the owner/admin revokes download permission, or the session is revoked through logout/password/security change
+- the already-open response continues disclosing the file
+
+[Deterministic before/after PoC]
+Command:
+node security-poc/in-flight-disclosure-revocation.mjs
+
+Result:
+{
+  "fileSize": 2097152,
+  "baseline": {
+    "permissionRevocation": {
+      "receivedBytes": 2097152,
+      "completed": true,
+      "fullDisclosure": true
+    },
+    "sessionRevocation": {
+      "receivedBytes": 2097152,
+      "completed": true,
+      "fullDisclosure": true
+    }
+  },
+  "patched": {
+    "permissionRevocation": {
+      "receivedBytes": 65536,
+      "completed": false,
+      "fullDisclosure": false,
+      "revoked": true
+    },
+    "sessionRevocation": {
+      "receivedBytes": 65536,
+      "completed": false,
+      "fullDisclosure": false,
+      "revoked": true
+    }
+  },
+  "verdict": "BLOCKED"
+}
+
+[Production remediation exercised by the PoC]
+- src/session-store.js createStoredSessionActivityChecker()
+- src/disclosure-authorization.js createFileDisclosureAuthorizer()
+- src/protected-file-stream.js streamProtectedFile()
+- repository permission revocation and session tombstone/deletion use real SQLite state
+- protected transfer uses the actual production file pump, descriptor lifecycle, backpressure, and recheck logic
+
+[Focused disclosure regression suite]
+Command:
+node --test test/in-flight-disclosure-revocation.test.js
+
+Expected result:
+- tests: 2
+- passed: 2
+- failed: 0
+
+[Existing session-revocation regression suite]
+Command:
+node --test test/session-revocation-race.test.js
+
+Expected result:
+- tests: 8
+- passed: 8
+- failed: 0
+
+[Additional dependency-free tests]
+Files/cases:
+- test/authentication-rate-limit-race.test.js (4)
+- test/file-access-time-unit.test.js (3)
+- test/host-header-confidentiality.test.js (5)
+- test/password-policy.test.js (1)
+- dependency-free cases in test/request-error-confidentiality.test.js (3)
+
+Expected result:
+- passed: 16
+- application assertion failures: 0
+
+[Unavailable dependency-backed case]
+- malformed JSON route test in test/request-error-confidentiality.test.js requires supertest
+- npm ci could not complete because the configured registry returned HTTP 503 for zip-stream@4.1.1
+- the unavailable case failed on ERR_MODULE_NOT_FOUND, not an application assertion
+
+[Assessment runtime]
+- Node.js: 22.16.0
+- Project-declared 22.x minimum: 22.23.0
+- Node SQLite was available and used for the focused PoC/tests
+- a minimal temporary express-session Store import-shape stub was used only because registry installation was unavailable
+- the stub must not be included in the final archive
+
+[Secret and Git-history review]
+- no production private key found
+- no real cloud/API/service token found
+- no production .env found
+- no committed application database found
+- matches were placeholders, documentation, or synthetic test/PoC values
+
+[Final validation]
+- focused in-flight disclosure tests: 2 passed, 0 failed
+- existing session-revocation tests: 8 passed, 0 failed
+- additional dependency-free confidentiality/unit cases: 16 passed, 0 application assertion failures
+- Supertest-backed malformed-JSON route case: 1 unavailable because dependencies could not be installed
+- npm run check: passed
+- JavaScript/ESM/CommonJS syntax: 125 files checked, 0 failures
+- JSON parse validation: 6 files checked, 0 failures
+- original-versus-fixed project comparison excluding .git/node_modules: 6 added, 8 modified, 0 deleted
+- .git filesystem comparison: 43 descendants plus the .git directory, 0 differences in path/type/mode/uid/gid/mtime/size/target/content
+- final ZIP .git comparison: every original .git entry is copied byte-for-byte with original ZIP metadata and verified after packaging
+- node_modules and temporary express-session stub: absent
+- archive SHA-256: delivered in the companion .sha256 file generated after packaging

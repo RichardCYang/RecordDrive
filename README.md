@@ -72,6 +72,7 @@ Permissions are checked independently on every server request. A user with no `V
 
 - Access is denied by default unless the requester is an administrator, the repository owner, or has the required explicit permission.
 - Repository access is checked on every view, folder creation, upload, download, file or folder deletion, repository deletion, and permission-management request. Repository deletion is restricted to the owner and administrators.
+- File downloads and PDF previews revalidate the live server-side session, account state, file record, repository, and current download permission before disclosure and throughout long-running transfers. Revocation terminates the response; spreadsheet and archive previews recheck immediately before returning metadata.
 - Unauthorized repository requests return a generic not-found response to avoid exposing repository existence.
 - HTTP `Host` authorities are parsed strictly before static files, body parsing, sessions, or authentication. Direct loopback use accepts only loopback host names and addresses; externally reachable deployments require an exact `ALLOWED_HOSTS` allowlist. Malformed, duplicate, untrusted, wildcard, encoded/confusable IP, and legacy numeric IPv4 authorities are rejected with HTTP 421 and no session cookie.
 - Uploaded files receive generated storage names and are stored outside the public web directory.
@@ -342,6 +343,7 @@ RecordDrive/
 │   ├── app.js
 │   ├── config.js
 │   ├── database.js
+│   ├── disclosure-authorization.js
 │   ├── i18n.js
 │   ├── i18n-extended.js
 │   ├── i18n-security.js
@@ -352,6 +354,7 @@ RecordDrive/
 │   ├── tls-settings.js
 │   ├── repository-access.js
 │   ├── repository-service.js
+│   ├── protected-file-stream.js
 │   ├── session-store.js
 │   ├── storage-path-security.js
 │   ├── upload-storage.js

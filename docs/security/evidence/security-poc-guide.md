@@ -2,6 +2,20 @@
 
 Run all commands from the repository root. All PoCs use temporary local databases and files; they do not target a remote service.
 
+## Patched in-flight disclosure revocation boundary
+
+```bash
+node security-poc/in-flight-disclosure-revocation.mjs
+```
+
+Expected result: the baseline permission- and session-revocation scenarios both receive the full 2 MiB file, while the patched production authorizer/file pump terminates both responses after a bounded partial chunk and ends with `"verdict": "BLOCKED"`.
+
+Run the focused regression suite:
+
+```bash
+node --test test/in-flight-disclosure-revocation.test.js
+```
+
 ## Patched session tombstone-expiry boundary
 
 ```bash
