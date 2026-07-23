@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { generateSecret, generateURI, verify } from 'otplib';
 import { decryptProtectedValue, encryptProtectedValue } from './secret-protection.js';
+import { activeSecurityVerificationExpiresAt } from './sensitive-session-material.js';
 
 const TOTP_AAD = Buffer.from('recorddrive:mfa:totp:v1', 'utf8');
 const RECOVERY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -214,11 +215,16 @@ export function getMfaState(db, userId) {
   };
 }
 
+export function securityVerificationExpiresAt(req, now = Date.now()) {
+  return activeSecurityVerificationExpiresAt(
+    req.session,
+    SECURITY_VERIFICATION_MAX_AGE_MS,
+    now
+  );
+}
+
 export function isSecurityRecentlyVerified(req) {
-  const now = Date.now();
-  const authenticatedAt = Number(req.session?.authenticatedAt || 0);
-  const verifiedAt = Number(req.session?.securityVerifiedAt || 0);
-  return [authenticatedAt, verifiedAt].some((value) => value > 0 && now - value <= SECURITY_VERIFICATION_MAX_AGE_MS);
+  return securityVerificationExpiresAt(req) > 0;
 }
 
 export function clearSecurityVerification(req) {

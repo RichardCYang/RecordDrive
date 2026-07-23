@@ -2,6 +2,21 @@
 
 Run all commands from the repository root. All PoCs use temporary local databases and files; they do not target a remote service.
 
+
+## Patched MFA sensitive material disclosure boundary
+
+```bash
+node security-poc/mfa-sensitive-session-material.mjs
+```
+
+Expected result: the supplied route model discloses both the pending TOTP setup secret and newly generated recovery codes after the ten-minute password-verification window has expired. The patched production helper caps both disclosure lifetimes at that verification expiry, both patched disclosure fields are `false`, and the output ends with `"verdict": "BLOCKED"`.
+
+Run the focused dependency-free regression suite:
+
+```bash
+node --test test/sensitive-session-material.test.js
+```
+
 ## Patched generated-preview disclosure revocation boundary
 
 ```bash

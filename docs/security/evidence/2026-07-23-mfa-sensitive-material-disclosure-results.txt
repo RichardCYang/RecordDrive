@@ -1,0 +1,110 @@
+RecordDrive MFA sensitive session material disclosure hardening
+Assessment date: 2026-07-23
+
+1. Deterministic PoC
+Command:
+  node security-poc/mfa-sensitive-session-material.mjs
+
+Output:
+{
+  "scenario": {
+    "authenticatedAt": 1800000000000,
+    "materialCreatedAt": 1800000540000,
+    "attackerReadAt": 1800000900000,
+    "readOccursMinutesAfterVerificationExpiry": 5
+  },
+  "originalModel": {
+    "totpSecretDisclosed": true,
+    "recoveryCodesDisclosed": true
+  },
+  "patchedModel": {
+    "disclosureExpiresAt": 1800000600000,
+    "securityVerificationExpiresAt": 1800000600000,
+    "totpSecretDisclosed": false,
+    "recoveryCodesDisclosed": false
+  },
+  "verdict": "BLOCKED"
+}
+
+2. Focused patch tests
+Command:
+  node --test test/sensitive-session-material.test.js
+
+Result:
+  tests 4
+  pass 4
+  fail 0
+
+3. Wider dependency-free security tests
+Covered groups:
+  authentication rate-limit concurrency
+  file access-time units
+  generated-preview disclosure revocation
+  Host-header confidentiality
+  password policy
+  sensitive session material
+
+Result:
+  tests 21
+  pass 21
+  fail 0
+
+4. Request-error confidentiality tests
+Result:
+  tests 3
+  pass 3
+  fail 0
+
+5. Source syntax validation
+Scope:
+  JavaScript, ESM, and CommonJS files outside .git and node_modules
+
+Result:
+  syntax_checked=132
+  syntax_failed=0
+
+6. Reachable Git history confidentiality scan
+Disposable audit clone only; no Git command was run against the final working copy.
+
+Result:
+  reachable commits: 46
+  reachable objects: 1083
+  private-key matches: 0
+  AWS access-key matches: 0
+  GitHub-token matches: 0
+  Slack-token matches: 0
+  JWT-shaped bearer-value matches: 0
+  current high-risk filenames: .env.example only
+
+7. Dependency/integration limitation
+Runtime:
+  Node.js 22.16.0
+Project engine:
+  ^22.23.0 || ^24.17.0 || ^26.3.1
+
+Repeated npm ci attempts failed and rolled back because the configured package proxy returned HTTP 503 for locked package artifacts, including zip-stream@4.1.1. The full dependency-backed test suite and registry-backed npm audit were therefore not completed.
+
+8. Final .git integrity
+Working-copy comparison against the fresh extraction baseline:
+  content manifest match: true
+  mode and nanosecond-mtime manifest match: true
+  content manifest SHA-256: e3f99b059cc06aae3f25445ad6b5b52db526638175c633b2d66de97f867cdd15
+  metadata manifest SHA-256: d952f5b25cc98f3853fc03405d148aed8efbf407740d8fa61015c7691d635b48
+
+Final archive comparison against the original uploaded ZIP:
+  .git ZIP entries: 44
+  entry order match: true
+  ZIP metadata mismatches: 0
+  decompressed content mismatches: 0
+  raw compressed-byte mismatches: 0
+  extracted content manifest match: true
+  extracted mode and nanosecond-mtime manifest match: true
+  exact .git preservation: true
+
+9. Randomized invariant validation
+  property rounds: 100000
+  property failures: 0
+
+10. Registry audit attempt
+  npm audit status: unavailable (HTTP 503 from configured package proxy)
+  package-lock SHA-256 unchanged before/after attempt: true

@@ -33,10 +33,15 @@ import {
   isSecurityRecentlyVerified,
   replaceRecoveryCodes,
   resolveWebAuthnSettings,
+  SECURITY_VERIFICATION_MAX_AGE_MS,
   userIdBuffer,
   verifyTotpToken
 } from '../security-service.js';
 import { sessionAbsoluteDurationMs } from '../config.js';
+import {
+  canDiscloseSensitiveSessionMaterial,
+  createBoundSensitiveMaterialExpiry
+} from '../sensitive-session-material.js';
 import { safeInternalPath, setFlash } from '../utils.js';
 import { purgeUserSessions } from '../session-store.js';
 import {
@@ -143,16 +148,39 @@ function revokeOtherUserSessions(req, db, config) {
   );
 }
 
+function sensitiveMaterialDisclosureExpiry(req, now = Date.now()) {
+  return createBoundSensitiveMaterialExpiry(req.session, {
+    now,
+    materialMaxAgeMs: ENROLLMENT_MAX_AGE_MS,
+    verificationMaxAgeMs: SECURITY_VERIFICATION_MAX_AGE_MS
+  });
+}
+
 function pendingTotpFromSession(req, config) {
   const pending = req.session.pendingTotpEnrollment;
-  if (!pending || Date.now() - Number(pending.createdAt || 0) > ENROLLMENT_MAX_AGE_MS) {
+  const now = Date.now();
+  const createdAt = Number(pending?.createdAt || 0);
+  const validEnrollmentAge = Number.isSafeInteger(createdAt)
+    && createdAt > 0
+    && createdAt <= now
+    && now - createdAt <= ENROLLMENT_MAX_AGE_MS;
+  const disclosureAllowed = pending && canDiscloseSensitiveSessionMaterial(
+    req.session,
+    pending.disclosureExpiresAt,
+    {
+      now,
+      verificationMaxAgeMs: SECURITY_VERIFICATION_MAX_AGE_MS
+    }
+  );
+  if (!validEnrollmentAge || !disclosureAllowed) {
     delete req.session.pendingTotpEnrollment;
     return null;
   }
   try {
     return {
       secret: decryptTotpSecret(pending.secretEncrypted, config),
-      createdAt: pending.createdAt
+      createdAt,
+      disclosureExpiresAt: Number(pending.disclosureExpiresAt)
     };
   } catch {
     delete req.session.pendingTotpEnrollment;
@@ -160,17 +188,33 @@ function pendingTotpFromSession(req, config) {
   }
 }
 
-
-function storeNewRecoveryCodes(req, codes, config) {
+function clearNewRecoveryCodes(req) {
   delete req.session.newRecoveryCodes;
-  if (!Array.isArray(codes) || codes.length === 0) {
-    delete req.session.newRecoveryCodesEncrypted;
-    return;
+  delete req.session.newRecoveryCodesEncrypted;
+  delete req.session.newRecoveryCodesExpiresAt;
+}
+
+function storeNewRecoveryCodes(req, codes, config, disclosureExpiresAt) {
+  clearNewRecoveryCodes(req);
+  if (!Array.isArray(codes) || codes.length === 0) return;
+  if (!Number.isSafeInteger(disclosureExpiresAt) || disclosureExpiresAt <= 0) {
+    throw new Error('Recovery codes require a valid security-verification disclosure boundary.');
   }
   req.session.newRecoveryCodesEncrypted = encryptRecoveryCodeBundle(codes, config);
+  req.session.newRecoveryCodesExpiresAt = disclosureExpiresAt;
 }
 
 function consumeNewRecoveryCodes(req, config) {
+  const disclosureAllowed = canDiscloseSensitiveSessionMaterial(
+    req.session,
+    req.session.newRecoveryCodesExpiresAt,
+    { verificationMaxAgeMs: SECURITY_VERIFICATION_MAX_AGE_MS }
+  );
+  if (!disclosureAllowed) {
+    clearNewRecoveryCodes(req);
+    return [];
+  }
+
   let codes = [];
   try {
     if (req.session.newRecoveryCodesEncrypted) {
@@ -181,8 +225,7 @@ function consumeNewRecoveryCodes(req, config) {
   } catch (error) {
     console.warn(`Protected recovery codes could not be decrypted: ${error.message}`);
   } finally {
-    delete req.session.newRecoveryCodes;
-    delete req.session.newRecoveryCodesEncrypted;
+    clearNewRecoveryCodes(req);
   }
   return codes;
 }
@@ -282,7 +325,8 @@ export function createSettingsRouter(db, config) {
         };
       }
 
-      const newRecoveryCodes = consumeNewRecoveryCodes(req, config);
+      const newRecoveryCodesExpiresAt = Number(req.session.newRecoveryCodesExpiresAt);
+      let newRecoveryCodes = consumeNewRecoveryCodes(req, config);
 
       let webAuthnAvailable = true;
       let webAuthnError = '';
@@ -291,6 +335,22 @@ export function createSettingsRouter(db, config) {
       } catch (error) {
         webAuthnAvailable = false;
         webAuthnError = error.message;
+      }
+
+      if (totpEnrollment && !canDiscloseSensitiveSessionMaterial(
+        req.session,
+        pendingTotp.disclosureExpiresAt,
+        { verificationMaxAgeMs: SECURITY_VERIFICATION_MAX_AGE_MS }
+      )) {
+        delete req.session.pendingTotpEnrollment;
+        totpEnrollment = null;
+      }
+      if (newRecoveryCodes.length && !canDiscloseSensitiveSessionMaterial(
+        req.session,
+        newRecoveryCodesExpiresAt,
+        { verificationMaxAgeMs: SECURITY_VERIFICATION_MAX_AGE_MS }
+      )) {
+        newRecoveryCodes = [];
       }
 
       return res.render('settings', {
@@ -350,10 +410,17 @@ export function createSettingsRouter(db, config) {
 
   router.post('/settings/security/totp/start', requireAuth, requireRecentSecurityVerification, (req, res, next) => {
     try {
+      const now = Date.now();
+      const disclosureExpiresAt = sensitiveMaterialDisclosureExpiry(req, now);
+      if (!disclosureExpiresAt) {
+        setFlash(req, 'error', req.t('Confirm your password before changing security settings.'));
+        return res.redirect('/settings#security-verification');
+      }
       const enrollment = createTotpEnrollment(req.currentUser, config);
       req.session.pendingTotpEnrollment = {
         secretEncrypted: encryptTotpSecret(enrollment.secret, config),
-        createdAt: Date.now()
+        createdAt: now,
+        disclosureExpiresAt
       };
       return res.redirect('/settings#totp');
     } catch (error) {
@@ -378,6 +445,20 @@ export function createSettingsRouter(db, config) {
         setFlash(req, 'error', req.t('The authenticator code is invalid or expired.'));
         return res.redirect('/settings#totp');
       }
+      if (!isSecurityRecentlyVerified(req)) {
+        delete req.session.pendingTotpEnrollment;
+        setFlash(req, 'error', req.t('Confirm your password before changing security settings.'));
+        return res.redirect('/settings#security-verification');
+      }
+      const needsRecoveryCodes = countActiveRecoveryCodes(db, req.currentUser.id) === 0;
+      const recoveryDisclosureExpiresAt = needsRecoveryCodes
+        ? sensitiveMaterialDisclosureExpiry(req)
+        : 0;
+      if (needsRecoveryCodes && !recoveryDisclosureExpiresAt) {
+        delete req.session.pendingTotpEnrollment;
+        setFlash(req, 'error', req.t('Confirm your password before changing security settings.'));
+        return res.redirect('/settings#security-verification');
+      }
 
       db.prepare(`
         UPDATE users
@@ -388,8 +469,13 @@ export function createSettingsRouter(db, config) {
       `).run(encryptTotpSecret(pending.secret, config), verification.timeStep, req.currentUser.id);
       delete req.session.pendingTotpEnrollment;
 
-      if (countActiveRecoveryCodes(db, req.currentUser.id) === 0) {
-        storeNewRecoveryCodes(req, createRecoveryCodes(db, req.currentUser.id, config), config);
+      if (needsRecoveryCodes) {
+        storeNewRecoveryCodes(
+          req,
+          createRecoveryCodes(db, req.currentUser.id, config),
+          config,
+          recoveryDisclosureExpiresAt
+        );
       }
       revokeOtherUserSessions(req, db, config);
       logActivity(db, {
@@ -438,12 +524,17 @@ export function createSettingsRouter(db, config) {
         setFlash(req, 'error', req.t('Enable an authenticator app or passkey before creating recovery keys.'));
         return res.redirect('/settings#recovery-codes');
       }
+      const disclosureExpiresAt = sensitiveMaterialDisclosureExpiry(req);
+      if (!disclosureExpiresAt) {
+        setFlash(req, 'error', req.t('Confirm your password before changing security settings.'));
+        return res.redirect('/settings#security-verification');
+      }
       const codes = createRecoveryCodes(db, req.currentUser.id, config);
       if (codes.length === 0) {
         setFlash(req, 'error', req.t('The maximum number of active recovery keys has been reached.'));
         return res.redirect('/settings#recovery-codes');
       }
-      storeNewRecoveryCodes(req, codes, config);
+      storeNewRecoveryCodes(req, codes, config, disclosureExpiresAt);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'RECOVERY_CODES_ADDED',
@@ -462,7 +553,17 @@ export function createSettingsRouter(db, config) {
         setFlash(req, 'error', req.t('Enable an authenticator app or passkey before creating recovery keys.'));
         return res.redirect('/settings#recovery-codes');
       }
-      storeNewRecoveryCodes(req, replaceRecoveryCodes(db, req.currentUser.id, config), config);
+      const disclosureExpiresAt = sensitiveMaterialDisclosureExpiry(req);
+      if (!disclosureExpiresAt) {
+        setFlash(req, 'error', req.t('Confirm your password before changing security settings.'));
+        return res.redirect('/settings#security-verification');
+      }
+      storeNewRecoveryCodes(
+        req,
+        replaceRecoveryCodes(db, req.currentUser.id, config),
+        config,
+        disclosureExpiresAt
+      );
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'RECOVERY_CODES_REGENERATED',
@@ -544,6 +645,19 @@ export function createSettingsRouter(db, config) {
       if (!verification.verified || !verification.registrationInfo) {
         return res.status(400).json({ error: req.t('The passkey could not be registered.') });
       }
+      if (!isSecurityRecentlyVerified(req)) {
+        delete req.session.webAuthnRegistration;
+        return res.status(401).json({ error: req.t('Confirm your password before changing security settings.') });
+      }
+
+      const needsRecoveryCodes = countActiveRecoveryCodes(db, req.currentUser.id) === 0;
+      const recoveryDisclosureExpiresAt = needsRecoveryCodes
+        ? sensitiveMaterialDisclosureExpiry(req)
+        : 0;
+      if (needsRecoveryCodes && !recoveryDisclosureExpiresAt) {
+        delete req.session.webAuthnRegistration;
+        return res.status(401).json({ error: req.t('Confirm your password before changing security settings.') });
+      }
 
       const info = verification.registrationInfo;
       const credential = info.credential;
@@ -564,8 +678,13 @@ export function createSettingsRouter(db, config) {
       );
       delete req.session.webAuthnRegistration;
 
-      if (countActiveRecoveryCodes(db, req.currentUser.id) === 0) {
-        storeNewRecoveryCodes(req, createRecoveryCodes(db, req.currentUser.id, config), config);
+      if (needsRecoveryCodes) {
+        storeNewRecoveryCodes(
+          req,
+          createRecoveryCodes(db, req.currentUser.id, config),
+          config,
+          recoveryDisclosureExpiresAt
+        );
       }
       revokeOtherUserSessions(req, db, config);
       logActivity(db, {
