@@ -8,6 +8,7 @@ import { ensureSecureUploadRoot, openStoredFile, readInitialAccessTimeMs } from 
 import { normalizeAndValidateStorageConfiguration } from './storage-path-security.js';
 import { applyStoredRepositoryStorageRoot, ensureStorageSettingsTable } from './storage-settings.js';
 import { ensureQuotaSettings } from './quota-settings.js';
+import { ensureOwnerScopedRepositoryNames } from './repository-name-security.js';
 
 const activityLogRetentionByDatabase = new WeakMap();
 
@@ -120,7 +121,7 @@ export function createDatabase(providedConfig) {
 
     CREATE TABLE IF NOT EXISTS repositories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      name TEXT NOT NULL COLLATE NOCASE,
       description TEXT NOT NULL DEFAULT '',
       created_by INTEGER,
       update_file_access_time INTEGER NOT NULL DEFAULT 1 CHECK (update_file_access_time IN (0, 1)),
@@ -294,6 +295,7 @@ export function createDatabase(providedConfig) {
     db.exec('ALTER TABLE repositories ADD COLUMN max_storage_mb REAL;');
   }
 
+  ensureOwnerScopedRepositoryNames(db);
   ensureQuotaSettings(db, config);
 
   const fileColumns = new Set(

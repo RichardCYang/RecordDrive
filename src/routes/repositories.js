@@ -6,6 +6,7 @@ import multer from 'multer';
 import { requireAuth, requireRegularUser } from '../middleware/auth.js';
 import { isValidCsrf } from '../middleware/csrf.js';
 import { logActivity } from '../database.js';
+import { createRepositoryRecord, RepositoryCreationError } from '../repository-creation.js';
 import {
   createRepositoryManagerMiddleware,
   createRepositoryPermissionMiddleware,
@@ -140,53 +141,6 @@ function logUploadConnectionAbort(req, error) {
     + `receivedFileBytes=${receivedFileBytes}, contentLength=${expectedText}, `
     + `elapsedMs=${elapsedMs}, reason=${error.message || error.code || 'connection closed'}).`
   );
-}
-
-class RepositoryCreationError extends Error {
-  constructor(code) {
-    super(code);
-    this.name = 'RepositoryCreationError';
-    this.code = code;
-  }
-}
-
-function configuredRepositoryLimit(value, fallback) {
-  const count = Number(value);
-  if (!Number.isSafeInteger(count) || count <= 0) return fallback;
-  return count;
-}
-
-function createRepositoryRecord(db, config, { name, description, userId }) {
-  const perUserLimit = configuredRepositoryLimit(config.maxRepositoriesPerUser, 1000);
-  const totalLimit = configuredRepositoryLimit(config.maxTotalRepositories, 10000);
-
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    if (db.prepare('SELECT 1 FROM repositories WHERE name = ?').get(name)) {
-      throw new RepositoryCreationError('DUPLICATE_NAME');
-    }
-
-    const userCount = Number(db.prepare(`
-      SELECT COUNT(*) AS count FROM repositories WHERE created_by = ?
-    `).get(userId).count);
-    if (userCount >= perUserLimit) {
-      throw new RepositoryCreationError('USER_LIMIT');
-    }
-
-    const totalCount = Number(db.prepare('SELECT COUNT(*) AS count FROM repositories').get().count);
-    if (totalCount >= totalLimit) {
-      throw new RepositoryCreationError('TOTAL_LIMIT');
-    }
-
-    const result = db.prepare(`
-      INSERT INTO repositories (name, description, created_by) VALUES (?, ?, ?)
-    `).run(name, description, userId);
-    db.exec('COMMIT');
-    return Number(result.lastInsertRowid);
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
 }
 
 function configuredQuotaBytes(value) {

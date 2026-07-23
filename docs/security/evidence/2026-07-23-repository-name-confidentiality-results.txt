@@ -1,0 +1,110 @@
+RecordDrive repository-name confidentiality hardening evidence
+Date: 2026-07-23
+
+1. Reproduction command
+
+  node security-poc/repository-name-enumeration-poc.mjs
+
+Observed output:
+
+  RecordDrive repository-name confidentiality PoC
+  Candidate: Project Apollo
+  [legacy] candidate rejected: DUPLICATE_NAME
+  [legacy] result: another tenant can distinguish an existing repository name
+  [patched] migration applied: true
+  [patched] same candidate accepted in requester namespace as repository 2
+  [patched] result: the create response no longer reveals another tenant's name
+  [patched] foreign-key violations: 0
+
+2. Focused migration regression
+
+  node --test test/repository-name-confidentiality.test.js
+
+Result:
+
+  tests 2
+  pass 2
+  fail 0
+
+Validated properties:
+
+  - legacy global name uniqueness is observable across owners;
+  - migration removes global uniqueness;
+  - existing repository ID 10 remains unchanged;
+  - dependent repository_permissions and files rows remain valid;
+  - PRAGMA foreign_key_check returns zero rows;
+  - the next AUTOINCREMENT repository ID remains 11;
+  - different owners may use the same case-insensitive name;
+  - one owner cannot create a case-insensitive duplicate;
+  - the migration is idempotent.
+
+3. Dependency-free confidentiality regression selection
+
+Result:
+
+  tests 19
+  pass 19
+  fail 0
+
+Coverage included authentication-rate-limit concurrency, generated-preview revocation,
+Host-header confidentiality, MFA sensitive-session material, and repository-name isolation.
+
+4. JavaScript syntax validation
+
+  find src public security-poc test vendor -type f (JavaScript extensions) | node --check
+
+Result:
+
+  SYNTAX_CHECKED=135
+  failures=0
+
+5. Existing focused PoC outcomes
+
+  authentication-rate-limit-race.mjs: patchedBounded=true
+  generated-preview-disclosure-revocation.mjs: verdict=BLOCKED
+  host-header-dns-rebinding.mjs: PASS; hostile status=421; no Set-Cookie
+  mfa-sensitive-session-material.mjs: verdict=BLOCKED
+  request-error-log-object-poc.mjs: verdict=PASS; credential marker absent
+
+6. Dependency installation limitation
+
+Command:
+
+  npm ci --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org
+
+Result:
+
+  Failed because registry tarball requests returned EAI_AGAIN in the audit sandbox.
+  The partial node_modules directory was removed before final packaging.
+  Full dependency-backed integration tests and npm audit were therefore not counted as passed.
+
+7. Lockfile and targeted advisory review
+
+  direct runtime versions inspected from package-lock.json:
+    express 5.2.1
+    express-session 1.19.0
+    multer 2.2.0
+    ejs 6.0.1
+    yauzl 3.4.0
+    bcryptjs 3.0.3
+    helmet 8.3.0
+    exceljs 4.4.0
+    @simplewebauthn/server 13.3.2
+    otplib 13.4.1
+
+  public registry package records with sha512 integrity: 297
+  checked-in local dependency: xz-compat under vendor/
+  unexpected non-registry remote resolution: 0
+
+8. Git-history scan
+
+The scan ran only against a copied .git directory, not the supplied project .git.
+
+  commits scanned: 47
+  HEAD observed in copy: 3760adfb1a2f0c12a0e4d7eb0395ee551db3e784
+  unexpected private-key/cloud-token/credential-pattern findings: 0
+
+9. Final .git integrity
+
+The final archive verification output is generated during packaging and is also supplied
+beside the archive. All .git entries must match the original ZIP by content and ZIP metadata.
