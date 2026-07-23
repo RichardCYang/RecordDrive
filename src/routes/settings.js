@@ -44,6 +44,7 @@ import {
 } from '../sensitive-session-material.js';
 import { safeInternalPath, setFlash } from '../utils.js';
 import { purgeUserSessions } from '../session-store.js';
+import { consumeWebAuthnChallenge, issueWebAuthnChallenge } from '../webauthn-challenge-store.js';
 import {
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
@@ -607,13 +608,24 @@ export function createSettingsRouter(db, config) {
         timeout: 60000
       });
 
+      const createdAt = Date.now();
+      const challengeId = issueWebAuthnChallenge(db, {
+        sessionId: req.sessionID,
+        sessionSecret: config.sessionSecret,
+        userId: req.currentUser.id,
+        purpose: 'registration',
+        challenge: options.challenge,
+        expiresAt: createdAt + ENROLLMENT_MAX_AGE_MS,
+        now: createdAt
+      });
       req.session.webAuthnRegistration = {
+        id: challengeId,
         userId: req.currentUser.id,
         challenge: options.challenge,
         origin: webAuthn.origin,
         rpID: webAuthn.rpID,
         name: passkeyName,
-        createdAt: Date.now()
+        createdAt
       };
       return res.json(options);
     } catch (error) {
@@ -635,6 +647,19 @@ export function createSettingsRouter(db, config) {
         return res.status(401).json({ error: req.t('Your passkey registration has expired. Try again.') });
       }
 
+      const challengeConsumed = consumeWebAuthnChallenge(db, {
+        challengeId: challenge.id,
+        sessionId: req.sessionID,
+        sessionSecret: config.sessionSecret,
+        userId: req.currentUser.id,
+        purpose: 'registration',
+        challenge: challenge.challenge
+      });
+      delete req.session.webAuthnRegistration;
+      if (!challengeConsumed) {
+        return res.status(401).json({ error: req.t('Your passkey registration has expired. Try again.') });
+      }
+
       const verification = await verifyRegistrationResponse({
         response: req.body?.credential,
         expectedChallenge: challenge.challenge,
@@ -646,7 +671,6 @@ export function createSettingsRouter(db, config) {
         return res.status(400).json({ error: req.t('The passkey could not be registered.') });
       }
       if (!isSecurityRecentlyVerified(req)) {
-        delete req.session.webAuthnRegistration;
         return res.status(401).json({ error: req.t('Confirm your password before changing security settings.') });
       }
 
@@ -655,7 +679,6 @@ export function createSettingsRouter(db, config) {
         ? sensitiveMaterialDisclosureExpiry(req)
         : 0;
       if (needsRecoveryCodes && !recoveryDisclosureExpiresAt) {
-        delete req.session.webAuthnRegistration;
         return res.status(401).json({ error: req.t('Confirm your password before changing security settings.') });
       }
 
@@ -676,7 +699,6 @@ export function createSettingsRouter(db, config) {
         info.credentialBackedUp ? 1 : 0,
         challenge.name
       );
-      delete req.session.webAuthnRegistration;
 
       if (needsRecoveryCodes) {
         storeNewRecoveryCodes(

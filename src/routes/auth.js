@@ -25,6 +25,7 @@ import {
 import { sessionAbsoluteDurationMs } from '../config.js';
 import { safeInternalPath } from '../utils.js';
 import { pruneUserSessions } from '../session-store.js';
+import { consumeWebAuthnChallenge, issueWebAuthnChallenge } from '../webauthn-challenge-store.js';
 
 const MFA_CHALLENGE_MAX_AGE_MS = 10 * 60 * 1000;
 const MAX_LOGIN_PASSWORD_BYTES = 1024;
@@ -328,12 +329,23 @@ export function createAuthRouter(db, config) {
         timeout: 60000
       });
 
+      const createdAt = Date.now();
+      const challengeId = issueWebAuthnChallenge(db, {
+        sessionId: req.sessionID,
+        sessionSecret: config.sessionSecret,
+        userId: context.user.id,
+        purpose: 'authentication',
+        challenge: options.challenge,
+        expiresAt: createdAt + MFA_CHALLENGE_MAX_AGE_MS,
+        now: createdAt
+      });
       req.session.webAuthnAuthentication = {
+        id: challengeId,
         userId: context.user.id,
         challenge: options.challenge,
         origin: webAuthn.origin,
         rpID: webAuthn.rpID,
-        createdAt: Date.now()
+        createdAt
       };
       return res.json(options);
     } catch (error) {
@@ -354,6 +366,20 @@ export function createAuthRouter(db, config) {
       }
       if (rejectMfaRateLimit(req, res, db, config, context, { json: true, reserve: true })) return undefined;
 
+      const challengeConsumed = consumeWebAuthnChallenge(db, {
+        challengeId: challenge.id,
+        sessionId: req.sessionID,
+        sessionSecret: config.sessionSecret,
+        userId: context.user.id,
+        purpose: 'authentication',
+        challenge: challenge.challenge
+      });
+      delete req.session.webAuthnAuthentication;
+      if (!challengeConsumed) {
+        recordMfaFailure(req, context.user.id);
+        return res.status(401).json({ error: req.t('Your passkey challenge has expired. Try again.') });
+      }
+
       const response = req.body?.credential;
       const stored = db.prepare(`
         SELECT *
@@ -361,7 +387,6 @@ export function createAuthRouter(db, config) {
         WHERE user_id = ? AND credential_id = ?
       `).get(context.user.id, response?.id);
       if (!stored) {
-        delete req.session.webAuthnAuthentication;
         recordMfaFailure(req, context.user.id);
         return res.status(401).json({ error: req.t('The passkey could not be verified.') });
       }
@@ -382,7 +407,6 @@ export function createAuthRouter(db, config) {
           requireUserVerification: true
         });
       } catch (error) {
-        delete req.session.webAuthnAuthentication;
         recordMfaFailure(req, context.user.id);
         if (String(error.message).includes('counter value')) {
           return res.status(401).json({
@@ -392,21 +416,28 @@ export function createAuthRouter(db, config) {
         return res.status(401).json({ error: req.t('The passkey could not be verified.') });
       }
 
-      delete req.session.webAuthnAuthentication;
       if (!verification.verified) {
         recordMfaFailure(req, context.user.id);
         return res.status(401).json({ error: req.t('The passkey could not be verified.') });
       }
 
-      db.prepare(`
+      const counterUpdate = db.prepare(`
         UPDATE webauthn_credentials
         SET counter = ?, backed_up = ?, last_used_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = ? AND user_id = ? AND counter = ?
       `).run(
         verification.authenticationInfo.newCounter,
         verification.authenticationInfo.credentialBackedUp ? 1 : 0,
-        stored.id
+        stored.id,
+        context.user.id,
+        stored.counter
       );
+      if (counterUpdate.changes !== 1) {
+        recordMfaFailure(req, context.user.id);
+        return res.status(401).json({
+          error: req.t('The passkey counter was rejected. Remove and register this passkey again.')
+        });
+      }
 
       const returnTo = context.pending.returnTo;
       clearPendingAuthentication(req);

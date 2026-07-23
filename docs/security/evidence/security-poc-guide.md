@@ -3,6 +3,20 @@
 Run all commands from the repository root. All PoCs use temporary local databases and files; they do not target a remote service.
 
 
+## Patched WebAuthn challenge replay boundary
+
+```bash
+node security-poc/webauthn-challenge-replay.mjs
+```
+
+Expected result: the session-only baseline accepts the same challenge in both independently loaded parallel request snapshots, while the patched production SQLite ledger accepts exactly one consume operation. Raw session/challenge values remain absent from the ledger, the credential counter update uses compare-and-swap, and the output ends with `"verdict": "BLOCKED"`.
+
+Run the focused dependency-free regression suite:
+
+```bash
+node --test test/webauthn-challenge-replay.test.js
+```
+
 ## Patched MFA sensitive material disclosure boundary
 
 ```bash

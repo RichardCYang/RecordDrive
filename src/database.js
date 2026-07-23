@@ -9,6 +9,7 @@ import { normalizeAndValidateStorageConfiguration } from './storage-path-securit
 import { applyStoredRepositoryStorageRoot, ensureStorageSettingsTable } from './storage-settings.js';
 import { ensureQuotaSettings } from './quota-settings.js';
 import { ensureOwnerScopedRepositoryNames } from './repository-name-security.js';
+import { ensureWebAuthnChallengeSchema } from './webauthn-challenge-store.js';
 
 const activityLogRetentionByDatabase = new WeakMap();
 
@@ -253,6 +254,7 @@ export function createDatabase(providedConfig) {
   `);
 
 
+  ensureWebAuthnChallengeSchema(db);
   db.exec('DELETE FROM recovery_codes WHERE used_at IS NOT NULL;');
 
   const userColumns = new Set(
