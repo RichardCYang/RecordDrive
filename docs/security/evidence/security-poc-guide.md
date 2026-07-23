@@ -31,6 +31,20 @@ Run the focused dependency-free regression suite:
 node --test test/generated-preview-disclosure-revocation.test.js
 ```
 
+## Patched file-stream chunk-boundary revocation
+
+```bash
+node security-poc/chunk-boundary-disclosure-revocation.mjs
+```
+
+Expected result: the legacy cached-decision model sends all 1,048,576 bytes after authorization is revoked immediately following the first write. The patched production `streamProtectedFile()` sends only the first 65,536-byte chunk, reports `"revoked": true`, and ends with `"verdict": "BLOCKED"`.
+
+Run the dependency-free regression test:
+
+```bash
+node --test test/file-stream-chunk-revocation.test.js
+```
+
 ## Patched in-flight disclosure revocation boundary
 
 ```bash

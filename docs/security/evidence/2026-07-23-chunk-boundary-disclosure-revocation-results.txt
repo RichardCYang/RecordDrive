@@ -1,0 +1,130 @@
+RecordDrive chunk-boundary disclosure revocation validation
+Date: 2026-07-23
+Affected application version: 2.0.5
+Patched application version: 2.0.6
+Finding: RD-CONF-2026-07-23-03
+
+[Deterministic before/after PoC]
+Command:
+node security-poc/chunk-boundary-disclosure-revocation.mjs
+
+Output:
+{
+  "scenario": {
+    "payloadBytes": 1048576,
+    "chunkBytes": 65536,
+    "revocationMoment": "immediately after the first destination write",
+    "cachedDecisionWindowMs": 60000
+  },
+  "originalModel": {
+    "writes": 16,
+    "disclosedBytes": 1048576,
+    "revoked": false
+  },
+  "patchedModel": {
+    "writes": 1,
+    "disclosedBytes": 65536,
+    "revoked": true
+  },
+  "verdict": "BLOCKED"
+}
+
+Interpretation:
+- legacy cached authorization: 16 writes, complete 1 MiB disclosure
+- patched production stream: 1 write, 64 KiB disclosure, response revoked
+- application-level post-observation bound: one configured output chunk
+
+[Focused confidentiality and unit regression suite]
+Command:
+node --test \
+  test/authentication-rate-limit-race.test.js \
+  test/file-access-time-unit.test.js \
+  test/file-stream-chunk-revocation.test.js \
+  test/generated-preview-disclosure-revocation.test.js \
+  test/host-header-confidentiality.test.js \
+  test/in-flight-disclosure-revocation.test.js \
+  test/password-policy.test.js \
+  test/repository-name-confidentiality.test.js \
+  test/sensitive-session-material.test.js \
+  test/session-revocation-race.test.js \
+  test/session-state-disclosure-revocation.test.js
+
+Result:
+- tests: 37
+- passed: 37
+- failed: 0
+- cancelled: 0
+- skipped: 0
+
+[Prior PoC regression commands]
+node security-poc/in-flight-disclosure-revocation.mjs
+node security-poc/generated-preview-disclosure-revocation.mjs
+node security-poc/session-state-disclosure-revocation.mjs
+node security-poc/mfa-sensitive-session-material.mjs
+node security-poc/repository-name-enumeration-poc.mjs
+node security-poc/host-header-dns-rebinding.mjs
+node security-poc/authentication-rate-limit-race.mjs
+node security-poc/session-revocation-race.mjs
+node security-poc/session-tombstone-expiry.mjs
+node security-poc/request-error-log-object-poc.mjs
+
+Result:
+- in-flight file permission/session revocation: BLOCKED
+- generated preview permission/session revocation: BLOCKED
+- current encrypted session identity/absolute expiry: blocked=true
+- MFA secret and recovery-code expiry: BLOCKED
+- cross-tenant repository-name oracle: patched namespace accepted, 0 FK violations
+- hostile Host before session state: PASS
+- concurrent authentication throttles: patchedBounded=true
+- delayed touch/session resurrection: BLOCKED
+- expired tombstone stale touch/set resurrection: BLOCKED
+- request-error credential/body logging: PASS
+
+[Static validation]
+Command:
+npm run check
+Result: passed
+
+All JavaScript/ESM/CommonJS syntax:
+- files checked: 138
+- failures: 0
+
+JSON parse validation:
+- files checked: 6
+- failures: 0
+
+[Dependency baseline]
+Locked direct versions reviewed:
+- express 5.2.1
+- multer 2.2.0
+- yauzl 3.4.0
+- express-session 1.19.0
+- helmet 8.3.0
+- ejs 6.0.1
+
+Multer upload configuration:
+- limits.fieldNestingDepth = 0
+- fields = 2
+- headerPairs = 100
+- strict file/part/count/size limits
+
+Node.js engine policy:
+- declared: ^22.23.0 || ^24.17.0 || ^26.3.1
+- assessment runtime: 22.16.0
+- declared minimum follows the 2026-06-18 Node.js security release floors
+
+[Environment limitation]
+- registry-backed npm installation did not complete in the assessment environment
+- full Express/Supertest integration suite and npm audit were not executed
+- focused tests used only project source, Node built-ins/SQLite, and a temporary express-session Store import-shape stub
+- the temporary stub and node_modules are absent from the deliverable
+
+[Final integrity fields]
+- original-versus-fixed .git filesystem entries including root: 44 versus 44
+- filesystem path/type/mode/uid/gid/mtime/size/symlink-target/content differences: 0
+- original and fixed .git filesystem manifest SHA-256: 49e64c3e9622644e4e8c765c73b075044da7adc14997a80fa9f991f25b50a1d8
+- original and final ZIP .git entries: 44 versus 44
+- ZIP .git name/central-metadata/uncompressed-data differences: 0
+- ZIP .git raw local-record differences: 0
+- original and final ZIP .git aggregate data SHA-256: a348af7400b4c8daf0d681573235200fd837ce8ad0df1e0870a5d584882a8a2f
+- final ZIP SHA-256: recorded in the companion RecordDrive-2.0.6-security-fixed.zip.sha256 file after packaging (not embedded to avoid a self-referential archive hash)

@@ -19,13 +19,13 @@
       }
     ],
     "component": {
-      "bom-ref": "recorddrive@2.0.5",
+      "bom-ref": "recorddrive@2.0.6",
       "type": "library",
       "name": "recorddrive",
-      "version": "2.0.5",
+      "version": "2.0.6",
       "scope": "required",
       "description": "A sky-blue team file drive built with Node.js",
-      "purl": "pkg:npm/recorddrive@2.0.5",
+      "purl": "pkg:npm/recorddrive@2.0.6",
       "properties": [
         {
           "name": "cdx:npm:package:path",
@@ -14009,7 +14009,7 @@
   ],
   "dependencies": [
     {
-      "ref": "recorddrive@2.0.5",
+      "ref": "recorddrive@2.0.6",
       "dependsOn": [
         "@simplewebauthn/server@13.3.2",
         "7z-iterator@2.2.9",

@@ -175,7 +175,12 @@ export function streamProtectedFile(options = {}) {
           destination.end();
           break;
         }
-        if (!verifyAuthorization()) break;
+        // Always make a fresh authorization decision immediately before a
+        // chunk can leave the process. The interval-based check remains useful
+        // while a transfer is idle or blocked on backpressure, but caching the
+        // decision here would allow a fast destination to receive many chunks
+        // during one re-check interval after permission or session revocation.
+        if (!verifyAuthorization(true)) break;
 
         position += bytesRead;
         remainingBytes -= bytesRead;
