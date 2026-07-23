@@ -133,6 +133,16 @@ function revocationExpiry(storedSession, storedExpiry, defaultTtlMs = 0, now = D
   );
 }
 
+function authenticatedSessionCreatedAt(storedSession) {
+  const candidates = [
+    storedSession?.sessionCreatedAt,
+    storedSession?.authenticatedAt,
+    storedSession?.pendingMfa?.createdAt,
+    storedSession?.authenticationFlow?.createdAt
+  ].map(Number).filter((value) => Number.isFinite(value) && value > 0);
+  return candidates.length ? Math.min(...candidates) : null;
+}
+
 export function revokeStoredSession(db, storageId, options = {}) {
   ensureSessionRevocationSchema(db);
   let normalizedStorageId;
@@ -208,6 +218,14 @@ export class SQLiteSessionStore extends session.Store {
     super();
     this.db = db;
     this.defaultTtlMs = options.defaultTtlMs || 1000 * 60 * 60 * 12;
+    this.absoluteTtlMs = Number(options.absoluteTtlMs) > 0
+      ? Number(options.absoluteTtlMs)
+      : 0;
+    this.revocationTtlMs = Math.max(
+      this.defaultTtlMs,
+      Number(options.revocationTtlMs) > 0 ? Number(options.revocationTtlMs) : 0,
+      this.absoluteTtlMs
+    );
     this.storageKey = createSessionStorageKeyFactory(options.secret);
     this.payloadProtector = createSessionPayloadProtector(options.secret);
     ensureSessionRevocationSchema(db);
@@ -222,6 +240,16 @@ export class SQLiteSessionStore extends session.Store {
         WHERE sid = ? AND expires >= ?
       )
       ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expires = excluded.expires
+    `);
+    this.touchStatement = db.prepare(`
+      UPDATE sessions
+      SET expires = ?
+      WHERE sid = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM revoked_sessions
+          WHERE sid = ? AND expires >= ?
+        )
     `);
     this.destroyStatement = db.prepare('DELETE FROM sessions WHERE sid = ?');
     this.getRevocationStatement = db.prepare('SELECT expires FROM revoked_sessions WHERE sid = ?');
@@ -246,6 +274,12 @@ export class SQLiteSessionStore extends session.Store {
     if (Number.isFinite(cookieExpiry)) return cookieExpiry;
     const maxAge = Number(sess?.cookie?.maxAge);
     return Date.now() + (Number.isFinite(maxAge) ? maxAge : this.defaultTtlMs);
+  }
+
+  isPastAbsoluteExpiry(sess, now = Date.now()) {
+    if (!(this.absoluteTtlMs > 0)) return false;
+    const createdAt = authenticatedSessionCreatedAt(sess);
+    return createdAt !== null && now - createdAt > this.absoluteTtlMs;
   }
 
   get(sid, callback) {
@@ -297,12 +331,21 @@ export class SQLiteSessionStore extends session.Store {
   set(sid, sess, callback = () => {}) {
     try {
       const storageId = this.storageKey(sid);
+      const now = Date.now();
+      if (this.isPastAbsoluteExpiry(sess, now)) {
+        revokeStoredSession(this.db, storageId, {
+          storedSession: sess,
+          defaultTtlMs: this.revocationTtlMs
+        });
+        callback(null);
+        return;
+      }
       const result = this.setStatement.run(
         storageId,
         this.payloadProtector.encrypt(sess, storageId),
         this.calculateExpiry(sess),
         storageId,
-        Date.now()
+        now
       );
       if (result.changes === 0) this.destroyStatement.run(storageId);
       callback(null);
@@ -326,7 +369,7 @@ export class SQLiteSessionStore extends session.Store {
       revokeStoredSession(this.db, storageId, {
         expires: row?.expires,
         storedSession,
-        defaultTtlMs: this.defaultTtlMs
+        defaultTtlMs: this.revocationTtlMs
       });
       callback(null);
     } catch (error) {
@@ -335,7 +378,28 @@ export class SQLiteSessionStore extends session.Store {
   }
 
   touch(sid, sess, callback = () => {}) {
-    this.set(sid, sess, callback);
+    try {
+      const storageId = this.storageKey(sid);
+      const now = Date.now();
+      if (this.isPastAbsoluteExpiry(sess, now)) {
+        revokeStoredSession(this.db, storageId, {
+          storedSession: sess,
+          defaultTtlMs: this.revocationTtlMs
+        });
+        callback(null);
+        return;
+      }
+      const result = this.touchStatement.run(
+        this.calculateExpiry(sess),
+        storageId,
+        storageId,
+        now
+      );
+      if (result.changes === 0) this.destroyStatement.run(storageId);
+      callback(null);
+    } catch (error) {
+      callback(error);
+    }
   }
 }
 
@@ -377,7 +441,8 @@ export function pruneUserSessions(
   userId,
   currentSessionId,
   maximumSessions = 10,
-  sessionSecret = ''
+  sessionSecret = '',
+  revocationTtlMs = 0
 ) {
   const normalizedUserId = Number(userId);
   const limit = Math.max(1, Math.min(Number(maximumSessions) || 10, 100));
@@ -416,13 +481,20 @@ export function pruneUserSessions(
   for (const sessionRecord of sessions.slice(limit)) {
     revokeStoredSession(db, sessionRecord.sid, {
       expires: sessionRecord.expires,
-      storedSession: sessionRecord.storedSession
+      storedSession: sessionRecord.storedSession,
+      defaultTtlMs: revocationTtlMs
     });
   }
   return Math.max(0, sessions.length - limit);
 }
 
-export function purgeUserSessions(db, userId, exceptSessionId = '', sessionSecret = '') {
+export function purgeUserSessions(
+  db,
+  userId,
+  exceptSessionId = '',
+  sessionSecret = '',
+  revocationTtlMs = 0
+) {
   const normalizedUserId = Number(userId);
   if (!Number.isSafeInteger(normalizedUserId) || normalizedUserId < 1) {
     throw new Error('A valid user identifier is required to purge sessions.');
@@ -445,7 +517,11 @@ export function purgeUserSessions(db, userId, exceptSessionId = '', sessionSecre
 
     const storedSession = parseSessionRow(row, payloadProtector);
     if (!storedSession || referencedUserId(storedSession) !== normalizedUserId) continue;
-    deleted += revokeStoredSession(db, row.sid, { expires: row.expires, storedSession });
+    deleted += revokeStoredSession(db, row.sid, {
+      expires: row.expires,
+      storedSession,
+      defaultTtlMs: revocationTtlMs
+    });
   }
   return deleted;
 }

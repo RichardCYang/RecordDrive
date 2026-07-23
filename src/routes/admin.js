@@ -1,6 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
-import { applyRuntimeConfidentialityPolicy } from '../config.js';
+import { applyRuntimeConfidentialityPolicy, sessionAbsoluteDurationMs } from '../config.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { logActivity } from '../database.js';
 import {
@@ -212,7 +212,13 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
       } else if (user.role === 'ADMIN') {
         setFlash(req, 'error', req.t('Administrator accounts cannot be deleted.'));
       } else {
-        purgeUserSessions(db, userId, '', config.sessionSecret);
+        purgeUserSessions(
+          db,
+          userId,
+          '',
+          config.sessionSecret,
+          sessionAbsoluteDurationMs(config)
+        );
         db.prepare('DELETE FROM users WHERE id = ?').run(userId);
         logActivity(db, {
           actorId: req.currentUser.id,

@@ -1,0 +1,89 @@
+RecordDrive confidentiality audit and tombstone-expiry evidence
+Date: 2026-07-23
+Project: RecordDrive 2.0.2
+
+[Confirmed original-code finding]
+Scenario:
+- an authenticated session is loaded by an in-flight request
+- another operation revokes and deletes the server-side session
+- the revocation tombstone expires
+- the stale request completes and calls store.touch()
+
+Original implementation result:
+{
+  "tombstoneExpiredAt": 1800000060000,
+  "simulatedCompletionAt": 1800000060001,
+  "delayedTouchResurrected": true,
+  "resurrectedUserId": 7,
+  "verdict": "VULNERABLE"
+}
+
+[Patched PoC]
+Command:
+node security-poc/session-tombstone-expiry.mjs
+
+Result:
+{
+  "delayedTouch": {
+    "tombstoneForcedExpired": true,
+    "delayedTouchAttempted": true,
+    "delayedTouchResurrected": false,
+    "storedRows": 0
+  },
+  "staleSet": {
+    "tombstoneForcedExpired": true,
+    "absoluteLifetimeExceeded": true,
+    "staleSetResurrected": false,
+    "storedRows": 0
+  },
+  "verdict": "BLOCKED"
+}
+
+[Focused session-revocation regression suite]
+Command:
+node --test test/session-revocation-race.test.js
+
+Result:
+- tests: 8
+- passed: 8
+- failed: 0
+
+The assessment environment used a minimal local express-session Store import-shape stub for this focused test because registry installation was unavailable. The production session-store implementation and Node SQLite implementation were exercised unchanged. The stub is not included in the project archive.
+
+[Additional dependency-free tests]
+Files:
+- test/authentication-rate-limit-race.test.js
+- test/file-access-time-unit.test.js
+- test/host-header-confidentiality.test.js
+- test/password-policy.test.js
+- dependency-free cases in test/request-error-confidentiality.test.js
+
+Result:
+- passed: 16
+- application assertion failures: 0
+- unavailable: 1 Supertest-dependent case
+
+[Project syntax check]
+Command:
+npm run check
+
+Result: PASS
+
+[All-source syntax check]
+Result: 121 files checked, 0 failed
+
+[Dependency limitation]
+npm ci --ignore-scripts and registry-backed npm audit could not complete because the configured registry returned HTTP 503 for zip-stream@4.1.1. A full dependency-backed project test run was therefore unavailable.
+
+[Secret and Git-history review]
+- no production private key found
+- no real cloud/API token found
+- no production .env found
+- no committed database object found
+- matches were placeholders, documentation, or test/PoC fixtures
+
+[.git preservation]
+Result: 43 filesystem entries matched the original manifest exactly by path, type, mode, modification time, byte size, and SHA-256
+
+[Final archive]
+SHA-256: recorded in the accompanying RecordDrive_fixed_2026-07-23.sha256 file

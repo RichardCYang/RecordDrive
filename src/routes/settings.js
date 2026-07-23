@@ -36,6 +36,7 @@ import {
   userIdBuffer,
   verifyTotpToken
 } from '../security-service.js';
+import { sessionAbsoluteDurationMs } from '../config.js';
 import { safeInternalPath, setFlash } from '../utils.js';
 import { purgeUserSessions } from '../session-store.js';
 import {
@@ -63,7 +64,13 @@ function completePasswordChange(req, res, next, db, config, destination) {
   const username = req.currentUser.username;
   const now = Date.now();
 
-  purgeUserSessions(db, userId, req.sessionID, config.sessionSecret);
+  purgeUserSessions(
+    db,
+    userId,
+    req.sessionID,
+    config.sessionSecret,
+    sessionAbsoluteDurationMs(config)
+  );
   return req.session.regenerate((error) => {
     if (error) return next(error);
     req.session.userId = userId;
@@ -127,7 +134,13 @@ function completeSecurityReauthentication(req, res, next) {
 }
 
 function revokeOtherUserSessions(req, db, config) {
-  return purgeUserSessions(db, req.currentUser.id, req.sessionID, config.sessionSecret);
+  return purgeUserSessions(
+    db,
+    req.currentUser.id,
+    req.sessionID,
+    config.sessionSecret,
+    sessionAbsoluteDurationMs(config)
+  );
 }
 
 function pendingTotpFromSession(req, config) {

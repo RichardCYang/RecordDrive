@@ -18,7 +18,7 @@ export function isBlockedAdministrator(config, user) {
   return isAdministrator(user) && isAdministratorAccessDisabled(config);
 }
 
-export function purgeAdministratorSessions(db, sessionSecret) {
+export function purgeAdministratorSessions(db, sessionSecret, revocationTtlMs = 0) {
   const administratorIds = new Set(
     db.prepare('SELECT id FROM users WHERE role = ?').all(ADMIN_ROLE).map(({ id }) => Number(id))
   );
@@ -45,7 +45,8 @@ export function purgeAdministratorSessions(db, sessionSecret) {
     if (referencedUserIds.some((userId) => administratorIds.has(userId))) {
       purgedCount += revokeStoredSession(db, row.sid, {
         expires: row.expires,
-        storedSession
+        storedSession,
+        defaultTtlMs: revocationTtlMs
       });
     }
   }

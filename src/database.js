@@ -3,6 +3,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
 import { purgeAdministratorSessions } from './admin-access.js';
+import { sessionAbsoluteDurationMs } from './config.js';
 import { ensureSecureUploadRoot, openStoredFile, readInitialAccessTimeMs } from './file-access-time.js';
 import { normalizeAndValidateStorageConfiguration } from './storage-path-security.js';
 import { applyStoredRepositoryStorageRoot, ensureStorageSettingsTable } from './storage-settings.js';
@@ -344,7 +345,11 @@ export function createDatabase(providedConfig) {
       `).run(config.adminUsername, config.adminDisplayName, passwordHash);
     }
   } else {
-    purgeAdministratorSessions(db, config.sessionSecret);
+    purgeAdministratorSessions(
+      db,
+      config.sessionSecret,
+      sessionAbsoluteDurationMs(config)
+    );
   }
 
   configureActivityLogRetention(db, config.maxActivityLogEntries);

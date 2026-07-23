@@ -98,6 +98,74 @@ test('destroy tombstones a session so concurrent logout requests cannot restore 
   );
 });
 
+test('a delayed touch cannot recreate a missing row after its tombstone expires', async (t) => {
+  const db = createSessionDatabase();
+  const store = new SQLiteSessionStore(db, {
+    secret: SESSION_SECRET,
+    defaultTtlMs: 60_000,
+    absoluteTtlMs: 7 * 24 * 60 * 60 * 1000,
+    revocationTtlMs: 7 * 24 * 60 * 60 * 1000,
+    cleanupIntervalMs: 3_600_000
+  });
+  t.after(() => db.close());
+
+  const sid = 'expired-tombstone-delayed-touch-session-id';
+  const session = {
+    cookie: { maxAge: 60_000, originalMaxAge: 60_000 },
+    userId: 12,
+    authenticatedAt: Date.now(),
+    sessionCreatedAt: Date.now()
+  };
+  await invokeStore(store, 'set', sid, session);
+  const inFlightSession = await invokeStore(store, 'get', sid);
+  await invokeStore(store, 'destroy', sid);
+
+  const storageId = sessionStorageKey(sid, SESSION_SECRET);
+  db.prepare('UPDATE revoked_sessions SET expires = ? WHERE sid = ?').run(Date.now() - 1, storageId);
+
+  await invokeStore(store, 'touch', sid, inFlightSession);
+
+  assert.equal(await invokeStore(store, 'get', sid), null);
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions WHERE sid = ?').get(storageId).count, 0);
+});
+
+test('an absolutely expired stale set cannot recreate a revoked session', async (t) => {
+  const db = createSessionDatabase();
+  const absoluteTtlMs = 60_000;
+  const store = new SQLiteSessionStore(db, {
+    secret: SESSION_SECRET,
+    defaultTtlMs: 60_000,
+    absoluteTtlMs,
+    revocationTtlMs: absoluteTtlMs,
+    cleanupIntervalMs: 3_600_000
+  });
+  t.after(() => db.close());
+
+  const sid = 'absolutely-expired-stale-set-session-id';
+  const createdAt = Date.now();
+  const session = {
+    cookie: { maxAge: 60_000, originalMaxAge: 60_000 },
+    userId: 14,
+    authenticatedAt: createdAt,
+    sessionCreatedAt: createdAt
+  };
+  await invokeStore(store, 'set', sid, session);
+  await invokeStore(store, 'destroy', sid);
+
+  const storageId = sessionStorageKey(sid, SESSION_SECRET);
+  db.prepare('UPDATE revoked_sessions SET expires = ? WHERE sid = ?').run(Date.now() - 1, storageId);
+  const staleSession = {
+    ...session,
+    authenticatedAt: Date.now() - absoluteTtlMs - 1,
+    sessionCreatedAt: Date.now() - absoluteTtlMs - 1
+  };
+
+  await invokeStore(store, 'set', sid, staleSession);
+
+  assert.equal(await invokeStore(store, 'get', sid), null);
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions WHERE sid = ?').get(storageId).count, 0);
+});
+
 
 test('session-limit pruning cannot be undone by a delayed touch', async (t) => {
   const db = createSessionDatabase();

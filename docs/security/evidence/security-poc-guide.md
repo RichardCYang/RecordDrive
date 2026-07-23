@@ -2,6 +2,20 @@
 
 Run all commands from the repository root. All PoCs use temporary local databases and files; they do not target a remote service.
 
+## Patched session tombstone-expiry boundary
+
+```bash
+node security-poc/session-tombstone-expiry.mjs
+```
+
+Expected result: both `delayedTouchResurrected` and `staleSetResurrected` are `false`, no session row is recreated, and the output ends with `"verdict": "BLOCKED"`.
+
+Run the focused regression suite:
+
+```bash
+node --test test/session-revocation-race.test.js
+```
+
 ## Patched request-error logging boundary
 
 Run the dependency-free before/after model. It uses a synthetic credential marker and does not write the marker itself to stderr:

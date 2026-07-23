@@ -9,6 +9,7 @@ dotenv.config({ quiet: true });
 
 const DEFAULT_SESSION_SECRET = 'recorddrive-change-this-session-secret-at-least-32-chars';
 const DEFAULT_ADMIN_PASSWORD = 'ChangeMe123!';
+const DEFAULT_SESSION_ABSOLUTE_HOURS = 168;
 
 function resolveFromCwd(value) {
   return path.isAbsolute(value) ? value : path.resolve(process.cwd(), value);
@@ -37,6 +38,14 @@ function trustProxyFromEnv(value) {
   }
   if (/^[1-9]\d*$/.test(normalized)) return Number.parseInt(normalized, 10);
   return normalized.split(',').map((entry) => entry.trim()).filter(Boolean);
+}
+
+export function sessionAbsoluteDurationMs(config) {
+  const configuredHours = Number(config?.sessionAbsoluteHours);
+  const hours = Number.isFinite(configuredHours) && configuredHours > 0
+    ? configuredHours
+    : DEFAULT_SESSION_ABSOLUTE_HOURS;
+  return hours * 60 * 60 * 1000;
 }
 
 export function loadConfig(overrides = {}) {
@@ -78,7 +87,10 @@ export function loadConfig(overrides = {}) {
   const maxSessionsPerUser = Number.parseInt(env.MAX_SESSIONS_PER_USER || '10', 10);
   const maxActivityLogEntries = Number.parseInt(env.MAX_ACTIVITY_LOG_ENTRIES || '100000', 10);
   const sessionIdleHours = Number.parseInt(env.SESSION_IDLE_HOURS || '12', 10);
-  const sessionAbsoluteHours = Number.parseInt(env.SESSION_ABSOLUTE_HOURS || '168', 10);
+  const sessionAbsoluteHours = Number.parseInt(
+    env.SESSION_ABSOLUTE_HOURS || String(DEFAULT_SESSION_ABSOLUTE_HOURS),
+    10
+  );
   const sevenZipPreviewMaxHeaderMb = Number.parseInt(env.SEVEN_ZIP_PREVIEW_MAX_HEADER_MB || '128', 10);
   const sevenZipPreviewMaxScannedEntries = Number.parseInt(
     env.SEVEN_ZIP_PREVIEW_MAX_SCANNED_ENTRIES || '100000',
@@ -162,7 +174,7 @@ export function loadConfig(overrides = {}) {
       : 12,
     sessionAbsoluteHours: Number.isFinite(sessionAbsoluteHours) && sessionAbsoluteHours > 0
       ? Math.min(sessionAbsoluteHours, 24 * 365)
-      : 168,
+      : DEFAULT_SESSION_ABSOLUTE_HOURS,
     sevenZipPreviewEnabled: booleanFromEnv(env.SEVEN_ZIP_PREVIEW_ENABLED, true),
     sevenZipPreviewTimeoutMs: timeoutFromEnv(
       env.SEVEN_ZIP_PREVIEW_TIMEOUT_MS,

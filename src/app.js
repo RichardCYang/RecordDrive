@@ -6,7 +6,11 @@ import express from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
 import multer from 'multer';
-import { applyRuntimeConfidentialityPolicy, loadConfig } from './config.js';
+import {
+  applyRuntimeConfidentialityPolicy,
+  loadConfig,
+  sessionAbsoluteDurationMs
+} from './config.js';
 import { createDatabase } from './database.js';
 import { startNetworkServers } from './network-server.js';
 import { createDefaultTlsSettings, loadTlsSettings } from './tls-settings.js';
@@ -45,7 +49,11 @@ export function createApplication(options = {}) {
   applyStoredRepositoryStorageRoot(db, config);
   ensureSecureUploadRoot(config);
   migrateLegacySessionPayloads(db, config.sessionSecret);
-  if (config.adminAccessDisabled) purgeAdministratorSessions(db, config.sessionSecret);
+  const sessionIdleMs = (Number(config.sessionIdleHours) || 12) * 60 * 60 * 1000;
+  const sessionAbsoluteMs = sessionAbsoluteDurationMs(config);
+  if (config.adminAccessDisabled) {
+    purgeAdministratorSessions(db, config.sessionSecret, sessionAbsoluteMs);
+  }
   const runtimeControl = options.runtimeControl || {};
   const networkSettings = loadTlsSettings(db, config);
   try {
@@ -54,8 +62,6 @@ export function createApplication(options = {}) {
     if (!options.db) db.close();
     throw error;
   }
-  const sessionIdleMs = (Number(config.sessionIdleHours) || 12) * 60 * 60 * 1000;
-  const sessionAbsoluteMs = (Number(config.sessionAbsoluteHours) || 168) * 60 * 60 * 1000;
   const app = express();
 
   app.disable('x-powered-by');
@@ -103,7 +109,12 @@ export function createApplication(options = {}) {
   app.use(session({
     name: 'recorddrive.sid',
     secret: config.sessionSecret,
-    store: new SQLiteSessionStore(db, { defaultTtlMs: sessionIdleMs, secret: config.sessionSecret }),
+    store: new SQLiteSessionStore(db, {
+      defaultTtlMs: sessionIdleMs,
+      absoluteTtlMs: sessionAbsoluteMs,
+      revocationTtlMs: sessionAbsoluteMs,
+      secret: config.sessionSecret
+    }),
     resave: false,
     saveUninitialized: false,
     rolling: true,

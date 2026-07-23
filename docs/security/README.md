@@ -26,12 +26,14 @@ This directory is the canonical index for RecordDrive security reports, validati
 7. Read the [2026-07-22 initial-password confidentiality hardening](reports/2026-07-22-initial-password-confidentiality-hardening.md) for forced temporary-password replacement and session revocation.
 8. Read the [2026-07-22 authentication rate-limit concurrency review](reports/2026-07-22-authentication-rate-limit-race.md) for the parallel-attempt PoC and remediation.
 9. Read the [2026-07-22 session-revocation race hardening](reports/2026-07-22-session-revocation-race-hardening.md) for delayed `touch()` session resurrection, the tombstone design, and regression evidence.
-10. Read the [7z preview security review](reports/2026-07-21-seven-zip-preview-review.md) for archive-parser design boundaries and residual risks.
+10. Read the [2026-07-23 tombstone-expiry hardening](reports/2026-07-23-confidentiality-tombstone-expiry-hardening.md) for the residual delayed-`touch()` resurrection after tombstone cleanup, update-only touch semantics, absolute-lifetime enforcement, and regression evidence.
+11. Read the [7z preview security review](reports/2026-07-21-seven-zip-preview-review.md) for archive-parser design boundaries and residual risks.
 
 ## Report index
 
 | Date | Document | Primary purpose |
 | --- | --- | --- |
+| 2026-07-23 | [Confidentiality tombstone-expiry hardening](reports/2026-07-23-confidentiality-tombstone-expiry-hardening.md) | Revoked-session resurrection after tombstone expiry, update-only touch semantics, absolute-lifetime persistence enforcement, PoC, and regression validation |
 | 2026-07-22 | [Request-error log confidentiality hardening](reports/2026-07-22-request-error-log-confidentiality-hardening.md) | Raw parser-body credential exposure through logs, safe error records, correct 400-series handling, and local PoC |
 | 2026-07-22 | [Host header and DNS rebinding hardening](reports/2026-07-22-host-header-dns-rebinding-hardening.md) | Strict pre-session Host validation, loopback-origin protection, exact external allowlist, and local PoC |
 | 2026-07-22 | [Initial-password confidentiality hardening](reports/2026-07-22-initial-password-confidentiality-hardening.md) | Forced replacement of administrator-issued temporary passwords, protected-route blocking, and active-session revocation |
@@ -51,6 +53,7 @@ This directory is the canonical index for RecordDrive security reports, validati
 | Artifact | Purpose |
 | --- | --- |
 | [Security PoC guide](evidence/security-poc-guide.md) | Local reproduction and regression commands |
+| [2026-07-23 confidentiality audit results](evidence/2026-07-23-confidentiality-audit-results.txt) | Exact original and patched tombstone-expiry PoC output, focused tests, limitations, and final integrity results |
 | [2026-07-22 request-error log confidentiality results](evidence/2026-07-22-request-error-log-confidentiality-results.txt) | Exact vulnerable-model and hardened logger output plus focused test result |
 | [2026-07-22 Host header/DNS rebinding PoC results](evidence/2026-07-22-host-header-dns-rebinding-results.txt) | Exact baseline and patched authority-boundary output |
 | [2026-07-22 Host header validation results](evidence/2026-07-22-host-header-validation-results.txt) | Syntax, focused tests, static assertions, dependency limitation, and `.git` integrity result |
