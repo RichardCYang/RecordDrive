@@ -25,6 +25,6 @@ test('download and preview routes apply fresh disclosure authorization', () => {
     (routeSource.match(/streamAuthorizedFile\(opened, tracker, res, next, authorizeDisclosure\)/g) || []).length,
     2
   );
-  assert.match(routeSource, /const preview = await withTrackedFileAccess[\s\S]*if \(!authorizeDisclosure\(\)\)[\s\S]*return res\.json\(preview\);/u);
+  assert.match(routeSource, /const preview = await withTrackedFileAccess[\s\S]*if \(!authorizeDisclosure\(\)\)[\s\S]*streamAuthorizedJson\(preview, res, next, authorizeDisclosure\);/u);
   assert.match(routeSource, /createFileDisclosureAuthorizer\(db, config, \{[\s\S]*sessionId: req\.sessionID[\s\S]*fileId: file\.id/u);
 });

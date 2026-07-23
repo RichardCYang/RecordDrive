@@ -2,6 +2,20 @@
 
 Run all commands from the repository root. All PoCs use temporary local databases and files; they do not target a remote service.
 
+## Patched generated-preview disclosure revocation boundary
+
+```bash
+node security-poc/generated-preview-disclosure-revocation.mjs
+```
+
+Expected result: the one-shot JSON baseline fully discloses the approximately 1 MiB confidential preview after both permission and session revocation. The patched buffer pump stops after a bounded partial chunk and ends with `"verdict": "BLOCKED"`.
+
+Run the focused dependency-free regression suite:
+
+```bash
+node --test test/generated-preview-disclosure-revocation.test.js
+```
+
 ## Patched in-flight disclosure revocation boundary
 
 ```bash

@@ -205,3 +205,145 @@ export function streamProtectedFile(options = {}) {
     stop: terminateForRevocation
   };
 }
+
+export function streamProtectedBuffer(options = {}) {
+  const {
+    buffer,
+    destination,
+    isAuthorized,
+    onError = () => {},
+    onAuthorizationError = () => {},
+    onRevoked = () => {},
+    recheckIntervalMs = DEFAULT_DISCLOSURE_RECHECK_INTERVAL_MS,
+    highWaterMark = DEFAULT_READ_CHUNK_BYTES,
+    authorizeEveryChunk = true
+  } = options;
+
+  if (!Buffer.isBuffer(buffer)) {
+    throw new Error('A serialized disclosure buffer is required.');
+  }
+  if (!destination || typeof destination.on !== 'function' || typeof destination.write !== 'function') {
+    throw new Error('A writable disclosure destination is required.');
+  }
+  if (typeof isAuthorized !== 'function') {
+    throw new Error('A disclosure authorization callback is required.');
+  }
+
+  const intervalMs = normalizedPositiveInteger(
+    recheckIntervalMs,
+    DEFAULT_DISCLOSURE_RECHECK_INTERVAL_MS
+  );
+  const chunkBytes = normalizedPositiveInteger(highWaterMark, DEFAULT_READ_CHUNK_BYTES);
+  let timer = null;
+  let finalized = false;
+  let stopped = false;
+  let revoked = false;
+  let streamError = null;
+  let nextAuthorizationCheckAt = 0;
+  let resolveDone;
+  const done = new Promise((resolve) => {
+    resolveDone = resolve;
+  });
+
+  const finalize = () => {
+    if (finalized) return;
+    finalized = true;
+    if (timer) clearInterval(timer);
+    if (streamError && !revoked) onError(streamError);
+    resolveDone({ revoked, error: streamError || null });
+  };
+
+  const terminateForRevocation = () => {
+    if (stopped || finalized) return;
+    stopped = true;
+    revoked = true;
+    try {
+      onRevoked();
+    } catch {
+      // Revocation callbacks are observational and must not keep disclosure alive.
+    }
+    if (typeof destination.destroy === 'function' && !destination.destroyed) {
+      destination.destroy();
+    }
+  };
+
+  const verifyAuthorization = (force = false) => {
+    if (stopped || finalized) return false;
+    const now = Date.now();
+    if (!force && now < nextAuthorizationCheckAt) return true;
+    try {
+      if (!isAuthorized()) {
+        terminateForRevocation();
+        return false;
+      }
+      nextAuthorizationCheckAt = now + intervalMs;
+      return true;
+    } catch (error) {
+      try {
+        onAuthorizationError(error);
+      } catch {
+        // Authorization failures remain fail-closed even if reporting fails.
+      }
+      terminateForRevocation();
+      return false;
+    }
+  };
+
+  const destinationError = (error) => {
+    if (!revoked && !streamError) streamError = error;
+    stopped = true;
+  };
+  const destinationClosed = () => {
+    stopped = true;
+  };
+  destination.once('error', destinationError);
+  destination.once('close', destinationClosed);
+
+  if (!verifyAuthorization(true)) {
+    finalize();
+    return { started: false, done, stop: terminateForRevocation };
+  }
+
+  timer = setInterval(() => verifyAuthorization(true), intervalMs);
+  timer.unref?.();
+
+  const pump = async () => {
+    let position = 0;
+    try {
+      while (!stopped) {
+        if (position >= buffer.length) {
+          destination.end();
+          break;
+        }
+        if (!verifyAuthorization(authorizeEveryChunk)) break;
+
+        const end = Math.min(position + chunkBytes, buffer.length);
+        const chunk = buffer.subarray(position, end);
+        position = end;
+        const canContinue = destination.write(chunk);
+        if (!canContinue) {
+          await waitForDrainOrStop(destination, () => stopped);
+        }
+      }
+    } catch (error) {
+      if (!revoked) streamError = error;
+      stopped = true;
+      if (typeof destination.destroy === 'function' && !destination.destroyed) {
+        destination.destroy();
+      }
+    } finally {
+      if (revoked && typeof destination.destroy === 'function' && !destination.destroyed) {
+        destination.destroy();
+      }
+      finalize();
+    }
+  };
+
+  void pump();
+  return {
+    started: true,
+    done,
+    stop: terminateForRevocation
+  };
+}
+

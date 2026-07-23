@@ -14,7 +14,7 @@ import {
 } from '../repository-access.js';
 import { deleteRepository } from '../repository-service.js';
 import { createFileDisclosureAuthorizer } from '../disclosure-authorization.js';
-import { streamProtectedFile } from '../protected-file-stream.js';
+import { streamProtectedBuffer, streamProtectedFile } from '../protected-file-stream.js';
 import {
   createFileAccessTracker,
   openStoredFile,
@@ -52,6 +52,8 @@ import {
   RepositoryFolderError,
   repositoryFolderUrl
 } from '../repository-folders.js';
+
+const PREVIEW_JSON_CHUNK_BYTES = 16 * 1024;
 
 function contentDisposition(disposition, filename) {
   const originalName = String(filename || 'preview.pdf');
@@ -255,6 +257,28 @@ function streamAuthorizedFile(opened, tracker, res, next, isAuthorized) {
     },
     onAuthorizationError() {
       console.error('File disclosure authorization re-check failed; the response was terminated.');
+    }
+  });
+}
+
+function streamAuthorizedJson(value, res, next, isAuthorized) {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) throw new TypeError('A JSON preview payload is required.');
+  const payload = Buffer.from(serialized, 'utf8');
+
+  res.set('Content-Type', 'application/json; charset=utf-8');
+  res.set('Content-Length', String(payload.length));
+  return streamProtectedBuffer({
+    buffer: payload,
+    destination: res,
+    isAuthorized,
+    highWaterMark: PREVIEW_JSON_CHUNK_BYTES,
+    authorizeEveryChunk: true,
+    onError(error) {
+      if (!res.headersSent) next(error);
+    },
+    onAuthorizationError() {
+      console.error('Preview disclosure authorization re-check failed; the response was terminated.');
     }
   });
 }
@@ -868,7 +892,8 @@ export function createRepositoriesRouter(db, config) {
       if (!authorizeDisclosure()) {
         return res.status(404).json({ error: req.t('The requested file does not exist.') });
       }
-      return res.json(preview);
+      streamAuthorizedJson(preview, res, next, authorizeDisclosure);
+      return;
     } catch (error) {
       if (error?.code === 'ENOENT') {
         return res.status(410).json({

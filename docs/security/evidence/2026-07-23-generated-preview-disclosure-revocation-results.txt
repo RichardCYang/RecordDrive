@@ -1,0 +1,297 @@
+RecordDrive generated-preview disclosure revocation validation
+Date: 2026-07-23
+Patched application version: 2.0.4
+
+Finding
+-------
+The original XLSX/ZIP/7z preview route performed one final authorization check and
+then returned the complete preview through res.json(preview). A permission/session
+revocation that happened after that one-shot write began could not stop the queued
+JSON body. The patch uses streamProtectedBuffer() with a 16 KiB production chunk,
+a fresh current-state authorization check before every chunk, a periodic fail-closed
+check while stalled, and writable-stream backpressure.
+
+Exact dependency-free PoC output
+--------------------------------
+{
+  "confidentialityTarget": "generated XLSX/ZIP/7z preview JSON",
+  "baseline": {
+    "permissionRevocation": {
+      "payloadBytes": 1048680,
+      "receivedBytes": 1048680,
+      "fullDisclosure": true
+    },
+    "sessionRevocation": {
+      "payloadBytes": 1048680,
+      "receivedBytes": 1048680,
+      "fullDisclosure": true
+    }
+  },
+  "patched": {
+    "permissionRevocation": {
+      "payloadBytes": 1048680,
+      "receivedBytes": 16384,
+      "fullDisclosure": false,
+      "revoked": true
+    },
+    "sessionRevocation": {
+      "payloadBytes": 1048680,
+      "receivedBytes": 16384,
+      "fullDisclosure": false,
+      "revoked": true
+    }
+  },
+  "verdict": "BLOCKED"
+}
+
+Focused generated-preview regression output
+--------------------------------------------
+TAP version 13
+# Subtest: generated preview JSON stops after permission or session revocation
+ok 1 - generated preview JSON stops after permission or session revocation
+  ---
+  duration_ms: 28.715822
+  type: 'test'
+  ...
+# Subtest: structured preview routes use revocation-aware JSON streaming
+ok 2 - structured preview routes use revocation-aware JSON streaming
+  ---
+  duration_ms: 0.812356
+  type: 'test'
+  ...
+# Subtest: generated preview streaming denies before the first byte when authorization is absent
+ok 3 - generated preview streaming denies before the first byte when authorization is absent
+  ---
+  duration_ms: 0.269951
+  type: 'test'
+  ...
+# Subtest: generated preview streaming fails closed when a re-check throws
+ok 4 - generated preview streaming fails closed when a re-check throws
+  ---
+  duration_ms: 0.266896
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 74.815621
+
+Combined focused confidentiality/race regression output
+--------------------------------------------------------
+The temporary express-session import-shape stub used only for dependency-free local
+session-store tests was removed immediately after this run and is not part of the
+project or final archive.
+
+TAP version 13
+# Subtest: counts concurrent password checks before asynchronous verification completes
+ok 1 - counts concurrent password checks before asynchronous verification completes
+  ---
+  duration_ms: 2.605857
+  type: 'test'
+  ...
+# Subtest: preserves other in-flight password checks when one concurrent request succeeds
+ok 2 - preserves other in-flight password checks when one concurrent request succeeds
+  ---
+  duration_ms: 1.038271
+  type: 'test'
+  ...
+# Subtest: counts concurrent MFA checks before TOTP or passkey verification completes
+ok 3 - counts concurrent MFA checks before TOTP or passkey verification completes
+  ---
+  duration_ms: 0.603306
+  type: 'test'
+  ...
+# Subtest: counts concurrent security reauthentication checks independently of session writes
+ok 4 - counts concurrent security reauthentication checks independently of session writes
+  ---
+  duration_ms: 0.700509
+  type: 'test'
+  ...
+# Subtest: generated preview JSON stops after permission or session revocation
+ok 5 - generated preview JSON stops after permission or session revocation
+  ---
+  duration_ms: 29.683508
+  type: 'test'
+  ...
+# Subtest: structured preview routes use revocation-aware JSON streaming
+ok 6 - structured preview routes use revocation-aware JSON streaming
+  ---
+  duration_ms: 0.829361
+  type: 'test'
+  ...
+# Subtest: generated preview streaming denies before the first byte when authorization is absent
+ok 7 - generated preview streaming denies before the first byte when authorization is absent
+  ---
+  duration_ms: 0.272875
+  type: 'test'
+  ...
+# Subtest: generated preview streaming fails closed when a re-check throws
+ok 8 - generated preview streaming fails closed when a re-check throws
+  ---
+  duration_ms: 0.259084
+  type: 'test'
+  ...
+# Subtest: rejects malformed or ambiguous Host authorities
+ok 9 - rejects malformed or ambiguous Host authorities
+  ---
+  duration_ms: 10.619113
+  type: 'test'
+  ...
+# Subtest: limits direct loopback deployments to loopback Host names
+ok 10 - limits direct loopback deployments to loopback Host names
+  ---
+  duration_ms: 1.231698
+  type: 'test'
+  ...
+# Subtest: requires an exact configured allowlist for externally reachable deployments
+ok 11 - requires an exact configured allowlist for externally reachable deployments
+  ---
+  duration_ms: 0.60616
+  type: 'test'
+  ...
+# Subtest: returns 421 before application state is reached for an untrusted Host
+ok 12 - returns 421 before application state is reached for an untrusted Host
+  ---
+  duration_ms: 0.284912
+  type: 'test'
+  ...
+# Subtest: rejects duplicate Host fields and runs before stateful application middleware
+ok 13 - rejects duplicate Host fields and runs before stateful application middleware
+  ---
+  duration_ms: 0.467203
+  type: 'test'
+  ...
+# (node:3173) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: in-flight permission and session revocation stop protected file disclosures
+ok 14 - in-flight permission and session revocation stop protected file disclosures
+  ---
+  duration_ms: 312.805718
+  type: 'test'
+  ...
+# Subtest: download and preview routes apply fresh disclosure authorization
+ok 15 - download and preview routes apply fresh disclosure authorization
+  ---
+  duration_ms: 1.160542
+  type: 'test'
+  ...
+# (node:3180) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: a purged session cannot be resurrected by an in-flight touch
+ok 16 - a purged session cannot be resurrected by an in-flight touch
+  ---
+  duration_ms: 4.962995
+  type: 'test'
+  ...
+# Subtest: destroy tombstones a session so concurrent logout requests cannot restore it
+ok 17 - destroy tombstones a session so concurrent logout requests cannot restore it
+  ---
+  duration_ms: 1.053804
+  type: 'test'
+  ...
+# Subtest: a delayed touch cannot recreate a missing row after its tombstone expires
+ok 18 - a delayed touch cannot recreate a missing row after its tombstone expires
+  ---
+  duration_ms: 1.168725
+  type: 'test'
+  ...
+# Subtest: an absolutely expired stale set cannot recreate a revoked session
+ok 19 - an absolutely expired stale set cannot recreate a revoked session
+  ---
+  duration_ms: 0.884142
+  type: 'test'
+  ...
+# Subtest: session-limit pruning cannot be undone by a delayed touch
+ok 20 - session-limit pruning cannot be undone by a delayed touch
+  ---
+  duration_ms: 1.585923
+  type: 'test'
+  ...
+# Subtest: administrator-session purge cannot be undone by a delayed touch
+ok 21 - administrator-session purge cannot be undone by a delayed touch
+  ---
+  duration_ms: 1.07192
+  type: 'test'
+  ...
+# Subtest: an expired tombstone does not permanently reserve a session identifier
+ok 22 - an expired tombstone does not permanently reserve a session identifier
+  ---
+  duration_ms: 0.991361
+  type: 'test'
+  ...
+# Subtest: legacy raw session rows are deleted without persisting browser session identifiers
+ok 23 - legacy raw session rows are deleted without persisting browser session identifiers
+  ---
+  duration_ms: 0.61994
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 23
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 405.731332
+
+Repeated PoC timing validation
+------------------------------
+20 consecutive runs: 20 BLOCKED, 0 FAILED.
+Unique patched received-byte pairs: [(16384, 16384)].
+
+Static and format validation
+----------------------------
+JavaScript/ESM/CommonJS files checked with node --check: 127
+Syntax failures: 0
+JSON files parsed: 6
+JSON failures: 0
+npm run check: PASS
+Temporary node_modules directory in final tree: ABSENT
+
+Dependency installation limitation
+----------------------------------
+Runtime: Node v22.16.0, npm 10.9.2
+Declared project engine: ^22.23.0 || ^24.17.0 || ^26.3.1
+npm ci --ignore-scripts --no-audit --no-fund result: FAILED
+Reason: HTTP 503 while retrieving locked zip-stream@4.1.1 from the configured registry.
+A complete install, npm audit, and full integration suite were therefore not claimed.
+
+Relevant advisory verification
+------------------------------
+Multer is locked at 2.2.0. The upload layer sets fieldNestingDepth: 0 and explicit
+file, field, part, header, count, and byte limits. GitHub's reviewed advisories list
+2.2.0 as patched for the reviewed incomplete-cleanup and nested-field issues.
+
+Secret and Git-history scan
+---------------------------
+Reachable Git commits: 44
+High-confidence current-tree and reachable-history matches:
+  private keys: 0
+  AWS access keys: 0
+  GitHub tokens: 0
+  Slack tokens: 0
+  Google API keys: 0
+  OpenAI-style keys: 0
+Test fixtures and documented development defaults were excluded from the production-
+credential conclusion.
+
+.git preservation
+-----------------
+Supplied/extracted .git aggregate SHA-256:
+  d0cdfb5bd63c685a525883b6541c9ae1a237c62e965516b5192ffcb86b570c38
+Patched-tree .git aggregate SHA-256:
+  d0cdfb5bd63c685a525883b6541c9ae1a237c62e965516b5192ffcb86b570c38
+Fresh original-extraction versus patched-tree .git recursive byte comparison: IDENTICAL
+No .git file was added, deleted, or modified.
+
+Environment note
+----------------
+Node emitted the expected experimental warning for node:sqlite under the available
+22.16.0 runtime during existing session/file revocation PoCs. All application
+assertions in the focused suites passed.

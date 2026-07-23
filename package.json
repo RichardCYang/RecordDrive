@@ -1,6 +1,6 @@
 {
   "name": "recorddrive",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "A sky-blue team file drive built with Node.js",
   "type": "module",
   "main": "src/app.js",
@@ -8,7 +8,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "test": "node --test",
-    "test:security": "node --test test/in-flight-disclosure-revocation.test.js test/session-revocation-race.test.js test/security-poc.test.js test/authentication-rate-limit-race.test.js test/host-header-confidentiality.test.js test/request-error-confidentiality.test.js",
+    "test:security": "node --test test/generated-preview-disclosure-revocation.test.js test/in-flight-disclosure-revocation.test.js test/session-revocation-race.test.js test/security-poc.test.js test/authentication-rate-limit-race.test.js test/host-header-confidentiality.test.js test/request-error-confidentiality.test.js",
     "check": "node --check src/server.js && node --check src/app.js"
   },
   "engines": {

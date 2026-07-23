@@ -2,10 +2,10 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:f54bb7d5-f3e2-4b95-96ea-275febaec264",
+  "serialNumber": "urn:uuid:2e1c843f-baf9-47ac-acbf-d5c7c98d08c5",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-07-23T00:00:00.000Z",
+    "timestamp": "2026-07-23T05:11:19Z",
     "lifecycles": [
       {
         "phase": "build"
@@ -19,13 +19,13 @@
       }
     ],
     "component": {
-      "bom-ref": "recorddrive@2.0.3",
+      "bom-ref": "recorddrive@2.0.4",
       "type": "library",
       "name": "recorddrive",
-      "version": "2.0.3",
+      "version": "2.0.4",
       "scope": "required",
       "description": "A sky-blue team file drive built with Node.js",
-      "purl": "pkg:npm/recorddrive@2.0.3",
+      "purl": "pkg:npm/recorddrive@2.0.4",
       "properties": [
         {
           "name": "cdx:npm:package:path",
@@ -1597,7 +1597,7 @@
       "name": "append-field",
       "version": "1.0.0",
       "scope": "required",
-      "author": "Linus Unnebäck",
+      "author": "Linus Unneb\u00e4ck",
       "purl": "pkg:npm/append-field@1.0.0",
       "properties": [
         {
@@ -3041,7 +3041,7 @@
       "version": "5.3.1",
       "scope": "required",
       "author": "Sindre Sorhus",
-      "description": "Convert a dash/dot/underscore/space separated string to camelCase or PascalCase: `foo-bar` → `fooBar`",
+      "description": "Convert a dash/dot/underscore/space separated string to camelCase or PascalCase: `foo-bar` \u2192 `fooBar`",
       "purl": "pkg:npm/camelcase@5.3.1",
       "properties": [
         {
@@ -3268,7 +3268,7 @@
       "name": "combined-stream",
       "version": "1.0.8",
       "scope": "optional",
-      "author": "Felix Geisendörfer",
+      "author": "Felix Geisend\u00f6rfer",
       "description": "A stream that emits multiple other streams one after another.",
       "purl": "pkg:npm/combined-stream@1.0.8",
       "properties": [
@@ -3985,7 +3985,7 @@
       "version": "1.2.0",
       "scope": "required",
       "author": "Sindre Sorhus",
-      "description": "Convert a camelized string into a lowercased one with a custom separator: unicornRainbow → unicorn_rainbow",
+      "description": "Convert a camelized string into a lowercased one with a custom separator: unicornRainbow \u2192 unicorn_rainbow",
       "purl": "pkg:npm/decamelize@1.2.0",
       "properties": [
         {
@@ -4031,7 +4031,7 @@
       "name": "delayed-stream",
       "version": "1.0.0",
       "scope": "optional",
-      "author": "Felix Geisendörfer",
+      "author": "Felix Geisend\u00f6rfer",
       "description": "Buffers events from a stream until you are ready to handle them.",
       "purl": "pkg:npm/delayed-stream@1.0.0",
       "properties": [
@@ -5682,7 +5682,7 @@
       "name": "form-data",
       "version": "4.0.6",
       "scope": "optional",
-      "author": "Felix Geisendörfer",
+      "author": "Felix Geisend\u00f6rfer",
       "description": "A library to create readable \"multipart/form-data\" streams. Can be used to submit forms and file uploads to other web applications.",
       "purl": "pkg:npm/form-data@4.0.6",
       "properties": [
@@ -8508,7 +8508,7 @@
       "version": "3.0.1",
       "scope": "required",
       "author": "John-David Dalton",
-      "description": "The modern build of lodash’s `_.isUndefined` as a module.",
+      "description": "The modern build of lodash\u2019s `_.isUndefined` as a module.",
       "purl": "pkg:npm/lodash.isundefined@3.0.1",
       "properties": [
         {
@@ -12480,7 +12480,7 @@
       "name": "tmp",
       "version": "0.2.7",
       "scope": "required",
-      "author": "KARASZI István",
+      "author": "KARASZI Istv\u00e1n",
       "description": "Temporary file and directory creator",
       "purl": "pkg:npm/tmp@0.2.7",
       "properties": [
@@ -12941,7 +12941,7 @@
       "name": "unbzip2-stream",
       "version": "1.0.8",
       "scope": "required",
-      "author": "Jan Bölsche",
+      "author": "Jan B\u00f6lsche",
       "description": "streaming unbzip2 implementatio in pure javascript for node and browsers",
       "purl": "pkg:npm/unbzip2-stream@1.0.8",
       "properties": [
