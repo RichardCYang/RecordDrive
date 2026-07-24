@@ -1,0 +1,50 @@
+{
+  "browser": "144.0.7559.96",
+  "patched": {
+    "cookiesInRequestOrder": [
+      {
+        "domain": "app.example.test",
+        "expires": -1,
+        "httpOnly": true,
+        "name": "__Host-recorddrive.sid",
+        "path": "/",
+        "sameSite": "Strict",
+        "secure": true,
+        "value": "victim-session"
+      }
+    ],
+    "firstCookieValue": "victim-session",
+    "siblingDomainInjectionError": "BrowserContext.add_cookies: Protocol error (Storage.setCookies): Invalid cookie fields"
+  },
+  "target": "https://app.example.test/repositories/42/upload",
+  "verified": {
+    "invalidHostPrefixCookieRejected": true,
+    "longerPathAttackerCookieIsFirst": true,
+    "onlyVictimHostCookieRemains": true
+  },
+  "vulnerable": {
+    "cookiesInRequestOrder": [
+      {
+        "domain": "example.test",
+        "expires": -1,
+        "httpOnly": true,
+        "name": "recorddrive.sid",
+        "path": "/repositories",
+        "sameSite": "Strict",
+        "secure": true,
+        "value": "attacker-session"
+      },
+      {
+        "domain": "app.example.test",
+        "expires": -1,
+        "httpOnly": true,
+        "name": "recorddrive.sid",
+        "path": "/",
+        "sameSite": "Strict",
+        "secure": true,
+        "value": "victim-session"
+      }
+    ],
+    "firstCookieValue": "attacker-session"
+  }
+}

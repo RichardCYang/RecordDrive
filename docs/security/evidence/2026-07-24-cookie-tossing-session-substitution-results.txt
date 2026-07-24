@@ -1,0 +1,51 @@
+RecordDrive 2.0.9 cookie-tossing/session-substitution validation
+Date: 2026-07-24
+
+CONFIRMED FINDING
+- External cookie name before remediation: recorddrive.sid
+- Attack precondition: attacker controls a sibling subdomain and owns a valid RecordDrive session
+- Browser target: https://app.example.test/repositories/42/upload
+- Baseline Cookie order: attacker /repositories cookie, then victim / cookie
+- Baseline first-value parser result: attacker-session
+- Patched sibling-domain __Host- insertion: rejected by Chromium
+- Patched remaining session: victim-session only
+
+POC COMMANDS
+  node security-poc/cookie-tossing-session-substitution.mjs
+  python security-poc/cookie-tossing-chromium.py
+
+FOCUSED TESTS
+  node --test test/cookie-prefix-confidentiality.test.js
+  Result: 5 passed, 0 failed
+
+RELATED DEPENDENCY-FREE REGRESSIONS
+  node --test test/cookie-prefix-confidentiality.test.js \
+    test/host-header-confidentiality.test.js \
+    test/repository-name-confidentiality.test.js \
+    test/docker-build-context-confidentiality.test.js
+  Result: 15 passed, 0 failed
+
+  node --test --test-name-pattern='safe request error logging|request parsers run|localized' \
+    test/request-error-confidentiality.test.js
+  Result: 3 passed, 0 failed
+
+SYNTAX
+- node --check across src/, test/, and security-poc/
+- Files checked: 104
+- Failures: 0
+
+DEPENDENCY/INTEGRATION LIMITATION
+- npm ci --ignore-scripts --no-audit --no-fund
+- Registry result: HTTP 503 while fetching zip-stream-4.1.1.tgz
+- Runtime warning: Node v22.16.0 is below package engines ^22.23.0
+- Partial node_modules output was removed before packaging
+
+GIT PRESERVATION
+- Original .git entries: 44 ZIP entries (.git/ plus 43 descendants)
+- Patched-tree .git manifest matches original: YES (content, mode, type, size, and mtime_ns all identical)
+- Original .git aggregate SHA-256: 68a41ab571561ba51e888e51eb5c00424c21688656b3b66cf03bde929324164f
+- Output ZIP .git entry content/metadata matches input ZIP: YES (44 entries; content, all ZIP metadata, raw local records, and central-directory records match byte-for-byte)
+
+ARCHIVE
+- Output ZIP SHA-256: Published in the accompanying .SHA256.txt manifest (not self-embedded)
+- Output ZIP path: RecordDrive-2.0.9-security-fixed.zip

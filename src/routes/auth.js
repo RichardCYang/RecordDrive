@@ -4,6 +4,7 @@ import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse
 } from '@simplewebauthn/server';
+import { clearSessionCookies } from '../cookie-security.js';
 import { isBlockedAdministrator } from '../admin-access.js';
 import { logActivity } from '../database.js';
 import {
@@ -451,7 +452,7 @@ export function createAuthRouter(db, config) {
   router.post('/logout', (req, res, next) => {
     req.session.destroy((error) => {
       if (error) return next(error);
-      res.clearCookie('recorddrive.sid');
+      clearSessionCookies(res, config);
       return res.redirect('/login');
     });
   });

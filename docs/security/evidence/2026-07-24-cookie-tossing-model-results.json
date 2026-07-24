@@ -1,0 +1,20 @@
+{
+  "vulnerable": {
+    "cookieHeader": "recorddrive.sid=attacker-session; recorddrive.sid=victim-session",
+    "selectedSession": "attacker-session"
+  },
+  "patched": {
+    "attemptedSiblingCookieAccepted": false,
+    "cookieHeader": "__Host-recorddrive.sid=victim-session",
+    "selectedSession": "victim-session",
+    "configuredName": "__Host-recorddrive.sid",
+    "configuredOptions": {
+      "httpOnly": true,
+      "sameSite": "strict",
+      "secure": true,
+      "priority": "high",
+      "path": "/",
+      "maxAge": 60000
+    }
+  }
+}

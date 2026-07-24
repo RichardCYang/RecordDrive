@@ -3,6 +3,7 @@ import {
   isBlockedAdministrator
 } from '../admin-access.js';
 import { requestWantsJson, safeInternalPath } from '../utils.js';
+import { clearSessionCookies } from '../cookie-security.js';
 
 function administratorAccessDisabledMessage(req) {
   return req.t('Administrator access is disabled by server configuration.');
@@ -29,7 +30,7 @@ export function blockDisabledAdministratorSession(req, res, next) {
   req.currentUser = null;
   res.locals.currentUser = null;
   return req.session.destroy((error) => {
-    res.clearCookie('recorddrive.sid');
+    clearSessionCookies(res, req.app.recorddrive.config);
     if (error) return next(error);
     return renderAdministratorAccessDisabled(req, res);
   });

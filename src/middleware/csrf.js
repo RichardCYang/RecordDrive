@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 import { requestWantsJson } from '../utils.js';
+import { anonymousCsrfCookieName } from '../cookie-security.js';
 
 const MULTIPART_UPLOAD_PATH = /^\/repositories\/[1-9]\d*\/upload\/?$/;
-const ANONYMOUS_CSRF_COOKIE = 'recorddrive.csrf';
 const ANONYMOUS_CSRF_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 const MAX_CSRF_VALUE_LENGTH = 512;
 
@@ -74,17 +74,17 @@ function hasServerSessionState(req) {
 }
 
 function anonymousCookieToken(req) {
-  return parseCookies(req.headers.cookie)[ANONYMOUS_CSRF_COOKIE] || '';
+  return parseCookies(req.headers.cookie)[anonymousCsrfCookieName(req.app.recorddrive.config)] || '';
 }
 
 function setAnonymousCsrfCookie(req, res, token) {
-  res.cookie(ANONYMOUS_CSRF_COOKIE, token, {
+  res.cookie(anonymousCsrfCookieName(req.app.recorddrive.config), token, {
     httpOnly: true,
     sameSite: 'strict',
-    secure: req.secure,
+    secure: req.app.recorddrive.config.requireHttps ? true : req.secure,
     priority: 'high',
     maxAge: ANONYMOUS_CSRF_MAX_AGE_MS,
-    path: '/login'
+    path: '/'
   });
 }
 

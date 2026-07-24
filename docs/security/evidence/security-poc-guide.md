@@ -228,3 +228,28 @@ node --test test/docker-build-context-confidentiality.test.js
 ```
 
 Expected result: the vulnerable baseline reports seven exposed deployment-secret/backup canaries and `"verdict": "EXPOSED"`. The patched policy reports explicit runtime copy sources, zero exposed canaries, eight blocked canaries including `.git/config`, and `"verdict": "BLOCKED"`. This is a dependency-free build-policy reproduction and does not require a Docker daemon.
+
+
+## Cookie-tossing session substitution
+
+Run the deterministic browser-order/server-parser model:
+
+```bash
+node security-poc/cookie-tossing-session-substitution.mjs
+```
+
+Expected result: the vulnerable model selects `attacker-session`; the patched model rejects the sibling-domain `__Host-` cookie and selects `victim-session` with `Secure`, `Path=/`, and no Domain attribute.
+
+For browser-backed verification, install Python Playwright and provide a Chromium executable (default `/usr/bin/chromium`):
+
+```bash
+python security-poc/cookie-tossing-chromium.py
+```
+
+Expected result: Chromium returns the longer `/repositories` attacker cookie first for the legacy name, rejects a `__Host-recorddrive.sid` cookie carrying Domain/Path override attributes, and retains only the valid host-only root-path cookie.
+
+Run the dependency-free regression suite:
+
+```bash
+node --test test/cookie-prefix-confidentiality.test.js
+```

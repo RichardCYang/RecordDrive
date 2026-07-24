@@ -881,6 +881,12 @@ test('marks production authentication cookies as secure', async (t) => {
     .get('/login')
     .set('X-Forwarded-Proto', 'https')
     .expect(200);
+  const anonymousCsrfCookie = page.headers['set-cookie']
+    .find((value) => value.startsWith('__Host-recorddrive.csrf='));
+  assert.ok(anonymousCsrfCookie);
+  assert.match(anonymousCsrfCookie, /; Path=\/(?:;|$)/);
+  assert.match(anonymousCsrfCookie, /; Secure(?:;|$)/);
+  assert.doesNotMatch(anonymousCsrfCookie, /; Domain=/i);
   const cookieHeader = page.headers['set-cookie']
     .map((value) => value.split(';', 1)[0])
     .join('; ');
@@ -896,9 +902,11 @@ test('marks production authentication cookies as secure', async (t) => {
     })
     .expect(302);
   const sessionCookie = response.headers['set-cookie']
-    .find((value) => value.startsWith('recorddrive.sid='));
+    .find((value) => value.startsWith('__Host-recorddrive.sid='));
   assert.ok(sessionCookie);
+  assert.match(sessionCookie, /; Path=\/(?:;|$)/);
   assert.match(sessionCookie, /; Secure(?:;|$)/);
+  assert.doesNotMatch(sessionCookie, /; Domain=/i);
 });
 
 test('enforces a server-side absolute session lifetime', async (t) => {

@@ -38,6 +38,7 @@ import { normalizeAndValidateStorageConfiguration } from './storage-path-securit
 import { applyStoredRepositoryStorageRoot } from './storage-settings.js';
 import { ensureSecureUploadRoot } from './file-access-time.js';
 import { logRequestErrorSafely, requestBodyClientErrorStatus } from './request-error-security.js';
+import { clearSessionCookies, sessionCookieName, sessionCookieOptions } from './cookie-security.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -107,7 +108,7 @@ export function createApplication(options = {}) {
   app.use(express.json({ limit: '256kb' }));
 
   app.use(session({
-    name: 'recorddrive.sid',
+    name: sessionCookieName(config),
     secret: config.sessionSecret,
     store: new SQLiteSessionStore(db, {
       defaultTtlMs: sessionIdleMs,
@@ -118,13 +119,7 @@ export function createApplication(options = {}) {
     resave: false,
     saveUninitialized: false,
     rolling: true,
-    cookie: {
-      httpOnly: true,
-      sameSite: 'strict',
-      secure: config.requireHttps ? true : 'auto',
-      priority: 'high',
-      maxAge: sessionIdleMs
-    }
+    cookie: sessionCookieOptions(config, sessionIdleMs)
   }));
 
   app.use((req, res, next) => {
@@ -149,12 +144,7 @@ export function createApplication(options = {}) {
 
     return req.session.regenerate((error) => {
       if (error) return next(error);
-      res.clearCookie('recorddrive.sid', {
-        httpOnly: true,
-        sameSite: 'strict',
-        secure: config.requireHttps,
-        priority: 'high'
-      });
+      clearSessionCookies(res, config);
       if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
         if (requestWantsJson(req) || req.path.includes('/passkeys/')) {
           return res.status(401).json({ error: req.t('Your session has expired. Sign in again.') });
