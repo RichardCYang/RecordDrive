@@ -35,12 +35,14 @@ This directory is the canonical index for RecordDrive security reports, validati
 16. Read the [2026-07-23 chunk-boundary disclosure revocation hardening](reports/2026-07-23-chunk-boundary-disclosure-revocation-hardening.md) for the residual cached-authorization window in fast file/PDF responses, deterministic PoC, and per-chunk remediation.
 17. Read the [2026-07-23 WebAuthn challenge replay hardening](reports/2026-07-23-webauthn-challenge-replay-hardening.md) for atomic one-time challenge consumption, replay-race PoC, and credential-counter compare-and-swap.
 18. Read the [2026-07-24 recovery-code session revocation hardening](reports/2026-07-24-recovery-code-session-revocation-hardening.md) for the stolen-session containment gap, deterministic PoC, session invalidation, and transactional recovery-key replacement.
-19. Read the [7z preview security review](reports/2026-07-21-seven-zip-preview-review.md) for archive-parser design boundaries and residual risks.
+19. Read the [2026-07-24 Docker build-context confidentiality hardening](reports/2026-07-24-docker-build-context-confidentiality-hardening.md) for broad-context secret inclusion, the deterministic canary PoC, deny-by-default context policy, and explicit runtime copies.
+20. Read the [7z preview security review](reports/2026-07-21-seven-zip-preview-review.md) for archive-parser design boundaries and residual risks.
 
 ## Report index
 
 | Date | Document | Primary purpose |
 | --- | --- | --- |
+| 2026-07-24 | [Docker build-context confidentiality hardening](reports/2026-07-24-docker-build-context-confidentiality-hardening.md) | Broad `COPY . .` secret/backup inclusion, deterministic canary PoC, deny-by-default `.dockerignore`, and explicit runtime-only image copies |
 | 2026-07-24 | [Recovery-code session revocation hardening](reports/2026-07-24-recovery-code-session-revocation-hardening.md) | Recovery-key changes that left stolen authenticated sessions active, deterministic PoC, other-session invalidation, and atomic key replacement |
 | 2026-07-23 | [WebAuthn challenge replay hardening](reports/2026-07-23-webauthn-challenge-replay-hardening.md) | Atomic one-time authentication/registration challenge consumption, deterministic replay-race PoC, protected ledger bindings, and credential-counter compare-and-swap |
 | 2026-07-23 | [Chunk-boundary disclosure revocation hardening](reports/2026-07-23-chunk-boundary-disclosure-revocation-hardening.md) | Cached authorization window in fast file/PDF responses, deterministic full-disclosure PoC, forced per-chunk live authorization, and regression validation |
@@ -68,6 +70,7 @@ This directory is the canonical index for RecordDrive security reports, validati
 
 | Artifact | Purpose |
 | --- | --- |
+| [2026-07-24 Docker build-context confidentiality results](evidence/2026-07-24-docker-build-context-confidentiality-results.txt) | Exact vulnerable and patched canary output, regression/syntax results, dependency-audit limitation, Git-history scan, and final `.git`/archive integrity |
 | [2026-07-24 recovery-code session revocation results](evidence/2026-07-24-recovery-code-session-revocation-results.txt) | Baseline and patched stolen-session PoC output, transactional rollback proof, focused/wider regressions, dependency limitations, Git-history scan, and exact final `.git` preservation |
 | [2026-07-23 WebAuthn challenge replay results](evidence/2026-07-23-webauthn-challenge-replay-results.txt) | Exact session-race baseline and patched atomic-ledger output, focused regressions, limitations, secret scans, and final `.git`/archive integrity values |
 | [2026-07-23 chunk-boundary disclosure revocation results](evidence/2026-07-23-chunk-boundary-disclosure-revocation-results.txt) | Exact cached-decision and patched per-chunk PoC output, focused tests, dependency/runtime limitations, and final `.git`/archive integrity fields |

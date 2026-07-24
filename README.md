@@ -293,6 +293,8 @@ docker compose up --build -d
 
 The Compose file explicitly forces `NODE_ENV=production` and in-container listeners on `0.0.0.0`, so values from `.env` cannot downgrade the container to development behavior. Host ports are published only on `127.0.0.1` by default, and Compose supplies a loopback-only `ALLOWED_HOSTS` default. Replace that value with the exact public host name before publishing through a reverse proxy or non-loopback interface. The application still requires HTTPS because the container listeners are non-loopback; terminate TLS in RecordDrive on port 3443 or send traffic through a reverse proxy whose exact topology is configured with `TRUST_PROXY`. Weak example secrets cause startup to fail.
 
+The production image uses a deny-by-default build context and explicit `COPY` instructions for `package.json`, `package-lock.json`, `vendor/xz-compat-purejs`, `src`, `public`, and `views`. Do not replace these with `COPY . .`, and do not add `.env.*`, certificate/private-key directories, database backups, exports, logs, or Git metadata to the image allowlist. Mount runtime secrets and persistent data instead of placing them in the project build context.
+
 The Compose configuration stores the database and uploaded files in the `recorddrive_data` volume. If the administrator selects different ports, update the Compose port mappings to match. Do not change host publication to `0.0.0.0` unless HTTPS is already working and the network exposure is intentional.
 
 A container can use an administrator-selected host storage path only when that path is mounted into the container. Add a writable bind mount or volume, then enter the container path in **Admin → Storage**, for example:

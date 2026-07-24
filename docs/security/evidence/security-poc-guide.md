@@ -219,3 +219,12 @@ node --test test/recovery-code-session-revocation.test.js
 ```
 
 Expected result: the baseline model reports a stolen session as active after recovery-key rotation. The patched model reports one revoked other session, keeps the current owner session active, and ends with `"verdict": "BLOCKED"`. The forced SQLite insertion failure must retain the prior recovery-key row and report `"verdict": "ROLLED_BACK"`.
+
+## Docker build-context confidentiality
+
+```bash
+node security-poc/docker-build-context-confidentiality.mjs .
+node --test test/docker-build-context-confidentiality.test.js
+```
+
+Expected result: the vulnerable baseline reports seven exposed deployment-secret/backup canaries and `"verdict": "EXPOSED"`. The patched policy reports explicit runtime copy sources, zero exposed canaries, eight blocked canaries including `.git/config`, and `"verdict": "BLOCKED"`. This is a dependency-free build-policy reproduction and does not require a Docker daemon.

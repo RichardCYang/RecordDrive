@@ -1,0 +1,385 @@
+RecordDrive Docker build-context confidentiality hardening evidence
+Date: 2026-07-24
+Patched version: 2.0.8
+Finding: RD-C-07 / deployment-dependent High confidentiality impact
+
+1. Environment
+
+Node.js: v22.16.0
+npm: 10.9.2
+Declared Node.js support: ^22.23.0 || ^24.17.0 || ^26.3.1
+Docker daemon/CLI: unavailable in the audit environment
+Server source reviewed: 47 JavaScript files / 12,098 lines
+
+2. Deterministic build-policy PoC
+
+Command:
+  node security-poc/docker-build-context-confidentiality.mjs .
+
+Output:
+{
+  "title": "RecordDrive Docker build-context confidentiality PoC",
+  "confidentialityTarget": "deployment secrets and backup artifacts inside the project build context",
+  "baseline": {
+    "broadContextCopy": true,
+    "exposedCanaries": [
+      ".env.production",
+      ".env.local",
+      "certificates/tls-private.key",
+      "certificates/recorddrive.pfx",
+      "data/recorddrive-backup.sqlite",
+      "data/exports/tenant-a.zip",
+      "logs/recorddrive.log"
+    ],
+    "exposedCanaryCount": 7,
+    "verdict": "EXPOSED"
+  },
+  "patched": {
+    "malformedCopyInstruction": false,
+    "broadContextCopy": false,
+    "denyAllFirst": true,
+    "allowRules": [
+      "!package.json",
+      "!package-lock.json",
+      "!src/",
+      "!src/**",
+      "!public/",
+      "!public/**",
+      "!views/",
+      "!views/**",
+      "!vendor/",
+      "!vendor/xz-compat-purejs/",
+      "!vendor/xz-compat-purejs/**"
+    ],
+    "copySources": [
+      "package.json",
+      "package-lock.json",
+      "vendor/xz-compat-purejs",
+      "src",
+      "public",
+      "views"
+    ],
+    "unexpectedCopySources": [],
+    "exposedCanaries": [],
+    "blockedCanaryCount": 8,
+    "verdict": "BLOCKED"
+  }
+}
+
+Interpretation:
+- Vulnerable baseline: broad COPY of the context, seven exposed canary paths, verdict EXPOSED.
+- Patched policy: explicit runtime-only sources, deny-all context, zero exposed canaries, eight blocked canaries, verdict BLOCKED.
+- .git/config was blocked in both policies and the remediation never copies or modifies .git.
+
+3. Focused dependency-free confidentiality/unit regression group
+
+Command:
+  node --test \
+    test/authentication-rate-limit-race.test.js \
+    test/docker-build-context-confidentiality.test.js \
+    test/file-access-time-unit.test.js \
+    test/file-stream-chunk-revocation.test.js \
+    test/generated-preview-disclosure-revocation.test.js \
+    test/host-header-confidentiality.test.js \
+    test/password-policy.test.js \
+    test/repository-name-confidentiality.test.js \
+    test/sensitive-session-material.test.js \
+    test/webauthn-challenge-replay.test.js
+
+Output:
+TAP version 13
+# Subtest: counts concurrent password checks before asynchronous verification completes
+ok 1 - counts concurrent password checks before asynchronous verification completes
+  ---
+  duration_ms: 3.384532
+  type: 'test'
+  ...
+# Subtest: preserves other in-flight password checks when one concurrent request succeeds
+ok 2 - preserves other in-flight password checks when one concurrent request succeeds
+  ---
+  duration_ms: 0.349521
+  type: 'test'
+  ...
+# Subtest: counts concurrent MFA checks before TOTP or passkey verification completes
+ok 3 - counts concurrent MFA checks before TOTP or passkey verification completes
+  ---
+  duration_ms: 0.533735
+  type: 'test'
+  ...
+# Subtest: counts concurrent security reauthentication checks independently of session writes
+ok 4 - counts concurrent security reauthentication checks independently of session writes
+  ---
+  duration_ms: 0.63788
+  type: 'test'
+  ...
+# Subtest: baseline broad copy exposes deployment-secret canaries
+ok 5 - baseline broad copy exposes deployment-secret canaries
+  ---
+  duration_ms: 2.22146
+  type: 'test'
+  ...
+# Subtest: patched image copies only the runtime allowlist and blocks all canaries
+ok 6 - patched image copies only the runtime allowlist and blocks all canaries
+  ---
+  duration_ms: 0.341599
+  type: 'test'
+  ...
+# Subtest: Docker policy does not copy Git metadata into the image
+ok 7 - Docker policy does not copy Git metadata into the image
+  ---
+  duration_ms: 0.280508
+  type: 'test'
+  ...
+# Subtest: preserves the primary file-operation error when access-time completion also fails
+ok 8 - preserves the primary file-operation error when access-time completion also fails
+  ---
+  duration_ms: 0.93312
+  type: 'test'
+  ...
+# Subtest: falls back to path-based timestamp updates after Windows-style futime EPERM
+ok 9 - falls back to path-based timestamp updates after Windows-style futime EPERM
+  ---
+  duration_ms: 2.075393
+  type: 'test'
+  ...
+# Subtest: does not update a replacement path when the opened file identity changed
+ok 10 - does not update a replacement path when the opened file identity changed
+  ---
+  duration_ms: 2.727163
+  type: 'test'
+  ...
+# Subtest: a fast file stream reauthorizes every chunk before disclosure
+ok 11 - a fast file stream reauthorizes every chunk before disclosure
+  ---
+  duration_ms: 5.243383
+  type: 'test'
+  ...
+# Subtest: generated preview JSON stops after permission or session revocation
+ok 12 - generated preview JSON stops after permission or session revocation
+  ---
+  duration_ms: 28.912638
+  type: 'test'
+  ...
+# Subtest: structured preview routes use revocation-aware JSON streaming
+ok 13 - structured preview routes use revocation-aware JSON streaming
+  ---
+  duration_ms: 0.796016
+  type: 'test'
+  ...
+# Subtest: generated preview streaming denies before the first byte when authorization is absent
+ok 14 - generated preview streaming denies before the first byte when authorization is absent
+  ---
+  duration_ms: 0.273458
+  type: 'test'
+  ...
+# Subtest: generated preview streaming fails closed when a re-check throws
+ok 15 - generated preview streaming fails closed when a re-check throws
+  ---
+  duration_ms: 0.260628
+  type: 'test'
+  ...
+# Subtest: rejects malformed or ambiguous Host authorities
+ok 16 - rejects malformed or ambiguous Host authorities
+  ---
+  duration_ms: 6.197834
+  type: 'test'
+  ...
+# Subtest: limits direct loopback deployments to loopback Host names
+ok 17 - limits direct loopback deployments to loopback Host names
+  ---
+  duration_ms: 1.182572
+  type: 'test'
+  ...
+# Subtest: requires an exact configured allowlist for externally reachable deployments
+ok 18 - requires an exact configured allowlist for externally reachable deployments
+  ---
+  duration_ms: 0.573565
+  type: 'test'
+  ...
+# Subtest: returns 421 before application state is reached for an untrusted Host
+ok 19 - returns 421 before application state is reached for an untrusted Host
+  ---
+  duration_ms: 0.272075
+  type: 'test'
+  ...
+# Subtest: rejects duplicate Host fields and runs before stateful application middleware
+ok 20 - rejects duplicate Host fields and runs before stateful application middleware
+  ---
+  duration_ms: 0.595057
+  type: 'test'
+  ...
+# Subtest: password policy enforces Unicode character and bcrypt byte boundaries
+ok 21 - password policy enforces Unicode character and bcrypt byte boundaries
+  ---
+  duration_ms: 0.599023
+  type: 'test'
+  ...
+# (node:3383) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: legacy global uniqueness exposes repository-name existence across owners
+ok 22 - legacy global uniqueness exposes repository-name existence across owners
+  ---
+  duration_ms: 1.788905
+  type: 'test'
+  ...
+# Subtest: migration preserves dependent rows and scopes names to the repository owner
+ok 23 - migration preserves dependent rows and scopes names to the repository owner
+  ---
+  duration_ms: 2.006294
+  type: 'test'
+  ...
+# Subtest: bounds TOTP and recovery-code disclosure to the active security-verification window
+ok 24 - bounds TOTP and recovery-code disclosure to the active security-verification window
+  ---
+  duration_ms: 0.66397
+  type: 'test'
+  ...
+# Subtest: uses the newest valid password verification without extending material beyond its own lifetime
+ok 25 - uses the newest valid password verification without extending material beyond its own lifetime
+  ---
+  duration_ms: 0.266177
+  type: 'test'
+  ...
+# Subtest: fails closed for legacy, malformed, expired, or future verification metadata
+ok 26 - fails closed for legacy, malformed, expired, or future verification metadata
+  ---
+  duration_ms: 0.165226
+  type: 'test'
+  ...
+# Subtest: settings route stores and enforces explicit disclosure expiries for both secret classes
+ok 27 - settings route stores and enforces explicit disclosure expiries for both secret classes
+  ---
+  duration_ms: 0.365485
+  type: 'test'
+  ...
+# (node:3404) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: stores only protected WebAuthn challenge bindings
+ok 28 - stores only protected WebAuthn challenge bindings
+  ---
+  duration_ms: 1.843407
+  type: 'test'
+  ...
+# Subtest: atomically accepts a WebAuthn challenge exactly once
+ok 29 - atomically accepts a WebAuthn challenge exactly once
+  ---
+  duration_ms: 1.02053
+  type: 'test'
+  ...
+# Subtest: binds challenge consumption to session, user, purpose, value, and expiry
+ok 30 - binds challenge consumption to session, user, purpose, value, and expiry
+  ---
+  duration_ms: 1.789467
+  type: 'test'
+  ...
+# Subtest: issuing a replacement invalidates the older challenge for the same session and purpose
+ok 31 - issuing a replacement invalidates the older challenge for the same session and purpose
+  ---
+  duration_ms: 0.674865
+  type: 'test'
+  ...
+# Subtest: routes consume the ledger entry before cryptographic verification and guard counter updates
+ok 32 - routes consume the ledger entry before cryptographic verification and guard counter updates
+  ---
+  duration_ms: 1.053439
+  type: 'test'
+  ...
+1..32
+# tests 32
+# suites 0
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 169.975434
+
+4. Additional request-error confidentiality static/unit selection
+
+Command:
+  node --test --test-name-pattern='safe request error logging|request parsers run|localized' test/request-error-confidentiality.test.js
+
+Output:
+TAP version 13
+# Subtest: safe request error logging excludes body, message, and custom secret-bearing fields
+ok 1 - safe request error logging excludes body, message, and custom secret-bearing fields
+  ---
+  duration_ms: 2.13448
+  type: 'test'
+  ...
+# Subtest: request parsers run after translation setup and the raw error object is never logged
+ok 2 - request parsers run after translation setup and the raw error object is never logged
+  ---
+  duration_ms: 0.326987
+  type: 'test'
+  ...
+# Subtest: request-body rejection messages are localized for every supported non-English language
+ok 3 - request-body rejection messages are localized for every supported non-English language
+  ---
+  duration_ms: 0.282891
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 51.793319
+
+5. Syntax and structured-data validation
+
+npm run check: PASS
+JavaScript/MJS/CJS syntax files checked: 146
+JSON documents parsed: 7
+Package/lock/SBOM root version consistency: 2.0.8 / PASS
+
+6. Current-tree and reachable-history secret scan
+
+Current non-Git files scanned: 307
+Reachable Git objects: 1,203
+Reachable Git blobs: 748
+High-confidence current-tree secret hits: 0
+High-confidence reachable-history secret hits: 0
+Sensitive tracked filenames: 0
+Patterns: private-key blocks, AWS access keys, GitHub tokens, Slack tokens, OpenAI tokens, Google API keys
+Verdict: NO_HIGH_CONFIDENCE_SECRET_HITS
+
+Git object integrity on disposable .git copy:
+  git fsck --full --no-progress
+  result: PASS (no output)
+
+7. Dependency/advisory validation limitation
+
+npm audit --omit=dev --json exit code: 1
+Result: the configured advisory endpoint returned HTTP 503 Service Temporarily Unavailable.
+A clean npm ci attempt in a disposable copy also did not complete because the package gateway stalled. The project tree and original .git were not used as the install target.
+Required release follow-up: run npm ci, npm audit --omit=dev, npm run test:security, and the full node --test suite in CI with a declared supported Node.js release and a reachable registry/advisory service.
+
+8. Original .git preservation before packaging
+
+Original .git file count: 28
+Patched-tree .git file count: 28
+Per-path content SHA-256, POSIX mode, size, and modification time differences: 0
+Normalized .git manifest SHA-256: 966166a056ec0137c213715a1bafc516bd43db08824537a4b520eb524cbde1ef
+Status: EXACT_MATCH
+
+9. Packaging note
+
+Final archive extraction and .git identity are validated after archive creation. The final ZIP SHA-256 and archive-level integrity result are stored in the companion integrity JSON supplied with the release, avoiding a self-referential archive hash.
+
+10. Final archive extraction validation
+
+Archive integrity test: PASS
+Unsafe ZIP member paths: 0
+Original ZIP .git entries (files and directories): 44
+Final ZIP .git entries (files and directories): 44
+.git ZIP metadata/CRC/size differences: 0
+.git same-extractor content/mode/size/time differences: 0
+Extracted package version: 2.0.8
+Extracted Docker build-context PoC: baseline EXPOSED / patched BLOCKED
+Extracted Docker regression: 3 passed, 0 failed
+Extracted npm run check: PASS
+Status: PASS
