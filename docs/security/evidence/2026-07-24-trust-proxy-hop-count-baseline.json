@@ -1,0 +1,11 @@
+{
+  "trustProxy": 1,
+  "externallyReachable": true,
+  "requireHttps": true,
+  "directSocketEncrypted": false,
+  "attackerHeader": "X-Forwarded-Proto: https",
+  "expressProtocol": "https",
+  "reqSecure": true,
+  "applicationHttpsGateAllows": true,
+  "impact": "PLAINTEXT_APPLICATION_REQUEST_ACCEPTED"
+}

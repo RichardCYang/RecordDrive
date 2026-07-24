@@ -34,10 +34,48 @@ function trustProxyFromEnv(value) {
   const lower = normalized.toLowerCase();
   if (['0', 'false', 'no', 'off'].includes(lower)) return false;
   if (['true', 'yes', 'on'].includes(lower)) {
-    throw new Error('TRUST_PROXY cannot trust every source. Use a positive hop count or trusted addresses/subnets.');
+    throw new Error('TRUST_PROXY cannot trust every source. Use explicit trusted proxy IP addresses or subnets.');
   }
-  if (/^[1-9]\d*$/.test(normalized)) return Number.parseInt(normalized, 10);
-  return normalized.split(',').map((entry) => entry.trim()).filter(Boolean);
+  if (/^[1-9]\d*$/.test(normalized)) {
+    throw new Error('TRUST_PROXY hop counts are not accepted. Use explicit trusted proxy IP addresses or subnets.');
+  }
+  const entries = normalized.split(',').map((entry) => entry.trim()).filter(Boolean);
+  validateTrustedProxyEntries(entries);
+  return entries;
+}
+
+
+function isUniversalProxyEntry(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['*', 'all', 'true', 'yes', 'on'].includes(normalized)) return true;
+
+  const slashIndex = normalized.lastIndexOf('/');
+  if (slashIndex < 0 || normalized.slice(slashIndex + 1) !== '0') return false;
+  let address = normalized.slice(0, slashIndex);
+  if (address.startsWith('[') && address.endsWith(']')) address = address.slice(1, -1);
+  const zoneIndex = address.indexOf('%');
+  if (zoneIndex >= 0) address = address.slice(0, zoneIndex);
+  return isIP(address) !== 0;
+}
+
+function validateTrustedProxyEntries(entries) {
+  if (entries.some(isUniversalProxyEntry)) {
+    throw new Error('TRUST_PROXY cannot include wildcard or /0 ranges. Use explicit trusted proxy IP addresses or bounded subnets.');
+  }
+}
+
+function validateTrustedProxyConfiguration(trustProxy) {
+  if (trustProxy === undefined || trustProxy === null || trustProxy === false) return;
+  if (trustProxy === true) {
+    throw new Error('TRUST_PROXY cannot trust every source. Use explicit trusted proxy IP addresses or subnets.');
+  }
+  if (
+    (Number.isInteger(trustProxy) && trustProxy > 0)
+    || (typeof trustProxy === 'string' && /^[1-9]\d*$/.test(trustProxy.trim()))
+  ) {
+    throw new Error('TRUST_PROXY hop counts are not accepted. Use explicit trusted proxy IP addresses or subnets.');
+  }
+  validateTrustedProxyEntries(Array.isArray(trustProxy) ? trustProxy : [trustProxy]);
 }
 
 export function sessionAbsoluteDurationMs(config) {
@@ -243,6 +281,7 @@ function hasTrustedProxyExposure(trustProxy) {
 }
 
 export function applyRuntimeConfidentialityPolicy(config, networkSettings = {}) {
+  validateTrustedProxyConfiguration(config.trustProxy);
   const activeHosts = [networkSettings.httpHost || config.httpHost];
   if (networkSettings.httpsEnabled) {
     activeHosts.push(networkSettings.httpsHost || config.httpsHost);

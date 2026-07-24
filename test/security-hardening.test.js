@@ -392,6 +392,18 @@ test('sanitizes internal redirects and parses proxy trust explicitly', () => {
     ADMIN_ACCESS_DISABLED: 'true',
     TRUST_PROXY: 'true'
   }), /cannot trust every source/);
+  assert.throws(() => loadConfig({
+    NODE_ENV: 'production',
+    SESSION_SECRET: 'production-session-secret-with-more-than-thirty-two-characters',
+    ADMIN_ACCESS_DISABLED: 'true',
+    TRUST_PROXY: '1'
+  }), /hop counts are not accepted/);
+  assert.throws(() => loadConfig({
+    NODE_ENV: 'production',
+    SESSION_SECRET: 'production-session-secret-with-more-than-thirty-two-characters',
+    ADMIN_ACCESS_DISABLED: 'true',
+    TRUST_PROXY: '0.0.0.0/0'
+  }), /wildcard or \/0 ranges/);
 
   assert.throws(() => loadConfig({
     NODE_ENV: 'production',
@@ -425,18 +437,29 @@ test('fails closed for non-loopback and trusted reverse-proxy exposure', async (
       ...testConfig(weakProxyTempRoot),
       httpHost: '127.0.0.1',
       httpsHost: '127.0.0.1',
-      trustProxy: 1,
+      trustProxy: ['loopback'],
       sessionSecret: 'recorddrive-change-this-session-secret-at-least-32-chars',
       adminPassword: 'ChangeMe123!'
     }
   }), /externally reachable deployment requires a unique SESSION_SECRET/);
   assert.equal(fs.existsSync(path.join(weakProxyTempRoot, 'recorddrive.db')), false);
 
+  const hopCountTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-hop-count-proxy-'));
+  t.after(() => fs.rmSync(hopCountTempRoot, { recursive: true, force: true }));
+  assert.throws(() => createApplication({
+    config: {
+      ...testConfig(hopCountTempRoot),
+      httpHost: '0.0.0.0',
+      trustProxy: 1
+    }
+  }), /hop counts are not accepted/);
+  assert.equal(fs.existsSync(path.join(hopCountTempRoot, 'recorddrive.db')), false);
+
   const strongTempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-strong-external-listener-'));
   const config = {
     ...testConfig(strongTempRoot),
     httpHost: '0.0.0.0',
-    trustProxy: 1
+    trustProxy: ['loopback']
   };
   const app = createApplication({ config });
   const db = app.recorddrive.db;
@@ -833,7 +856,7 @@ test('marks production authentication cookies as secure', async (t) => {
     ...testConfig(tempRoot),
     nodeEnv: 'production',
     isProduction: true,
-    trustProxy: 1
+    trustProxy: ['loopback']
   };
   const app = createApplication({ config });
   const db = app.recorddrive.db;
