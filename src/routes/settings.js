@@ -536,6 +536,7 @@ export function createSettingsRouter(db, config) {
         return res.redirect('/settings#recovery-codes');
       }
       storeNewRecoveryCodes(req, codes, config, disclosureExpiresAt);
+      revokeOtherUserSessions(req, db, config);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'RECOVERY_CODES_ADDED',
@@ -565,6 +566,7 @@ export function createSettingsRouter(db, config) {
         config,
         disclosureExpiresAt
       );
+      revokeOtherUserSessions(req, db, config);
       logActivity(db, {
         actorId: req.currentUser.id,
         action: 'RECOVERY_CODES_REGENERATED',

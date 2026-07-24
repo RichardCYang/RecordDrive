@@ -1,0 +1,131 @@
+RecordDrive recovery-code session revocation hardening
+Assessment date: 2026-07-24
+
+1. Deterministic production-session PoC
+Command:
+  node security-poc/recovery-code-session-revocation.mjs
+
+Output:
+{
+  "finding": "Recovery-key rotation did not revoke other authenticated sessions",
+  "baseline": {
+    "recoveryKeysRotated": true,
+    "stolenSessionStillActive": true,
+    "verdict": "VULNERABLE"
+  },
+  "patched": {
+    "revokedOtherSessions": 1,
+    "stolenSessionStillActive": false,
+    "currentSessionActive": true,
+    "verdict": "BLOCKED"
+  },
+  "transactionalReplacement": {
+    "forcedInsertionFailure": true,
+    "previousRecoveryKeyRowsRetained": 1,
+    "verdict": "ROLLED_BACK"
+  }
+}
+
+2. Focused patch tests
+Command:
+  node --test test/recovery-code-session-revocation.test.js
+
+Result:
+  tests 4
+  pass 4
+  fail 0
+
+3. Wider dependency-light confidentiality regression group
+Covered groups:
+  recovery-key session revocation and transactional replacement
+  session revocation races and tombstones
+  live encrypted-session disclosure authorization
+  sensitive MFA session-material expiry
+  WebAuthn one-time challenge consumption
+  file-stream chunk-boundary revocation
+  generated-preview revocation
+  in-flight disclosure revocation
+  repository-name confidentiality
+  Host-header confidentiality
+
+Result:
+  tests 38
+  pass 38
+  fail 0
+
+4. Source syntax validation
+Scope:
+  every .js, .mjs, and .cjs file under src/, test/, and security-poc/
+
+Result:
+  syntax_failed=0
+  status=PASS
+
+5. Reachable Git history confidentiality scan
+Read-only object scan performed against a disposable extraction. The delivered .git entries were sourced again from the untouched uploaded ZIP and were not used as a working Git repository.
+
+Result:
+  reachable_commits=50
+  reachable_objects=1164
+  reachable_blobs=728
+  private_key_matches=0
+  aws_access_key_matches=0
+  github_token_matches=0
+  slack_token_matches=0
+  jwt_shaped_matches=0
+  current_production_secret_filenames=0
+
+6. Targeted dependency/advisory review
+Locked direct dependencies reviewed at the confidentiality-relevant parser/session/template boundaries.
+
+Multer:
+  locked_version=2.2.0
+  upload_limits.fieldNestingDepth=0
+  CVE-2026-5079 affected range=>=1.0.0,<2.2.0
+  applicability=not affected; recommended limit is configured
+
+EJS:
+  locked_version=6.0.1
+  user-controlled template names=not found
+  request query object passed as render options=not found
+
+7. Dependency/integration limitation
+Runtime:
+  Node.js 22.16.0
+Project engine:
+  ^22.23.0 || ^24.17.0 || ^26.3.1
+
+The configured package registry returned HTTP 503 and direct public-registry access failed DNS resolution. npm ci, registry-backed npm audit, and the complete dependency-backed Supertest suite were not completed. One attempted broader group reached 41 passing subtests before the Supertest-dependent malformed-JSON subtest could not load the unavailable package; that incomplete attempt is not represented as a passing suite.
+
+Temporary audit-only express-session and otplib stubs were used only to load the production session/recovery modules for deterministic local tests. They were deleted before packaging and are not present in the delivered project.
+
+8. Final .git preservation
+Result:
+  uploaded_zip_git_entries=44
+  fresh_extract_git_manifest_entries=44
+  overlay_paths_under_git=0
+  pristine_vs_final_filesystem_manifest=EXACT_MATCH
+  filesystem_manifest_sha256=32aa210b53bfc7c399cbed80b5e97462c285ae293f13bfbcf13ed15bf67ee60c
+
+The final tree was created from a fresh extraction of the uploaded ZIP. Only the nine listed non-.git files were overlaid; no Git command was run against the delivery tree.
+
+9. Final archive validation
+Result:
+  archive_integrity_test=PASS
+  source_entries=382
+  delivered_entries=386
+  intended_modified_existing_entries=5
+  intended_new_entries=4
+  unexpected_changed_or_added_entries=0
+  node_modules_entries=0
+  unresolved_placeholders=0
+
+.git preservation against the uploaded ZIP:
+  entry_count=44/44
+  entry_name_and_order=EXACT_MATCH
+  ZipInfo metadata=EXACT_MATCH
+  decompressed_entry_bytes=EXACT_MATCH
+  raw_local_records_and_compressed_payloads=EXACT_MATCH
+  raw_central_directory_records=EXACT_MATCH
+
+The archive was produced by copying the uploaded ZIP and updating only the nine intended non-.git paths. The .git entries were not deleted, replaced, recompressed, reordered, or rewritten.

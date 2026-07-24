@@ -210,3 +210,12 @@ node --test test/session-state-disclosure-revocation.test.js
 ```
 
 The PoC keeps the server-side session row and rolling idle expiry live while first removing the authenticated identity from the encrypted payload and then exceeding a short absolute lifetime. RecordDrive 2.0.4 continues authorizing both states; 2.0.5 fails closed.
+
+## Recovery-key rotation session revocation
+
+```bash
+node security-poc/recovery-code-session-revocation.mjs
+node --test test/recovery-code-session-revocation.test.js
+```
+
+Expected result: the baseline model reports a stolen session as active after recovery-key rotation. The patched model reports one revoked other session, keeps the current owner session active, and ends with `"verdict": "BLOCKED"`. The forced SQLite insertion failure must retain the prior recovery-key row and report `"verdict": "ROLLED_BACK"`.

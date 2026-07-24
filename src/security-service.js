@@ -146,8 +146,32 @@ export function countActiveRecoveryCodes(db, userId) {
   `).get(userId).count;
 }
 
-export function createRecoveryCodes(db, userId, config, count = DEFAULT_RECOVERY_CODE_COUNT) {
-  const activeCount = countActiveRecoveryCodes(db, userId);
+function withImmediateTransaction(db, operation) {
+  const ownsTransaction = !db.isTransaction;
+  if (ownsTransaction) db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = operation();
+    if (ownsTransaction) db.exec('COMMIT');
+    return result;
+  } catch (error) {
+    if (ownsTransaction) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // Preserve the original recovery-code error if SQLite already ended the transaction.
+      }
+    }
+    throw error;
+  }
+}
+
+function createRecoveryCodesWithinTransaction(
+  db,
+  userId,
+  config,
+  count,
+  activeCount = countActiveRecoveryCodes(db, userId)
+) {
   const requestedCount = Math.max(1, Number.parseInt(count, 10) || DEFAULT_RECOVERY_CODE_COUNT);
   const availableSlots = Math.max(0, MAX_ACTIVE_RECOVERY_CODES - activeCount);
   const actualCount = Math.min(requestedCount, availableSlots);
@@ -158,29 +182,31 @@ export function createRecoveryCodes(db, userId, config, count = DEFAULT_RECOVERY
     VALUES (?, ?)
   `);
   const codes = [];
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    while (codes.length < actualCount) {
-      const code = randomRecoveryCode();
-      const hash = hashRecoveryCode(code, config);
-      try {
-        insert.run(userId, hash);
-        codes.push(code);
-      } catch (error) {
-        if (!String(error.message).includes('UNIQUE')) throw error;
-      }
+  while (codes.length < actualCount) {
+    const code = randomRecoveryCode();
+    const hash = hashRecoveryCode(code, config);
+    try {
+      insert.run(userId, hash);
+      codes.push(code);
+    } catch (error) {
+      if (!String(error.message).includes('UNIQUE')) throw error;
     }
-    db.exec('COMMIT');
-    return codes;
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
   }
+  return codes;
+}
+
+export function createRecoveryCodes(db, userId, config, count = DEFAULT_RECOVERY_CODE_COUNT) {
+  return withImmediateTransaction(
+    db,
+    () => createRecoveryCodesWithinTransaction(db, userId, config, count)
+  );
 }
 
 export function replaceRecoveryCodes(db, userId, config, count = DEFAULT_RECOVERY_CODE_COUNT) {
-  db.prepare('DELETE FROM recovery_codes WHERE user_id = ?').run(userId);
-  return createRecoveryCodes(db, userId, config, count);
+  return withImmediateTransaction(db, () => {
+    db.prepare('DELETE FROM recovery_codes WHERE user_id = ?').run(userId);
+    return createRecoveryCodesWithinTransaction(db, userId, config, count, 0);
+  });
 }
 
 export function consumeRecoveryCode(db, userId, code, config) {
