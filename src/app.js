@@ -39,6 +39,7 @@ import { applyStoredRepositoryStorageRoot } from './storage-settings.js';
 import { ensureSecureUploadRoot } from './file-access-time.js';
 import { logRequestErrorSafely, requestBodyClientErrorStatus } from './request-error-security.js';
 import { clearSessionCookies, sessionCookieName, sessionCookieOptions } from './cookie-security.js';
+import { startSmbSyncService } from './smb-sync-service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -48,6 +49,7 @@ export function createApplication(options = {}) {
   applyRuntimeConfidentialityPolicy(config, createDefaultTlsSettings(config));
   const db = options.db || createDatabase(config);
   applyStoredRepositoryStorageRoot(db, config);
+  normalizeAndValidateStorageConfiguration(config);
   ensureSecureUploadRoot(config);
   migrateLegacySessionPayloads(db, config.sessionSecret);
   const sessionIdleMs = (Number(config.sessionIdleHours) || 12) * 60 * 60 * 1000;
@@ -63,6 +65,9 @@ export function createApplication(options = {}) {
     if (!options.db) db.close();
     throw error;
   }
+  const smbService = options.smbService === undefined
+    ? startSmbSyncService(db, config)
+    : options.smbService;
   const app = express();
 
   app.disable('x-powered-by');
@@ -74,7 +79,7 @@ export function createApplication(options = {}) {
   }
 
   Object.defineProperty(app, 'recorddrive', {
-    value: Object.freeze({ db, config, runtimeControl, networkSettings }),
+    value: Object.freeze({ db, config, runtimeControl, networkSettings, smbService }),
     enumerable: false,
     configurable: false,
     writable: false

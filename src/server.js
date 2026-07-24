@@ -25,6 +25,7 @@ async function startRecordDrive() {
 
     try {
       await runtimeControl.close?.();
+      app.recorddrive.smbService?.close?.();
       app.recorddrive.db?.close?.();
       clearTimeout(forceExitTimer);
       console.log('RecordDrive shutdown completed.');

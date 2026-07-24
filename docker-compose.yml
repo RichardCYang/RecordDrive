@@ -1,6 +1,31 @@
 services:
+  smb:
+    build: ./smb
+    ports:
+      - "${SMB_BIND_ADDRESS:-0.0.0.0}:445:445"
+    environment:
+      SMB_CONTROL_ROOT: /data/smb-control
+      SMB_SHARE_ROOT: /data/smb-shares
+      SMB_STATE_ROOT: /var/lib/samba
+      RECORDDRIVE_DATA_ROOT: /data
+      RECORDDRIVE_UID: "1000"
+      RECORDDRIVE_GID: "1000"
+    volumes:
+      - recorddrive_data:/data
+      - recorddrive_smb_state:/var/lib/samba
+    healthcheck:
+      test: ["CMD-SHELL", "smbcontrol smbd ping >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
   recorddrive:
     build: .
+    depends_on:
+      smb:
+        condition: service_healthy
     ports:
       - "127.0.0.1:3000:3000"
       - "127.0.0.1:3443:3443"
@@ -11,6 +36,11 @@ services:
       HTTP_HOST: 0.0.0.0
       HTTPS_HOST: 0.0.0.0
       ALLOWED_HOSTS: "${ALLOWED_HOSTS:-localhost,127.0.0.1,::1}"
+      SMB_ENABLED: "true"
+      SMB_SHARE_ROOT: /app/data/smb-shares
+      SMB_CONTROL_ROOT: /app/data/smb-control
+      SMB_CONTAINER_SHARE_ROOT: /data/smb-shares
+      SMB_SERVER_NAME: "${SMB_SERVER_NAME:-recorddrive}"
     volumes:
       - recorddrive_data:/app/data
       # Mount a host Posh-ACME order directory as read-only when native HTTPS is enabled.
@@ -19,3 +49,4 @@ services:
 
 volumes:
   recorddrive_data:
+  recorddrive_smb_state:

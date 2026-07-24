@@ -10,6 +10,7 @@ import { applyStoredRepositoryStorageRoot, ensureStorageSettingsTable } from './
 import { ensureQuotaSettings } from './quota-settings.js';
 import { ensureOwnerScopedRepositoryNames } from './repository-name-security.js';
 import { ensureWebAuthnChallengeSchema } from './webauthn-challenge-store.js';
+import { ensureSmbSchema } from './smb-schema.js';
 
 const activityLogRetentionByDatabase = new WeakMap();
 
@@ -97,6 +98,7 @@ export function createDatabase(providedConfig) {
   try {
     ensureStorageSettingsTable(db);
     applyStoredRepositoryStorageRoot(db, config);
+    normalizeAndValidateStorageConfiguration(config);
     ensureSecureUploadRoot(config);
   } catch (error) {
     db.close();
@@ -297,6 +299,7 @@ export function createDatabase(providedConfig) {
     db.exec('ALTER TABLE repositories ADD COLUMN max_storage_mb REAL;');
   }
 
+  ensureSmbSchema(db);
   ensureOwnerScopedRepositoryNames(db);
   ensureQuotaSettings(db, config);
 

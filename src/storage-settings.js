@@ -366,6 +366,15 @@ export function updateRepositoryStorageSettings(db, config, input = {}) {
     return { changed: false, migrationMode, repositoryRoot, cleanupRequired: false };
   }
 
+  const enabledSmbRepositories = Number(db.prepare(`
+    SELECT COUNT(*) AS count FROM repositories WHERE smb_enabled = 1
+  `).get().count || 0);
+  if (enabledSmbRepositories > 0) {
+    throw new StorageSettingsError(
+      'Disable SMB access for every repository before changing the repository storage location.'
+    );
+  }
+
   if (migrationMode === 'use-existing') {
     verifyExistingRepositoryData(db, config, repositoryRoot, { requireExactTree: true });
     saveStoredRepositoryRoot(db, repositoryRoot);

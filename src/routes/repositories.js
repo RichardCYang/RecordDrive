@@ -53,6 +53,11 @@ import {
   RepositoryFolderError,
   repositoryFolderUrl
 } from '../repository-folders.js';
+import {
+  repositorySmbView,
+  SmbSettingsError,
+  updateRepositorySmbSettings
+} from '../smb-settings.js';
 
 const PREVIEW_JSON_CHUNK_BYTES = 16 * 1024;
 
@@ -432,12 +437,17 @@ export function createRepositoriesRouter(db, config) {
       title: req.t('Repository settings'),
       repository: req.repository,
       quotaSettings,
-      usage
+      usage,
+      smbSettings: repositorySmbView(req.repository, config, req.hostname)
     });
   });
 
   router.post('/:repositoryId/settings', requireManager, (req, res, next) => {
     const policy = String(req.body.fileAccessTimePolicy || '');
+    if (Number(req.repository.smb_enabled) === 1 && policy === 'enabled') {
+      setFlash(req, 'error', req.t('SMB-enabled repositories must preserve the stored access time.'));
+      return res.redirect(`/repositories/${req.repository.id}/settings`);
+    }
     if (!['enabled', 'disabled'].includes(policy)) {
       setFlash(req, 'error', req.t('Select a valid file access time option.'));
       return res.redirect(`/repositories/${req.repository.id}/settings`);
@@ -484,6 +494,39 @@ export function createRepositoriesRouter(db, config) {
         req.repository.id
       );
       if (error instanceof QuotaSettingsError) {
+        setFlash(req, 'error', req.t(error.message));
+        return res.redirect(`/repositories/${req.repository.id}/settings`);
+      }
+      return next(error);
+    }
+  });
+
+
+  router.post('/:repositoryId/settings/smb', requireManager, (req, res, next) => {
+    try {
+      const enabled = req.body.smbEnabled === '1';
+      // Restore the canonical access times before publishing a writable SMB
+      // share. If this fails, no share state or credential is changed.
+      if (enabled) {
+        restoreRepositoryInitialAccessTimes(db, config, req.repository.id);
+      }
+      const result = updateRepositorySmbSettings(db, config, req.repository, {
+        enabled,
+        readOnly: req.body.smbReadOnly === '1',
+        password: req.body.smbPassword
+      }, req.currentUser.id);
+
+      req.app.recorddrive.smbService?.reconcileNow?.();
+      const message = result.enabled
+        ? req.t('SMB access is enabled. Connect to {{path}} as {{username}}.', {
+            path: repositorySmbView({ ...req.repository, smb_enabled: 1 }, config, req.hostname).uncPath,
+            username: result.username
+          })
+        : req.t('SMB access is disabled for this repository.');
+      setFlash(req, 'success', message);
+      return res.redirect(`/repositories/${req.repository.id}/settings`);
+    } catch (error) {
+      if (error instanceof SmbSettingsError) {
         setFlash(req, 'error', req.t(error.message));
         return res.redirect(`/repositories/${req.repository.id}/settings`);
       }

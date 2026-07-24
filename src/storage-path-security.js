@@ -78,6 +78,52 @@ export function normalizeAndValidateStorageConfiguration(config) {
     throw new Error('DB_PATH cannot be inside UPLOAD_ROOT because repository deletion could remove the database.');
   }
 
+  if (config.smbEnabled) {
+    const containerShareRoot = String(config.smbContainerShareRoot || '').replace(/\/+$/, '');
+    if (
+      !containerShareRoot
+      || containerShareRoot === '/'
+      || !path.posix.isAbsolute(containerShareRoot)
+      || path.posix.normalize(containerShareRoot) !== containerShareRoot
+      || /[\u0000-\u001f\u007f]/.test(containerShareRoot)
+    ) {
+      throw new Error('SMB_CONTAINER_SHARE_ROOT must be a normalized absolute POSIX path.');
+    }
+    const smbShareRoot = canonicalizePotentialPath(config.smbShareRoot, 'SMB_SHARE_ROOT');
+    const smbControlRoot = canonicalizePotentialPath(config.smbControlRoot, 'SMB_CONTROL_ROOT');
+    const smbRoots = [
+      ['SMB_SHARE_ROOT', smbShareRoot],
+      ['SMB_CONTROL_ROOT', smbControlRoot]
+    ];
+
+    for (const [label, smbRoot] of smbRoots) {
+      const filesystemRoot = path.parse(smbRoot).root;
+      if (isSamePath(smbRoot, filesystemRoot) || isSameOrDescendant(smbRoot, projectRoot)) {
+        throw new Error(`${label} cannot be a filesystem root, the project root, or a parent of the project.`);
+      }
+      for (const protectedDirectory of protectedDirectories) {
+        if (isSameOrDescendant(protectedDirectory, smbRoot)) {
+          throw new Error(`${label} cannot be inside a source, static, view, or Git metadata directory.`);
+        }
+      }
+      if (isSameOrDescendant(smbRoot, databasePath)) {
+        throw new Error(`DB_PATH cannot be inside ${label}.`);
+      }
+      if (isSameOrDescendant(smbRoot, uploadRoot) || isSameOrDescendant(uploadRoot, smbRoot)) {
+        throw new Error(`${label} and UPLOAD_ROOT cannot contain one another.`);
+      }
+    }
+
+    if (isSameOrDescendant(smbShareRoot, smbControlRoot)
+      || isSameOrDescendant(smbControlRoot, smbShareRoot)) {
+      throw new Error('SMB_SHARE_ROOT and SMB_CONTROL_ROOT cannot contain one another.');
+    }
+
+    config.smbShareRoot = smbShareRoot;
+    config.smbControlRoot = smbControlRoot;
+    config.smbContainerShareRoot = containerShareRoot;
+  }
+
   config.uploadRoot = uploadRoot;
   config.dbPath = databasePath;
   return config;

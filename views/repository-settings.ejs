@@ -119,6 +119,93 @@
       <section class="panel">
         <div class="panel-header">
           <div>
+            <span class="eyebrow"><%= t('LOCAL NETWORK') %></span>
+            <h2><%= t('Windows SMB access') %></h2>
+          </div>
+          <strong class="status-pill <%= smbSettings.enabled ? 'status-success' : 'status-neutral' %>">
+            <%= smbSettings.enabled ? t('SMB access is enabled') : t('SMB access is disabled') %>
+          </strong>
+        </div>
+        <div class="settings-panel-body">
+          <% if (!smbSettings.available) { %>
+            <div class="storage-warning quota-warning">
+              <strong><%= t('SMB service is not available') %></strong>
+              <span><%= t('An administrator must enable the SMB sidecar and shared-volume settings before a repository can be published on the local network.') %></span>
+            </div>
+          <% } else { %>
+            <% if (!smbSettings.runtimeReady) { %>
+              <div class="storage-warning quota-warning">
+                <strong><%= t('SMB sidecar is not ready') %></strong>
+                <span><%= t('Start the Samba sidecar and wait for its runtime status before enabling this repository.') %></span>
+              </div>
+            <% } else if (!smbSettings.xattrSupported) { %>
+              <div class="storage-warning quota-warning">
+                <strong><%= t('Exact Windows creation-time storage is unavailable') %></strong>
+                <span><%= t('The SMB projection filesystem must support user extended attributes before this repository can be enabled.') %></span>
+              </div>
+            <% } %>
+            <div class="security-overview-grid">
+              <div class="security-overview-item">
+                <span><%= t('Windows path') %></span>
+                <strong><code><%= smbSettings.uncPath %></code></strong>
+                <small><%= t('Enter this path in the Windows File Explorer address bar.') %></small>
+              </div>
+              <div class="security-overview-item">
+                <span><%= t('SMB username') %></span>
+                <strong><code><%= smbSettings.username %></code></strong>
+                <small><%= t('The SMB password is separate from the RecordDrive sign-in password.') %></small>
+              </div>
+              <div class="security-overview-item">
+                <span><%= t('Timestamp mode') %></span>
+                <strong><%= t('Creation, modification, and access times') %></strong>
+                <small><%= t('RecordDrive uses inode-preserving hard links and Samba extended attributes so timestamps supplied by the Windows client are not rewritten by synchronization.') %></small>
+              </div>
+            </div>
+
+            <form action="/repositories/<%= repository.id %>/settings/smb" method="post" class="stack-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <label class="field checkbox-field">
+                <input type="checkbox" name="smbEnabled" value="1" <%= smbSettings.enabled ? 'checked' : '' %>>
+                <span><%= t('Enable SMB access for this repository') %></span>
+                <small><%= t('Only the repository owner or a server administrator can change this setting.') %></small>
+              </label>
+              <label class="field checkbox-field">
+                <input type="checkbox" name="smbReadOnly" value="1" <%= smbSettings.readOnly ? 'checked' : '' %>>
+                <span><%= t('Publish as read-only') %></span>
+                <small><%= t('Leave this off to allow copying, moving, renaming, editing, and deleting files from Windows.') %></small>
+              </label>
+              <label class="field">
+                <span><%= smbSettings.credentialConfigured ? t('Reset SMB password') : t('Set SMB password') %></span>
+                <input
+                  type="password"
+                  name="smbPassword"
+                  minlength="12"
+                  maxlength="127"
+                  autocomplete="new-password"
+                >
+                <small><%= smbSettings.credentialConfigured
+                  ? t('Leave blank to keep the current SMB password. Enter a new value to rotate it.')
+                  : t('Use 12-127 characters. The password is transferred once to the Samba sidecar and is not stored in the application database.') %></small>
+              </label>
+              <div class="storage-warning quota-warning">
+                <strong><%= t('Windows Explorer copy behavior') %></strong>
+                <span><%= t('The SMB server preserves every timestamp value sent by Windows. Standard Explorer copy may create a new creation/access time; use the bundled RecordDrive timestamp-preserving copy tool when all three source times must match exactly.') %></span>
+              </div>
+              <div class="storage-action-bar">
+                <div>
+                  <strong><%= t('Apply SMB settings') %></strong>
+                  <span><%= t('Changes are published to the Samba service without restarting RecordDrive.') %></span>
+                </div>
+                <button class="button button-primary" type="submit"><%= t('Save SMB settings') %></button>
+              </div>
+            </form>
+          <% } %>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
             <span class="eyebrow"><%= t('ACCESS') %></span>
             <h2><%= t('Who can change these settings') %></h2>
           </div>

@@ -29,6 +29,14 @@ Repository users with upload permission can create nested folders and upload fil
 
 Folder names are normalized and validated, sibling names are unique under SQLite's `NOCASE` comparison, nesting is limited to 32 levels, and deleting a folder requires delete permission. Folder deletion recursively removes its descendant folders and stored files.
 
+## Windows SMB access
+
+When the server administrator deploys the bundled Samba sidecar, a repository owner or administrator can enable an authenticated SMB 2/3 share from **Repository settings**. Windows users connect to the displayed UNC path, such as `\\fileserver\recorddrive-12`, with the repository-specific account and password. A share can be writable or read-only. Activation is blocked until the sidecar runtime status is available and its `user.*` extended-attribute probe succeeds.
+
+RecordDrive maintains a Windows-safe hard-link projection of each enabled repository. Web uploads appear in the SMB share, while SMB create, edit, overwrite, rename, move, and delete operations are reconciled into SQLite and the canonical repository storage. New SMB files and inode-replacement overwrites are checked against the existing upload, repository-storage, service-storage, and file-count limits. In-place growth of an already-open hard-linked file happens before RecordDrive can reconcile it, so production deployments should also enforce operating-system or volume quotas. SMB roots are rejected if they overlap uploaded data, the database, source files, views, static files, or `.git`.
+
+Samba stores Windows creation time in extended attributes and accepts client-supplied creation, last-write, and last-access times. Because ordinary File Explorer copy operations do not always transmit all three source timestamps, `tools/windows/RecordDrive-Copy.ps1` captures the source values, copies with Robocopy, reapplies every timestamp, and verifies exact Windows FILETIME equality. See [`docs/SMB.md`](docs/SMB.md) for deployment, firewall, credential, filesystem, and timestamp requirements.
+
 ## Access model
 
 ### Administrator
@@ -220,6 +228,13 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `SESSION_ABSOLUTE_HOURS` | `168` | Maximum authenticated session lifetime regardless of activity |
 | `DB_PATH` | `./data/recorddrive.db` | SQLite database path; it must remain outside `UPLOAD_ROOT` |
 | `UPLOAD_ROOT` | `./data/uploads` | Initial uploaded-file storage directory; the administrator can override it in **Admin → Storage**, and it must not contain `DB_PATH` |
+| `SMB_ENABLED` | `false` | Enables repository SMB settings and synchronization; Docker Compose overrides this to `true` for the bundled sidecar |
+| `SMB_SHARE_ROOT` | `./data/smb-shares` | Hard-link projection root; it must be separate from `UPLOAD_ROOT`, the database, control root, and protected project paths |
+| `SMB_CONTROL_ROOT` | `./data/smb-control` | Mode-restricted manifest and one-time credential-command directory shared with the Samba sidecar |
+| `SMB_CONTAINER_SHARE_ROOT` | `/data/smb-shares` | Share-root path written into the sidecar manifest |
+| `SMB_SERVER_NAME` | Empty (`recorddrive` fallback) | DNS name or LAN IP displayed in generated Windows UNC paths |
+| `SMB_SYNC_INTERVAL_MS` | `1000` | Repository projection reconciliation interval, clamped to at least 250 ms |
+| `SMB_BIND_ADDRESS` | `0.0.0.0` in Compose | Host address used to publish TCP 445; prefer a specific trusted LAN address |
 
 Upload and storage limits are not runtime environment settings. They are persisted in SQLite and edited through **Admin → Storage**. Legacy `MAX_FILE_SIZE_MB`, `MAX_FILES_PER_UPLOAD`, `MAX_REPOSITORY_STORAGE_MB`, `MAX_TOTAL_STORAGE_MB`, `MAX_REPOSITORY_FILES`, and `MAX_TOTAL_FILES` values are used only to seed missing database keys during an upgrade or first initialization; after the keys exist, the database is authoritative.
 
@@ -295,7 +310,7 @@ The Compose file explicitly forces `NODE_ENV=production` and in-container listen
 
 The production image uses a deny-by-default build context and explicit `COPY` instructions for `package.json`, `package-lock.json`, `vendor/xz-compat-purejs`, `src`, `public`, and `views`. Do not replace these with `COPY . .`, and do not add `.env.*`, certificate/private-key directories, database backups, exports, logs, or Git metadata to the image allowlist. Mount runtime secrets and persistent data instead of placing them in the project build context.
 
-The Compose configuration stores the database and uploaded files in the `recorddrive_data` volume. If the administrator selects different ports, update the Compose port mappings to match. Do not change host publication to `0.0.0.0` unless HTTPS is already working and the network exposure is intentional.
+The Compose configuration stores the database, uploaded files, SMB projections, and sidecar control data in the `recorddrive_data` volume. Samba credentials and state persist in `recorddrive_smb_state`. TCP 445 is published for LAN access; set `SMB_BIND_ADDRESS` to a specific trusted LAN address and block TCP 445 from untrusted networks and the public internet. If the administrator selects different web ports, update the Compose port mappings to match. Do not publish the web ports beyond loopback unless HTTPS is already working and the network exposure is intentional.
 
 A container can use an administrator-selected host storage path only when that path is mounted into the container. Add a writable bind mount or volume, then enter the container path in **Admin → Storage**, for example:
 
@@ -365,6 +380,8 @@ RecordDrive/
 ├── views/
 ├── public/
 ├── data/
+├── smb/
+├── tools/windows/
 ├── test/
 ├── Dockerfile
 └── docker-compose.yml

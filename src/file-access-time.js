@@ -100,7 +100,14 @@ export function resolveStoredFilePath(config, repositoryId, storedName) {
 export function openStoredFile(config, repositoryId, storedName) {
   const filePath = resolveStoredFilePath(config, repositoryId, storedName);
   const noFollow = Number.isInteger(fs.constants.O_NOFOLLOW) ? fs.constants.O_NOFOLLOW : 0;
-  const fd = fs.openSync(filePath, fs.constants.O_RDONLY | noFollow);
+  const noAccessTime = Number.isInteger(fs.constants.O_NOATIME) ? fs.constants.O_NOATIME : 0;
+  let fd;
+  try {
+    fd = fs.openSync(filePath, fs.constants.O_RDONLY | noFollow | noAccessTime);
+  } catch (error) {
+    if (!noAccessTime || !['EPERM', 'EACCES', 'EINVAL'].includes(error.code)) throw error;
+    fd = fs.openSync(filePath, fs.constants.O_RDONLY | noFollow);
+  }
   try {
     const stats = fs.fstatSync(fd);
     if (!stats.isFile()) throw new Error('The stored file must be a regular file.');

@@ -143,6 +143,7 @@ export function loadConfig(overrides = {}) {
   const httpHeadersTimeoutMs = httpRequestTimeoutMs > 0
     ? Math.min(configuredHttpHeadersTimeoutMs, httpRequestTimeoutMs)
     : configuredHttpHeadersTimeoutMs;
+  const smbSyncIntervalMs = timeoutFromEnv(env.SMB_SYNC_INTERVAL_MS, 1000, { allowZero: false });
 
   return {
     port: Number.isFinite(httpPort) ? httpPort : 3000,
@@ -226,7 +227,13 @@ export function loadConfig(overrides = {}) {
       ? Math.min(250_000, Math.max(10_000, sevenZipPreviewMaxScannedEntries))
       : 100_000,
     dbPath: resolveFromCwd(env.DB_PATH || './data/recorddrive.db'),
-    uploadRoot: resolveFromCwd(env.UPLOAD_ROOT || './data/uploads')
+    uploadRoot: resolveFromCwd(env.UPLOAD_ROOT || './data/uploads'),
+    smbEnabled: booleanFromEnv(env.SMB_ENABLED, false),
+    smbShareRoot: resolveFromCwd(env.SMB_SHARE_ROOT || './data/smb-shares'),
+    smbControlRoot: resolveFromCwd(env.SMB_CONTROL_ROOT || './data/smb-control'),
+    smbContainerShareRoot: String(env.SMB_CONTAINER_SHARE_ROOT || '/data/smb-shares').trim(),
+    smbServerName: String(env.SMB_SERVER_NAME || '').trim(),
+    smbSyncIntervalMs
   };
 }
 
