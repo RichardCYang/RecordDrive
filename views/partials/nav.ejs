@@ -14,9 +14,9 @@
 
     <div class="account-area">
       <a class="account-badge account-badge-link" href="/settings" aria-label="<%= t('Settings') %>">
-        <span class="avatar"><%= currentUser.display_name.slice(0, 1).toUpperCase() %></span>
+        <span class="avatar"><%= safeDisplayText(currentUser.display_name, '?').slice(0, 1).toUpperCase() %></span>
         <span class="account-text">
-          <strong><%= currentUser.display_name %></strong>
+          <strong><%= safeDisplayText(currentUser.display_name) %></strong>
           <small><%= currentUser.role === 'ADMIN' && !administratorAccessDisabled ? t('Administrator') : `@${currentUser.username}` %></small>
         </span>
       </a>

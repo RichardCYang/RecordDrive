@@ -25,6 +25,7 @@ import {
   withTrackedFileAccess
 } from '../file-access-time.js';
 import { filePreviewKind, requestWantsJson, safeOriginalName, setFlash } from '../utils.js';
+import { stripUnsafeDisplayControls } from '../display-text-security.js';
 import {
   createQuotaAwareUploadStorage,
   UploadQuotaError,
@@ -62,7 +63,7 @@ import {
 const PREVIEW_JSON_CHUNK_BYTES = 16 * 1024;
 
 function contentDisposition(disposition, filename) {
-  const originalName = String(filename || 'preview.pdf');
+  const originalName = safeOriginalName(filename || 'preview.pdf');
   const fallback = originalName
     .replace(/[^\x20-\x7e]/g, '_')
     .replace(/["\\]/g, '_');
@@ -376,8 +377,8 @@ export function createRepositoriesRouter(db, config) {
   router.use(requireAuth);
 
   router.post('/', requireRegularUser, (req, res) => {
-    const name = String(req.body.name || '').trim();
-    const description = String(req.body.description || '').trim();
+    const name = stripUnsafeDisplayControls(req.body.name).trim();
+    const description = stripUnsafeDisplayControls(req.body.description).trim();
 
     if (name.length < 2 || name.length > 60) {
       setFlash(req, 'error', req.t('The repository name must be between 2 and 60 characters.'));

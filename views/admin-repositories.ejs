@@ -26,10 +26,10 @@
               <article class="admin-repo-row">
                 <a class="repo-icon tone-<%= (index % 4) + 1 %>" href="/repositories/<%= repository.id %>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3z"/><path d="M3 7V5h7l2 2"/></svg></a>
                 <div class="admin-repo-copy">
-                  <a href="/repositories/<%= repository.id %>"><strong><%= repository.name %></strong></a>
-                  <p><%= repository.description || t('No description provided.') %></p>
+                  <a href="/repositories/<%= repository.id %>"><strong><%= safeDisplayText(repository.name) %></strong></a>
+                  <p><%= safeDisplayText(repository.description) || t('No description provided.') %></p>
                   <div class="mini-meta">
-                    <span><%= t('Owner: {{name}}', { name: repository.owner_display_name || t('Deleted account') }) %><% if (repository.owner_username) { %> (@<%= repository.owner_username %>)<% } %></span>
+                    <span><%= t('Owner: {{name}}', { name: safeDisplayText(repository.owner_display_name, t('Deleted account')) }) %><% if (repository.owner_username) { %> (@<%= repository.owner_username %>)<% } %></span>
                     <span><%= repository.file_count %> <%= repository.file_count === 1 ? t('file') : t('files') %></span>
                     <span><%= repository.participant_count %> <%= repository.participant_count === 1 ? t('shared user') : t('shared users') %></span>
                     <span><%= formatBytes(repository.total_size) %></span>
@@ -37,7 +37,7 @@
                 </div>
                 <div class="row-actions">
                   <a class="button button-secondary button-small" href="/repositories/<%= repository.id %>/permissions"><%= t('Permissions') %></a>
-                  <form action="/repositories/<%= repository.id %>/delete" method="post" data-confirm="<%= t("Permanently delete the '{{name}}' repository and all of its files? This action cannot be undone.", { name: repository.name }) %>">
+                  <form action="/repositories/<%= repository.id %>/delete" method="post" data-confirm="<%= t("Permanently delete the '{{name}}' repository and all of its files? This action cannot be undone.", { name: safeDisplayText(repository.name) }) %>">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button class="button button-danger button-small" type="submit"><%= t('Delete') %></button>
                   </form>

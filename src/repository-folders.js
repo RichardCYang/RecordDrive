@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { logActivity } from './database.js';
 import { resolveStoredFilePath } from './file-access-time.js';
+import { hasUnsafeDisplayControls } from './display-text-security.js';
 
 const MAX_FOLDER_NAME_LENGTH = 100;
 const MAX_FOLDER_ID_LENGTH = 64;
@@ -21,7 +22,7 @@ export function normalizeFolderId(value) {
   if (!folderId) return null;
   if (
     folderId.length > MAX_FOLDER_ID_LENGTH
-    || /[\u0000-\u001f\u007f]/.test(folderId)
+    || hasUnsafeDisplayControls(folderId)
   ) {
     throw new RepositoryFolderError('FOLDER_NOT_FOUND');
   }
@@ -38,7 +39,7 @@ export function normalizeFolderName(value) {
     || name === '..'
     || name.includes('/')
     || name.includes('\\')
-    || /[\u0000-\u001f\u007f]/.test(name)
+    || hasUnsafeDisplayControls(name)
   ) {
     throw new RepositoryFolderError('INVALID_NAME');
   }

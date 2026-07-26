@@ -26,8 +26,8 @@
             <% recentActivity.forEach((activity) => { %>
               <div class="activity-row">
                 <span class="activity-icon"><%= activity.action.includes('DELETE') || activity.action === 'REVOKE_REPOSITORY_PERMISSION' ? '−' : activity.action === 'LOGIN' ? '↗' : '+' %></span>
-                <div class="activity-copy"><strong><%= labels[activity.action] || activity.action %></strong><span><%= activity.target_label %></span></div>
-                <div class="activity-meta"><span><%= activity.actor_name || t('Deleted account') %></span><time><%= formatDate(activity.created_at) %></time></div>
+                <div class="activity-copy"><strong><%= labels[activity.action] || activity.action %></strong><span><%= safeDisplayText(activity.target_label) %></span></div>
+                <div class="activity-meta"><span><%= safeDisplayText(activity.actor_name, t('Deleted account')) %></span><time><%= formatDate(activity.created_at) %></time></div>
               </div>
             <% }) %>
           </div>

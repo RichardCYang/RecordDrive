@@ -1,0 +1,17 @@
+[dependencies]
+7z-iterator: declared=2.2.9 resolved=2.2.9
+@simplewebauthn/server: declared=^13.3.2 resolved=13.3.2
+bcryptjs: declared=3.0.3 resolved=3.0.3
+dotenv: declared=17.4.2 resolved=17.4.2
+ejs: declared=6.0.1 resolved=6.0.1
+exceljs: declared=^4.4.0 resolved=4.4.0
+express: declared=5.2.1 resolved=5.2.1
+express-session: declared=1.19.0 resolved=1.19.0
+helmet: declared=8.3.0 resolved=8.3.0
+multer: declared=2.2.0 resolved=2.2.0
+otplib: declared=^13.4.1 resolved=13.4.1
+qrcode: declared=^1.5.4 resolved=1.5.4
+xz-compat: declared=file:vendor/xz-compat-purejs resolved=LOCAL/UNKNOWN
+yauzl: declared=^3.4.0 resolved=3.4.0
+[devDependencies]
+supertest: declared=7.2.2 resolved=7.2.2

@@ -167,7 +167,7 @@
               <% passkeys.forEach((passkey) => { %>
                 <article class="passkey-item">
                   <div>
-                    <strong><%= passkey.name %></strong>
+                    <strong><%= safeDisplayText(passkey.name) %></strong>
                     <span><%= t('Added {{date}}', { date: formatDate(passkey.created_at) }) %></span>
                     <% if (passkey.last_used_at) { %><small><%= t('Last used {{date}}', { date: formatDate(passkey.last_used_at) }) %></small><% } %>
                     <% if (passkey.backed_up) { %><small><%= t('Synced or backed up') %></small><% } %>

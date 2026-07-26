@@ -10,7 +10,7 @@
         <div>
           <a class="back-link" href="/repositories/<%= repository.id %>"><%= t('← Back') %></a>
           <span class="eyebrow"><%= t('REPOSITORY SETTINGS') %></span>
-          <h1><%= t('{{name}} settings', { name: repository.name }) %></h1>
+          <h1><%= t('{{name}} settings', { name: safeDisplayText(repository.name) }) %></h1>
           <p><%= t('Set repository-specific upload and storage limits. Changes apply to new uploads immediately.') %></p>
         </div>
         <a class="button button-secondary" href="/repositories/<%= repository.id %>"><%= t('Open repository') %></a>

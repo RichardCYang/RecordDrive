@@ -1,0 +1,4 @@
+node --test exit code: 1
+Missing-module errors: 79
+Assertion errors: 0
+Syntax errors: 0

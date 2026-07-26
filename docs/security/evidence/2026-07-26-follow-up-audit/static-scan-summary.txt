@@ -1,0 +1,86 @@
+# Static security scan summary
+
+## Dynamic code/command execution patterns in application source
+NO MATCH
+
+## Client-side HTML injection sinks
+NO MATCH
+
+## Unescaped EJS output tags
+/mnt/data/recorddrive_audit/fixed/views/login-mfa.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/login-mfa.ejs:10:        <div class="mobile-brand"><%- include('partials/logo') %></div>
+/mnt/data/recorddrive_audit/fixed/views/login-mfa.ejs:86:  <%- include('partials/client-i18n') %>
+/mnt/data/recorddrive_audit/fixed/views/repository-settings.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/repository-settings.ejs:5:  <%- include('partials/nav') %>
+/mnt/data/recorddrive_audit/fixed/views/repository-settings.ejs:8:      <%- include('partials/flash') %>
+/mnt/data/recorddrive_audit/fixed/views/repository-settings.ejs:246:  <%- include('partials/footer') %>
+/mnt/data/recorddrive_audit/fixed/views/change-password.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/change-password.ejs:5:  <%- include('partials/nav') %>
+/mnt/data/recorddrive_audit/fixed/views/change-password.ejs:8:      <%- include('partials/flash') %>
+/mnt/data/recorddrive_audit/fixed/views/change-password.ejs:62:  <%- include('partials/footer') %>
+/mnt/data/recorddrive_audit/fixed/views/login.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/login.ejs:10:        <%- include('partials/logo') %>
+/mnt/data/recorddrive_audit/fixed/views/login.ejs:32:        <div class="mobile-brand"><%- include('partials/logo') %></div>
+/mnt/data/recorddrive_audit/fixed/views/login.ejs:68:  <%- include('partials/client-i18n') %>
+/mnt/data/recorddrive_audit/fixed/views/dashboard.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/dashboard.ejs:5:  <%- include('partials/nav') %>
+/mnt/data/recorddrive_audit/fixed/views/dashboard.ejs:8:      <%- include('partials/flash') %>
+/mnt/data/recorddrive_audit/fixed/views/dashboard.ejs:83:  <%- include('partials/footer') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-repositories.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/admin-repositories.ejs:5:  <%- include('partials/nav') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-repositories.ejs:8:      <%- include('partials/flash') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-repositories.ejs:16:      <%- include('partials/admin-tabs') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-repositories.ejs:52:  <%- include('partials/footer') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-tls.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/admin-tls.ejs:5:  <%- include('partials/nav') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-tls.ejs:8:      <%- include('partials/flash') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-tls.ejs:16:      <%- include('partials/admin-tabs') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-tls.ejs:157:  <%- include('partials/footer') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-storage.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/admin-storage.ejs:5:  <%- include('partials/nav') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-storage.ejs:8:      <%- include('partials/flash') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-storage.ejs:16:      <%- include('partials/admin-tabs') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-storage.ejs:173:  <%- include('partials/footer') %>
+/mnt/data/recorddrive_audit/fixed/views/settings.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/settings.ejs:5:  <%- include('partials/nav') %>
+/mnt/data/recorddrive_audit/fixed/views/settings.ejs:8:      <%- include('partials/flash') %>
+/mnt/data/recorddrive_audit/fixed/views/settings.ejs:260:  <%- include('partials/footer') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-users.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/admin-users.ejs:5:  <%- include('partials/nav') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-users.ejs:8:      <%- include('partials/flash') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-users.ejs:10:      <%- include('partials/admin-tabs') %>
+/mnt/data/recorddrive_audit/fixed/views/admin-users.ejs:54:  <%- include('partials/footer') %>
+/mnt/data/recorddrive_audit/fixed/views/repository-permissions.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/repository-permissions.ejs:5:  <%- include('partials/nav') %>
+/mnt/data/recorddrive_audit/fixed/views/repository-permissions.ejs:8:      <%- include('partials/flash') %>
+/mnt/data/recorddrive_audit/fixed/views/repository-permissions.ejs:95:  <%- include('partials/footer') %>
+/mnt/data/recorddrive_audit/fixed/views/repository.ejs:36:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/repository.ejs:38:  <%- include('partials/nav') %>
+/mnt/data/recorddrive_audit/fixed/views/repository.ejs:42:      <%- include('partials/flash') %>
+/mnt/data/recorddrive_audit/fixed/views/repository.ejs:583:  <%- include('partials/footer') %>
+/mnt/data/recorddrive_audit/fixed/views/error.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/error.ejs:5:  <% if (currentUser) { %><%- include('partials/nav') %><% } %>
+/mnt/data/recorddrive_audit/fixed/views/error.ejs:15:  <%- include('partials/client-i18n') %>
+/mnt/data/recorddrive_audit/fixed/views/admin.ejs:3:<head><%- include('partials/head') %></head>
+/mnt/data/recorddrive_audit/fixed/views/admin.ejs:5:  <%- include('partials/nav') %>
+/mnt/data/recorddrive_audit/fixed/views/admin.ejs:8:      <%- include('partials/flash') %>
+/mnt/data/recorddrive_audit/fixed/views/admin.ejs:12:      <%- include('partials/admin-tabs') %>
+/mnt/data/recorddrive_audit/fixed/views/admin.ejs:40:  <%- include('partials/footer') %>
+/mnt/data/recorddrive_audit/fixed/views/partials/footer.ejs:7:<%- include('client-i18n') %>
+/mnt/data/recorddrive_audit/fixed/views/partials/nav.ejs:4:      <%- include('logo') %>
+CLASSIFICATION: all matches are EJS partial include(...) calls; no user-controlled unescaped expression was found.
+
+## SQL/template interpolation candidates reviewed
+/mnt/data/recorddrive_audit/fixed/src/routes/dashboard.js:44:      ? db.prepare(`${REPOSITORY_LIST_SQL} ORDER BY COALESCE(file_stats.last_file_at, r.created_at) DESC`)
+/mnt/data/recorddrive_audit/fixed/src/session-store.js:229:  `).all(`${SESSION_PAYLOAD_VERSION}.`);
+/mnt/data/recorddrive_audit/fixed/src/repository-name-security.js:10:  return db.prepare(`PRAGMA index_info(${quoteIdentifier(indexName)})`)
+/mnt/data/recorddrive_audit/fixed/src/repository-name-security.js:35:  db.exec(`PRAGMA foreign_keys = ${enabled ? 'ON' : 'OFF'};`);
+/mnt/data/recorddrive_audit/fixed/src/smb-sync-service.js:332:    let mapping = mappingByObject.get(`FOLDER:${folder.id}`);
+/mnt/data/recorddrive_audit/fixed/src/smb-sync-service.js:361:      mapping = mappingByObject.get(`FOLDER:${folder.id}`);
+/mnt/data/recorddrive_audit/fixed/src/smb-sync-service.js:375:    const mapping = mappingByObject.get(`FILE:${file.id}`);
+/mnt/data/recorddrive_audit/fixed/src/smb-sync-service.js:1036:    let mapping = mappingByObject.get(`FOLDER:${folder.id}`);
+/mnt/data/recorddrive_audit/fixed/src/smb-sync-service.js:1053:      mapping = mappingByObject.get(`FOLDER:${folder.id}`);
+CLASSIFICATION: reviewed matches use fixed SQL fragments, quoted identifiers, booleans, or are non-SQL template strings. No direct user-input SQL interpolation was found.
+
+## Secret-like private key/provider token material (working tree excluding .git/docs/tests/PoCs)
+NO MATCH

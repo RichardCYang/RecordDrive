@@ -43,6 +43,7 @@ import {
   createBoundSensitiveMaterialExpiry
 } from '../sensitive-session-material.js';
 import { safeInternalPath, setFlash } from '../utils.js';
+import { stripUnsafeDisplayControls } from '../display-text-security.js';
 import { purgeUserSessions } from '../session-store.js';
 import { consumeWebAuthnChallenge, issueWebAuthnChallenge } from '../webauthn-challenge-store.js';
 import {
@@ -107,7 +108,7 @@ function parseTransports(value) {
 }
 
 function normalizePasskeyName(value, fallback) {
-  const name = String(value || '').trim().replace(/\s+/g, ' ');
+  const name = stripUnsafeDisplayControls(value).trim().replace(/\s+/gu, ' ');
   return (name || fallback).slice(0, 80);
 }
 

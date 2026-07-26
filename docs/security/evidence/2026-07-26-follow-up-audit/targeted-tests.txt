@@ -1,0 +1,70 @@
+TAP version 13
+# Subtest: normalizes safe archive names without treating metadata as filesystem paths
+ok 1 - normalizes safe archive names without treating metadata as filesystem paths
+  ---
+  duration_ms: 1.083507
+  type: 'test'
+  ...
+# Subtest: rejects archive metadata that can spoof paths or amplify tree depth
+ok 2 - rejects archive metadata that can spoof paths or amplify tree depth
+  ---
+  duration_ms: 0.227928
+  type: 'test'
+  ...
+# Subtest: caps unique archive preview tree nodes independently of entry count and name bytes
+ok 3 - caps unique archive preview tree nodes independently of entry count and name bytes
+  ---
+  duration_ms: 7.549183
+  type: 'test'
+  ...
+# Subtest: removes bidirectional and C0/C1 controls from displayed names
+ok 4 - removes bidirectional and C0/C1 controls from displayed names
+  ---
+  duration_ms: 0.898764
+  type: 'test'
+  ...
+# Subtest: normalizes browser and SMB supplied filenames without preserving platform paths
+ok 5 - normalizes browser and SMB supplied filenames without preserving platform paths
+  ---
+  duration_ms: 1.511593
+  type: 'test'
+  ...
+# Subtest: rejects hidden direction controls and encoded separators in internal redirects
+ok 6 - rejects hidden direction controls and encoded separators in internal redirects
+  ---
+  duration_ms: 0.224433
+  type: 'test'
+  ...
+# Subtest: preserves the primary file-operation error when access-time completion also fails
+ok 7 - preserves the primary file-operation error when access-time completion also fails
+  ---
+  duration_ms: 0.860316
+  type: 'test'
+  ...
+# Subtest: falls back to path-based timestamp updates after Windows-style futime EPERM
+ok 8 - falls back to path-based timestamp updates after Windows-style futime EPERM
+  ---
+  duration_ms: 2.0492
+  type: 'test'
+  ...
+# Subtest: does not update a replacement path when the opened file identity changed
+ok 9 - does not update a replacement path when the opened file identity changed
+  ---
+  duration_ms: 1.356022
+  type: 'test'
+  ...
+# Subtest: password policy enforces Unicode character and bcrypt byte boundaries
+ok 10 - password policy enforces Unicode character and bcrypt byte boundaries
+  ---
+  duration_ms: 0.619449
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 91.559347

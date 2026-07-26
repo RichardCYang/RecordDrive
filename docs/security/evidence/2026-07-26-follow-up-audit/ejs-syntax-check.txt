@@ -1,0 +1,22 @@
+PASS admin-repositories.ejs
+PASS admin-storage.ejs
+PASS admin-tls.ejs
+PASS admin-users.ejs
+PASS admin.ejs
+PASS change-password.ejs
+PASS dashboard.ejs
+PASS error.ejs
+PASS login-mfa.ejs
+PASS login.ejs
+PASS partials/admin-tabs.ejs
+PASS partials/client-i18n.ejs
+PASS partials/flash.ejs
+PASS partials/footer.ejs
+PASS partials/head.ejs
+PASS partials/logo.ejs
+PASS partials/nav.ejs
+PASS repository-permissions.ejs
+PASS repository-settings.ejs
+PASS repository.ejs
+PASS settings.ejs
+EJS templates checked: 21

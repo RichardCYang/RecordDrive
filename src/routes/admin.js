@@ -11,6 +11,7 @@ import {
   validateTlsSettings
 } from '../tls-settings.js';
 import { setFlash } from '../utils.js';
+import { stripUnsafeDisplayControls } from '../display-text-security.js';
 import { purgeUserSessions } from '../session-store.js';
 import {
   loadRepositoryStorageSettings,
@@ -157,7 +158,7 @@ export function createAdminRouter(db, { config = {}, runtimeControl = {} } = {})
   router.post('/users', async (req, res, next) => {
     try {
       const username = String(req.body.username || '').trim().toLowerCase();
-      const displayName = String(req.body.displayName || '').trim();
+      const displayName = stripUnsafeDisplayControls(req.body.displayName).trim();
       const password = String(req.body.password || '');
 
       let formError = null;

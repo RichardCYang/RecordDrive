@@ -1,0 +1,6 @@
+archive=/mnt/data/RecordDrive.zip
+entries=456
+uncompressed_bytes=6787217
+path_traversal_entries=0
+absolute_path_entries=0
+symlink_entries=0

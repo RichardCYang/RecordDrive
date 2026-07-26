@@ -1,0 +1,1119 @@
+TAP version 13
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'bcryptjs' imported from /mnt/data/recorddrive_audit/fixed/test/admin-access-disabled.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/admin-access-disabled.test.js
+not ok 1 - test/admin-access-disabled.test.js
+  ---
+  duration_ms: 33.946213
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/admin-access-disabled.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: normalizes safe archive names without treating metadata as filesystem paths
+ok 2 - normalizes safe archive names without treating metadata as filesystem paths
+  ---
+  duration_ms: 1.339627
+  type: 'test'
+  ...
+# Subtest: rejects archive metadata that can spoof paths or amplify tree depth
+ok 3 - rejects archive metadata that can spoof paths or amplify tree depth
+  ---
+  duration_ms: 0.237132
+  type: 'test'
+  ...
+# Subtest: caps unique archive preview tree nodes independently of entry count and name bytes
+ok 4 - caps unique archive preview tree nodes independently of entry count and name bytes
+  ---
+  duration_ms: 7.74969
+  type: 'test'
+  ...
+# Subtest: counts concurrent password checks before asynchronous verification completes
+ok 5 - counts concurrent password checks before asynchronous verification completes
+  ---
+  duration_ms: 3.538541
+  type: 'test'
+  ...
+# Subtest: preserves other in-flight password checks when one concurrent request succeeds
+ok 6 - preserves other in-flight password checks when one concurrent request succeeds
+  ---
+  duration_ms: 0.502867
+  type: 'test'
+  ...
+# Subtest: counts concurrent MFA checks before TOTP or passkey verification completes
+ok 7 - counts concurrent MFA checks before TOTP or passkey verification completes
+  ---
+  duration_ms: 0.874637
+  type: 'test'
+  ...
+# Subtest: counts concurrent security reauthentication checks independently of session writes
+ok 8 - counts concurrent security reauthentication checks independently of session writes
+  ---
+  duration_ms: 1.09174
+  type: 'test'
+  ...
+# Subtest: external HTTPS deployments use origin-bound __Host- security cookies
+ok 9 - external HTTPS deployments use origin-bound __Host- security cookies
+  ---
+  duration_ms: 0.64021
+  type: 'test'
+  ...
+# Subtest: loopback HTTP development retains compatible unprefixed cookie names
+ok 10 - loopback HTTP development retains compatible unprefixed cookie names
+  ---
+  duration_ms: 0.154299
+  type: 'test'
+  ...
+# Subtest: session-cookie clearing uses the exact active path and expires the legacy host cookie
+ok 11 - session-cookie clearing uses the exact active path and expires the legacy host cookie
+  ---
+  duration_ms: 0.546972
+  type: 'test'
+  ...
+# Subtest: application code centralizes session and anonymous CSRF cookie names
+ok 12 - application code centralizes session and anonymous CSRF cookie names
+  ---
+  duration_ms: 0.452892
+  type: 'test'
+  ...
+# Subtest: anonymous login CSRF cookie is __Host- scoped in external mode
+ok 13 - anonymous login CSRF cookie is __Host- scoped in external mode
+  ---
+  duration_ms: 0.888689
+  type: 'test'
+  ...
+# Subtest: removes bidirectional and C0/C1 controls from displayed names
+ok 14 - removes bidirectional and C0/C1 controls from displayed names
+  ---
+  duration_ms: 0.724705
+  type: 'test'
+  ...
+# Subtest: normalizes browser and SMB supplied filenames without preserving platform paths
+ok 15 - normalizes browser and SMB supplied filenames without preserving platform paths
+  ---
+  duration_ms: 1.249595
+  type: 'test'
+  ...
+# Subtest: rejects hidden direction controls and encoded separators in internal redirects
+ok 16 - rejects hidden direction controls and encoded separators in internal redirects
+  ---
+  duration_ms: 0.21588
+  type: 'test'
+  ...
+# Subtest: baseline broad copy exposes deployment-secret canaries
+ok 17 - baseline broad copy exposes deployment-secret canaries
+  ---
+  duration_ms: 3.113751
+  type: 'test'
+  ...
+# Subtest: patched image copies only the runtime allowlist and blocks all canaries
+ok 18 - patched image copies only the runtime allowlist and blocks all canaries
+  ---
+  duration_ms: 0.474584
+  type: 'test'
+  ...
+# Subtest: Docker policy does not copy Git metadata into the image
+ok 19 - Docker policy does not copy Git metadata into the image
+  ---
+  duration_ms: 0.441025
+  type: 'test'
+  ...
+# Subtest: preserves the primary file-operation error when access-time completion also fails
+ok 20 - preserves the primary file-operation error when access-time completion also fails
+  ---
+  duration_ms: 0.933745
+  type: 'test'
+  ...
+# Subtest: falls back to path-based timestamp updates after Windows-style futime EPERM
+ok 21 - falls back to path-based timestamp updates after Windows-style futime EPERM
+  ---
+  duration_ms: 1.83235
+  type: 'test'
+  ...
+# Subtest: does not update a replacement path when the opened file identity changed
+ok 22 - does not update a replacement path when the opened file identity changed
+  ---
+  duration_ms: 2.112075
+  type: 'test'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'supertest' imported from /mnt/data/recorddrive_audit/fixed/test/file-access-time.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/file-access-time.test.js
+not ok 8 - test/file-access-time.test.js
+  ---
+  duration_ms: 24.805459
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/file-access-time.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: a fast file stream reauthorizes every chunk before disclosure
+ok 24 - a fast file stream reauthorizes every chunk before disclosure
+  ---
+  duration_ms: 5.462787
+  type: 'test'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'supertest' imported from /mnt/data/recorddrive_audit/fixed/test/folders.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/folders.test.js
+not ok 10 - test/folders.test.js
+  ---
+  duration_ms: 29.579644
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/folders.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: generated preview JSON stops after permission or session revocation
+ok 26 - generated preview JSON stops after permission or session revocation
+  ---
+  duration_ms: 29.337324
+  type: 'test'
+  ...
+# Subtest: structured preview routes use revocation-aware JSON streaming
+ok 27 - structured preview routes use revocation-aware JSON streaming
+  ---
+  duration_ms: 0.816762
+  type: 'test'
+  ...
+# Subtest: generated preview streaming denies before the first byte when authorization is absent
+ok 28 - generated preview streaming denies before the first byte when authorization is absent
+  ---
+  duration_ms: 0.307756
+  type: 'test'
+  ...
+# Subtest: generated preview streaming fails closed when a re-check throws
+ok 29 - generated preview streaming fails closed when a re-check throws
+  ---
+  duration_ms: 0.415797
+  type: 'test'
+  ...
+# Subtest: rejects malformed or ambiguous Host authorities
+ok 30 - rejects malformed or ambiguous Host authorities
+  ---
+  duration_ms: 6.142225
+  type: 'test'
+  ...
+# Subtest: limits direct loopback deployments to loopback Host names
+ok 31 - limits direct loopback deployments to loopback Host names
+  ---
+  duration_ms: 1.149145
+  type: 'test'
+  ...
+# Subtest: requires an exact configured allowlist for externally reachable deployments
+ok 32 - requires an exact configured allowlist for externally reachable deployments
+  ---
+  duration_ms: 0.578768
+  type: 'test'
+  ...
+# Subtest: returns 421 before application state is reached for an untrusted Host
+ok 33 - returns 421 before application state is reached for an untrusted Host
+  ---
+  duration_ms: 0.305764
+  type: 'test'
+  ...
+# Subtest: rejects duplicate Host fields and runs before stateful application middleware
+ok 34 - rejects duplicate Host fields and runs before stateful application middleware
+  ---
+  duration_ms: 0.475356
+  type: 'test'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'supertest' imported from /mnt/data/recorddrive_audit/fixed/test/i18n.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/i18n.test.js
+not ok 13 - test/i18n.test.js
+  ---
+  duration_ms: 24.100633
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/i18n.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# (node:4910) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express-session' imported from /mnt/data/recorddrive_audit/fixed/src/session-store.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/in-flight-disclosure-revocation.test.js
+not ok 14 - test/in-flight-disclosure-revocation.test.js
+  ---
+  duration_ms: 33.558528
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/in-flight-disclosure-revocation.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'dotenv' imported from /mnt/data/recorddrive_audit/fixed/src/config.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/network-timeouts.test.js
+not ok 15 - test/network-timeouts.test.js
+  ---
+  duration_ms: 57.810771
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/network-timeouts.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'supertest' imported from /mnt/data/recorddrive_audit/fixed/test/password-change-confidentiality.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/password-change-confidentiality.test.js
+not ok 16 - test/password-change-confidentiality.test.js
+  ---
+  duration_ms: 31.775192
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/password-change-confidentiality.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: password policy enforces Unicode character and bcrypt byte boundaries
+ok 39 - password policy enforces Unicode character and bcrypt byte boundaries
+  ---
+  duration_ms: 0.613641
+  type: 'test'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'exceljs' imported from /mnt/data/recorddrive_audit/fixed/test/preview.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/preview.test.js
+not ok 18 - test/preview.test.js
+  ---
+  duration_ms: 30.30502
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/preview.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'bcryptjs' imported from /mnt/data/recorddrive_audit/fixed/test/quota-settings.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/quota-settings.test.js
+not ok 19 - test/quota-settings.test.js
+  ---
+  duration_ms: 30.681018
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/quota-settings.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# (node:4966) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express-session' imported from /mnt/data/recorddrive_audit/fixed/src/session-store.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/recovery-code-session-revocation.test.js
+not ok 20 - test/recovery-code-session-revocation.test.js
+  ---
+  duration_ms: 32.128035
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/recovery-code-session-revocation.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# (node:4977) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: legacy global uniqueness exposes repository-name existence across owners
+ok 43 - legacy global uniqueness exposes repository-name existence across owners
+  ---
+  duration_ms: 1.752941
+  type: 'test'
+  ...
+# Subtest: migration preserves dependent rows and scopes names to the repository owner
+ok 44 - migration preserves dependent rows and scopes names to the repository owner
+  ---
+  duration_ms: 1.817988
+  type: 'test'
+  ...
+# Subtest: safe request error logging excludes body, message, and custom secret-bearing fields
+ok 45 - safe request error logging excludes body, message, and custom secret-bearing fields
+  ---
+  duration_ms: 2.349296
+  type: 'test'
+  ...
+# Subtest: malformed JSON is rejected without writing the submitted secret to logs
+not ok 46 - malformed JSON is rejected without writing the submitted secret to logs
+  ---
+  duration_ms: 2.032586
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/request-error-confidentiality.test.js:76:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot find package 'supertest' imported from /mnt/data/recorddrive_audit/fixed/test/request-error-confidentiality.test.js"
+  code: 'ERR_MODULE_NOT_FOUND'
+  stack: |-
+    Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+    packageResolve (node:internal/modules/esm/resolve:768:81)
+    moduleResolve (node:internal/modules/esm/resolve:854:18)
+    defaultResolve (node:internal/modules/esm/resolve:984:11)
+    ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+    ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+    ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+    onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:643:36)
+    TracingChannel.tracePromise (node:diagnostics_channel:344:14)
+  ...
+# Subtest: request parsers run after translation setup and the raw error object is never logged
+ok 47 - request parsers run after translation setup and the raw error object is never logged
+  ---
+  duration_ms: 0.359253
+  type: 'test'
+  ...
+# Subtest: request-body rejection messages are localized for every supported non-English language
+ok 48 - request-body rejection messages are localized for every supported non-English language
+  ---
+  duration_ms: 0.361977
+  type: 'test'
+  ...
+# (node:4998) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'supertest' imported from /mnt/data/recorddrive_audit/fixed/test/security-hardening.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/security-hardening.test.js
+not ok 23 - test/security-hardening.test.js
+  ---
+  duration_ms: 30.887956
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/security-hardening.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'bcryptjs' imported from /mnt/data/recorddrive_audit/fixed/test/security-poc.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/security-poc.test.js
+not ok 24 - test/security-poc.test.js
+  ---
+  duration_ms: 33.855164
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/security-poc.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'supertest' imported from /mnt/data/recorddrive_audit/fixed/test/security.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/security.test.js
+not ok 25 - test/security.test.js
+  ---
+  duration_ms: 35.597895
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/security.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: bounds TOTP and recovery-code disclosure to the active security-verification window
+ok 52 - bounds TOTP and recovery-code disclosure to the active security-verification window
+  ---
+  duration_ms: 0.681431
+  type: 'test'
+  ...
+# Subtest: uses the newest valid password verification without extending material beyond its own lifetime
+ok 53 - uses the newest valid password verification without extending material beyond its own lifetime
+  ---
+  duration_ms: 0.131735
+  type: 'test'
+  ...
+# Subtest: fails closed for legacy, malformed, expired, or future verification metadata
+ok 54 - fails closed for legacy, malformed, expired, or future verification metadata
+  ---
+  duration_ms: 0.153418
+  type: 'test'
+  ...
+# Subtest: settings route stores and enforces explicit disclosure expiries for both secret classes
+ok 55 - settings route stores and enforces explicit disclosure expiries for both secret classes
+  ---
+  duration_ms: 0.392352
+  type: 'test'
+  ...
+# Subtest: the dedicated server entrypoint starts when imported by a PM2-style wrapper
+not ok 56 - the dedicated server entrypoint starts when imported by a PM2-style wrapper
+  ---
+  duration_ms: 119.913472
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/server-entrypoint.test.js:119:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Server entrypoint exited before listening.
+    stdout:
+    
+    stderr:
+    node:internal/modules/package_json_reader:256
+      throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+            ^
+    
+    Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express' imported from /mnt/data/recorddrive_audit/fixed/src/app.js
+        at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+        at packageResolve (node:internal/modules/esm/resolve:768:81)
+        at moduleResolve (node:internal/modules/esm/resolve:854:18)
+        at defaultResolve (node:internal/modules/esm/resolve:984:11)
+        at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+        at #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+        at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+        at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+        at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+      code: 'ERR_MODULE_NOT_FOUND'
+    }
+    
+    Node.js v22.16.0
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+    packageResolve (node:internal/modules/esm/resolve:768:81)
+    moduleResolve (node:internal/modules/esm/resolve:854:18)
+    defaultResolve (node:internal/modules/esm/resolve:984:11)
+    ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+    ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+    ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+    ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+    waitForHealth (file:///mnt/data/recorddrive_audit/fixed/test/server-entrypoint.test.js:49:13)
+    async verifyImportedEntrypoint (file:///mnt/data/recorddrive_audit/fixed/test/server-entrypoint.test.js:103:20)
+    async TestContext.<anonymous> (file:///mnt/data/recorddrive_audit/fixed/test/server-entrypoint.test.js:120:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: the legacy app entrypoint recognizes PM2 pm_exec_path loading
+not ok 57 - the legacy app entrypoint recognizes PM2 pm_exec_path loading
+  ---
+  duration_ms: 106.606155
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/server-entrypoint.test.js:126:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Server entrypoint exited before listening.
+    stdout:
+    
+    stderr:
+    node:internal/modules/package_json_reader:256
+      throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+            ^
+    
+    Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express' imported from /mnt/data/recorddrive_audit/fixed/src/app.js
+        at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+        at packageResolve (node:internal/modules/esm/resolve:768:81)
+        at moduleResolve (node:internal/modules/esm/resolve:854:18)
+        at defaultResolve (node:internal/modules/esm/resolve:984:11)
+        at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+        at #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+        at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+        at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+        at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+      code: 'ERR_MODULE_NOT_FOUND'
+    }
+    
+    Node.js v22.16.0
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+    packageResolve (node:internal/modules/esm/resolve:768:81)
+    moduleResolve (node:internal/modules/esm/resolve:854:18)
+    defaultResolve (node:internal/modules/esm/resolve:984:11)
+    ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+    #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+    ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+    ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+    ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+    waitForHealth (file:///mnt/data/recorddrive_audit/fixed/test/server-entrypoint.test.js:49:13)
+    async verifyImportedEntrypoint (file:///mnt/data/recorddrive_audit/fixed/test/server-entrypoint.test.js:103:20)
+    async TestContext.<anonymous> (file:///mnt/data/recorddrive_audit/fixed/test/server-entrypoint.test.js:127:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# (node:5064) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express-session' imported from /mnt/data/recorddrive_audit/fixed/src/session-store.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/session-confidentiality.test.js
+not ok 28 - test/session-confidentiality.test.js
+  ---
+  duration_ms: 32.804313
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/session-confidentiality.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# (node:5070) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express-session' imported from /mnt/data/recorddrive_audit/fixed/src/session-store.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/session-revocation-race.test.js
+not ok 29 - test/session-revocation-race.test.js
+  ---
+  duration_ms: 29.52021
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/session-revocation-race.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# (node:5093) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express-session' imported from /mnt/data/recorddrive_audit/fixed/src/session-store.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/session-state-disclosure-revocation.test.js
+not ok 30 - test/session-state-disclosure-revocation.test.js
+  ---
+  duration_ms: 29.405035
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/session-state-disclosure-revocation.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'exceljs' imported from /mnt/data/recorddrive_audit/fixed/src/file-preview.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/seven-zip-preview.test.js
+not ok 31 - test/seven-zip-preview.test.js
+  ---
+  duration_ms: 29.46235
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/seven-zip-preview.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# (node:5119) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'bcryptjs' imported from /mnt/data/recorddrive_audit/fixed/src/database.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/smb-settings.test.js
+not ok 32 - test/smb-settings.test.js
+  ---
+  duration_ms: 32.816141
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/smb-settings.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: bundled SMB entrypoint uses executable Unix line endings
+ok 63 - bundled SMB entrypoint uses executable Unix line endings
+  ---
+  duration_ms: 0.655582
+  type: 'test'
+  ...
+# Subtest: bundled SMB sidecar requires SMB3 transport encryption
+ok 64 - bundled SMB sidecar requires SMB3 transport encryption
+  ---
+  duration_ms: 0.921488
+  type: 'test'
+  ...
+# Subtest: bundled SMB port is loopback-only unless explicitly configured
+ok 65 - bundled SMB port is loopback-only unless explicitly configured
+  ---
+  duration_ms: 0.268168
+  type: 'test'
+  ...
+# Subtest: bundled SMB sidecar forces read-only shares unless writes are explicitly enabled
+ok 66 - bundled SMB sidecar forces read-only shares unless writes are explicitly enabled
+  ---
+  duration_ms: 0.264923
+  type: 'test'
+  ...
+# (node:5141) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'bcryptjs' imported from /mnt/data/recorddrive_audit/fixed/src/database.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/smb-sync.test.js
+not ok 34 - test/smb-sync.test.js
+  ---
+  duration_ms: 34.124849
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/smb-sync.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'supertest' imported from /mnt/data/recorddrive_audit/fixed/test/smoke.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/smoke.test.js
+not ok 35 - test/smoke.test.js
+  ---
+  duration_ms: 28.219746
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/smoke.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'bcryptjs' imported from /mnt/data/recorddrive_audit/fixed/test/storage-settings.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/storage-settings.test.js
+not ok 36 - test/storage-settings.test.js
+  ---
+  duration_ms: 30.266553
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/storage-settings.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'supertest' imported from /mnt/data/recorddrive_audit/fixed/test/transfer-progress.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/transfer-progress.test.js
+not ok 37 - test/transfer-progress.test.js
+  ---
+  duration_ms: 29.633078
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/transfer-progress.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'dotenv' imported from /mnt/data/recorddrive_audit/fixed/src/config.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/trust-proxy-hop-count-confidentiality.test.js
+not ok 38 - test/trust-proxy-hop-count-confidentiality.test.js
+  ---
+  duration_ms: 31.452733
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/trust-proxy-hop-count-confidentiality.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# node:internal/modules/package_json_reader:256
+#   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+#         ^
+# Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'bcryptjs' imported from /mnt/data/recorddrive_audit/fixed/test/upload-limits.test.js
+#     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+#     at packageResolve (node:internal/modules/esm/resolve:768:81)
+#     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+#     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+#     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+#     at \#cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+#     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+#     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+#     at ModuleJob._link (node:internal/modules/esm/module_job:137:49) {
+#   code: 'ERR_MODULE_NOT_FOUND'
+# }
+# Node.js v22.16.0
+# Subtest: test/upload-limits.test.js
+not ok 39 - test/upload-limits.test.js
+  ---
+  duration_ms: 28.433623
+  type: 'test'
+  location: '/mnt/data/recorddrive_audit/fixed/test/upload-limits.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# (node:5218) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: stores only protected WebAuthn challenge bindings
+ok 73 - stores only protected WebAuthn challenge bindings
+  ---
+  duration_ms: 1.903735
+  type: 'test'
+  ...
+# Subtest: atomically accepts a WebAuthn challenge exactly once
+ok 74 - atomically accepts a WebAuthn challenge exactly once
+  ---
+  duration_ms: 0.940917
+  type: 'test'
+  ...
+# Subtest: binds challenge consumption to session, user, purpose, value, and expiry
+ok 75 - binds challenge consumption to session, user, purpose, value, and expiry
+  ---
+  duration_ms: 1.687224
+  type: 'test'
+  ...
+# Subtest: issuing a replacement invalidates the older challenge for the same session and purpose
+ok 76 - issuing a replacement invalidates the older challenge for the same session and purpose
+  ---
+  duration_ms: 0.671055
+  type: 'test'
+  ...
+# Subtest: routes consume the ledger entry before cryptographic verification and guard counter updates
+ok 77 - routes consume the ledger entry before cryptographic verification and guard counter updates
+  ---
+  duration_ms: 1.328111
+  type: 'test'
+  ...
+1..77
+# tests 77
+# suites 0
+# pass 50
+# fail 27
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 653.003624

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { hasUnsafeDisplayControls, stripUnsafeDisplayControls } from './display-text-security.js';
 
 export function formatBytes(bytes = 0) {
   if (!Number.isFinite(Number(bytes)) || Number(bytes) <= 0) return '0 B';
@@ -45,11 +46,21 @@ export function filePreviewKind(mimeType = '', filename = '') {
 
 export function safeInternalPath(value, fallback = '/') {
   const candidate = String(value || '');
+  let decodedCandidate;
+
+  try {
+    decodedCandidate = decodeURIComponent(candidate);
+  } catch {
+    return fallback;
+  }
+
   if (
     !candidate.startsWith('/') ||
     candidate.startsWith('//') ||
-    candidate.includes('\\') ||
-    /[\u0000-\u001f\u007f]/.test(candidate)
+    !decodedCandidate.startsWith('/') ||
+    decodedCandidate.startsWith('//') ||
+    decodedCandidate.includes('\\') ||
+    hasUnsafeDisplayControls(decodedCandidate)
   ) {
     return fallback;
   }
@@ -72,7 +83,13 @@ export function requestWantsJson(req) {
 }
 
 export function safeOriginalName(name) {
-  const normalized = path.basename(String(name || 'unnamed-file')).replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  const platformNeutralName = String(name || 'unnamed-file')
+    .normalize('NFC')
+    .replaceAll('\\', '/');
+  const basename = path.posix.basename(platformNeutralName);
+  const normalized = stripUnsafeDisplayControls(basename)
+    .replace(/\s+/gu, ' ')
+    .trim();
   return normalized.slice(0, 240) || 'unnamed-file';
 }
 

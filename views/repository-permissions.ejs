@@ -10,7 +10,7 @@
         <div>
           <a class="back-link" href="<%= isAdmin ? '/admin/repositories' : `/repositories/${repository.id}` %>"><%= t('← Back') %></a>
           <span class="eyebrow"><%= t('REPOSITORY PERMISSIONS') %></span>
-          <h1><%= t('{{name}} access', { name: repository.name }) %></h1>
+          <h1><%= t('{{name}} access', { name: safeDisplayText(repository.name) }) %></h1>
           <p><%= t('Grant each user only the repository actions they need. The owner and administrators always retain every permission.') %></p>
         </div>
         <a class="button button-secondary" href="/repositories/<%= repository.id %>"><%= t('Open repository') %></a>
@@ -19,7 +19,7 @@
       <section class="permission-overview panel">
         <div>
           <span class="eyebrow"><%= t('OWNER') %></span>
-          <strong><%= repository.owner_display_name || t('Deleted account') %></strong>
+          <strong><%= safeDisplayText(repository.owner_display_name, t('Deleted account')) %></strong>
           <small><%= repository.owner_username ? `@${repository.owner_username}` : t('Ownership is currently unassigned.') %></small>
         </div>
         <div class="permission-help-grid">
@@ -69,8 +69,8 @@
               <% grants.forEach((grant) => { %>
                 <article class="permission-grant-row">
                   <div class="user-cell permission-user-cell">
-                    <span class="avatar"><%= grant.display_name.slice(0, 1).toUpperCase() %></span>
-                    <div><strong><%= grant.display_name %></strong><small>@<%= grant.username %> · <%= t('Updated') %> <%= formatDate(grant.updated_at) %></small></div>
+                    <span class="avatar"><%= safeDisplayText(grant.display_name, '?').slice(0, 1).toUpperCase() %></span>
+                    <div><strong><%= safeDisplayText(grant.display_name) %></strong><small>@<%= grant.username %> · <%= t('Updated') %> <%= formatDate(grant.updated_at) %></small></div>
                   </div>
                   <form action="/repositories/<%= repository.id %>/permissions/<%= grant.user_id %>" method="post" class="permission-inline-form">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
@@ -80,7 +80,7 @@
                     <label class="permission-danger" title="<%= t('Delete') %>"><input type="checkbox" name="canDelete" value="1" <%= grant.can_delete ? 'checked' : '' %>><span><%= t('Delete') %></span></label>
                     <button class="button button-secondary button-small" type="submit"><%= t('Update') %></button>
                   </form>
-                  <form action="/repositories/<%= repository.id %>/permissions/<%= grant.user_id %>/delete" method="post" data-confirm="<%= t('Revoke every permission for {{name}}?', { name: grant.display_name }) %>">
+                  <form action="/repositories/<%= repository.id %>/permissions/<%= grant.user_id %>/delete" method="post" data-confirm="<%= t('Revoke every permission for {{name}}?', { name: safeDisplayText(grant.display_name) }) %>">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                     <button class="button button-danger button-small" type="submit"><%= t('Revoke') %></button>
                   </form>

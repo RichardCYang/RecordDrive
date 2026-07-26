@@ -41,7 +41,7 @@
     <div class="explorer-shell">
       <%- include('partials/flash') %>
 
-      <section class="explorer-window" aria-label="<%= repository.name %> <%= t('File list') %>">
+      <section class="explorer-window" aria-label="<%= safeDisplayText(repository.name) %> <%= t('File list') %>">
         <header class="explorer-titlebar">
           <div class="explorer-repository-identity">
             <a class="explorer-back-button" href="/" aria-label="<%= t('Back') %>" title="<%= t('Back') %>">
@@ -52,10 +52,10 @@
             </span>
             <div class="explorer-repository-copy">
               <div class="explorer-title-line">
-                <h1><%= repository.name %></h1>
+                <h1><%= safeDisplayText(repository.name) %></h1>
                 <span class="explorer-access-badge"><%= repositoryPermissions.source === 'ADMIN' ? t('Administrator access') : repositoryPermissions.source === 'OWNER' ? t('Owner access') : t('Shared access') %></span>
               </div>
-              <p><%= repository.description || t('Manage the files in this repository securely.') %></p>
+              <p><%= safeDisplayText(repository.description) || t('Manage the files in this repository securely.') %></p>
             </div>
           </div>
 
@@ -102,17 +102,17 @@
             </a>
             <svg class="breadcrumb-separator" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
             <% if (currentFolder) { %>
-              <a href="/repositories/<%= repository.id %>"><%= repository.name %></a>
+              <a href="/repositories/<%= repository.id %>"><%= safeDisplayText(repository.name) %></a>
               <% breadcrumbs.forEach((folder, index) => { %>
                 <svg class="breadcrumb-separator" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
                 <% if (index === breadcrumbs.length - 1) { %>
-                  <span><%= folder.name %></span>
+                  <span><%= safeDisplayText(folder.name) %></span>
                 <% } else { %>
-                  <a href="/repositories/<%= repository.id %>?folder=<%= encodeURIComponent(folder.id) %>"><%= folder.name %></a>
+                  <a href="/repositories/<%= repository.id %>?folder=<%= encodeURIComponent(folder.id) %>"><%= safeDisplayText(folder.name) %></a>
                 <% } %>
               <% }) %>
             <% } else { %>
-              <span><%= repository.name %></span>
+              <span><%= safeDisplayText(repository.name) %></span>
             <% } %>
           </nav>
 
@@ -120,7 +120,7 @@
             <input type="hidden" name="sort" value="<%= sort %>">
             <% if (currentFolder) { %><input type="hidden" name="folder" value="<%= currentFolder.id %>"><% } %>
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-            <input type="search" name="q" value="<%= search %>" placeholder="<%= t('Search in {{name}}', { name: currentFolder?.name || repository.name }) %>" aria-label="<%= t('Search folder items') %>" data-explorer-search>
+            <input type="search" name="q" value="<%= safeDisplayText(search) %>" placeholder="<%= t('Search in {{name}}', { name: safeDisplayText(currentFolder?.name || repository.name) }) %>" aria-label="<%= t('Search folder items') %>" data-explorer-search>
             <% if (search) { %>
               <a href="/repositories/<%= repository.id %>?sort=<%= sort %><%= currentFolder ? `&folder=${encodeURIComponent(currentFolder.id)}` : '' %>" aria-label="<%= t('Clear search') %>" title="<%= t('Clear search') %>">×</a>
             <% } %>
@@ -163,7 +163,7 @@
           <div class="explorer-command-group explorer-command-group-right">
             <span class="explorer-selection-label" data-selection-label><%= t('No item selected') %></span>
             <form action="/repositories/<%= repository.id %>" method="get" class="explorer-sort-form">
-              <% if (search) { %><input type="hidden" name="q" value="<%= search %>"><% } %>
+              <% if (search) { %><input type="hidden" name="q" value="<%= safeDisplayText(search) %>"><% } %>
               <% if (currentFolder) { %><input type="hidden" name="folder" value="<%= currentFolder.id %>"><% } %>
               <label>
                 <span class="sr-only"><%= t('Sort by') %></span>
@@ -195,7 +195,7 @@
             <div>
               <span class="eyebrow"><%= t('FOLDER') %></span>
               <h2><%= t('Create a new folder') %></h2>
-              <p><%= t('The folder will be created inside {{name}}.', { name: currentFolder?.name || repository.name }) %></p>
+              <p><%= t('The folder will be created inside {{name}}.', { name: safeDisplayText(currentFolder?.name || repository.name) }) %></p>
             </div>
             <button type="button" class="explorer-square-button" data-folder-close aria-label="<%= t('Close folder panel') %>" title="<%= t('Close folder panel') %>">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
@@ -295,8 +295,8 @@
                 <div class="explorer-member-list">
                   <% grants.slice(0, 4).forEach((grant) => { %>
                     <div class="explorer-member">
-                      <span class="avatar"><%= grant.display_name.slice(0, 1).toUpperCase() %></span>
-                      <span><strong><%= grant.display_name %></strong><small>@<%= grant.username %></small></span>
+                      <span class="avatar"><%= safeDisplayText(grant.display_name, '?').slice(0, 1).toUpperCase() %></span>
+                      <span><strong><%= safeDisplayText(grant.display_name) %></strong><small>@<%= grant.username %></small></span>
                     </div>
                   <% }) %>
                 </div>
@@ -308,7 +308,7 @@
           <section class="explorer-content" aria-label="<%= t('File list') %>">
             <div class="explorer-content-heading">
               <div>
-                <h2 data-current-category><%= search ? t('Search results for “{{search}}”', { search }) : (currentFolder?.name || t('All items')) %></h2>
+                <h2 data-current-category><%= search ? t('Search results for “{{search}}”', { search: safeDisplayText(search) }) : safeDisplayText(currentFolder?.name, t('All items')) %></h2>
                 <span><strong data-visible-file-count><%= visibleItemCount %></strong> <span data-visible-item-label><%= visibleItemCount === 1 ? t('item') : t('items') %></span></span>
               </div>
               <% if (search) { %><span class="explorer-search-chip"><%= t('Search:') %> <strong><%= search %></strong></span><% } %>
@@ -328,20 +328,21 @@
               <div class="explorer-file-items" data-file-items data-view="list">
                 <% folders.forEach((folder) => {
                   const folderUrl = `/repositories/${repository.id}?folder=${encodeURIComponent(folder.id)}`;
-                  const creator = folder.creator_name || t('Deleted account');
+                  const creator = safeDisplayText(folder.creator_name, t('Deleted account'));
+                  const folderDisplayName = safeDisplayText(folder.name, t('Folder'));
                   const childCount = Number(folder.child_folder_count || 0) + Number(folder.direct_file_count || 0);
                 %>
                   <article
                     class="explorer-file-item explorer-folder-item"
                     data-folder-item
-                    data-folder-name="<%= folder.name %>"
-                    aria-label="<%= folder.name %>, <%= t('Folder') %>">
+                    data-folder-name="<%= folderDisplayName %>"
+                    aria-label="<%= folderDisplayName %>, <%= t('Folder') %>">
                     <span class="explorer-file-check explorer-folder-check" aria-hidden="true"></span>
 
                     <a class="explorer-file-primary" href="<%= folderUrl %>" data-folder-primary title="<%= t('Open folder') %>">
                       <span class="file-icon explorer-file-icon file-folder" aria-hidden="true">DIR</span>
                       <span class="explorer-file-copy">
-                        <strong><%= folder.name %></strong>
+                        <strong><%= folderDisplayName %></strong>
                         <small><%= t('Folder') %> · <%= childCount %> <%= childCount === 1 ? t('item') : t('items') %></small>
                       </span>
                     </a>
@@ -352,12 +353,12 @@
                     <span class="explorer-file-cell explorer-file-owner"><%= creator %></span>
 
                     <div class="explorer-file-actions">
-                      <a href="<%= folderUrl %>" title="<%= t('Open folder') %>" aria-label="<%= t('Open {{name}}', { name: folder.name }) %>">
+                      <a href="<%= folderUrl %>" title="<%= t('Open folder') %>" aria-label="<%= t('Open {{name}}', { name: folderDisplayName }) %>">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
                       </a>
                       <% if (repositoryPermissions.delete) { %>
                         <details class="explorer-file-menu">
-                          <summary title="<%= t('More options') %>" aria-label="<%= t('More actions for {{name}}', { name: folder.name }) %>">
+                          <summary title="<%= t('More options') %>" aria-label="<%= t('More actions for {{name}}', { name: folderDisplayName }) %>">
                             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
                           </summary>
                           <div>
@@ -365,7 +366,7 @@
                               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
                               <%= t('Open folder') %>
                             </a>
-                            <form action="/repositories/<%= repository.id %>/folders/<%= encodeURIComponent(folder.id) %>/delete" method="post" data-confirm="<%= t("Permanently delete the '{{name}}' folder and everything inside it?", { name: folder.name }) %>">
+                            <form action="/repositories/<%= repository.id %>/folders/<%= encodeURIComponent(folder.id) %>/delete" method="post" data-confirm="<%= t("Permanently delete the '{{name}}' folder and everything inside it?", { name: folderDisplayName }) %>">
                               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                               <button type="submit">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
@@ -381,7 +382,8 @@
 
                 <% files.forEach((file) => {
                   const kind = fileKind(file.mime_type, file.original_name);
-                  const owner = file.uploader_name || t('Deleted account');
+                  const owner = safeDisplayText(file.uploader_name, t('Deleted account'));
+                  const fileDisplayName = safeDisplayText(file.original_name, t('File'));
                   const downloadUrl = repositoryPermissions.download ? `/repositories/${repository.id}/files/${file.id}/download` : '';
                   const deleteUrl = repositoryPermissions.delete ? `/repositories/${repository.id}/files/${file.id}/delete` : '';
                   const previewKind = filePreviewKind(file.mime_type, file.original_name);
@@ -394,7 +396,7 @@
                     tabindex="0"
                     data-file-item
                     data-file-id="<%= file.id %>"
-                    data-file-name="<%= file.original_name %>"
+                    data-file-name="<%= fileDisplayName %>"
                     data-file-kind="<%= kind %>"
                     data-file-type="<%= kindLabels[kind] || t('File') %>"
                     data-file-size="<%= formatBytes(file.size) %>"
@@ -405,16 +407,16 @@
                     data-delete-url="<%= deleteUrl %>"
                     data-preview-kind="<%= previewKind %>"
                     data-preview-url="<%= previewUrl %>"
-                    aria-label="<%= file.original_name %>, <%= formatBytes(file.size) %>">
+                    aria-label="<%= fileDisplayName %>, <%= formatBytes(file.size) %>">
                     <label class="explorer-file-check" title="<%= t('Select') %>">
-                      <input type="checkbox" data-file-select aria-label="<%= t('Select {{name}}', { name: file.original_name }) %>">
+                      <input type="checkbox" data-file-select aria-label="<%= t('Select {{name}}', { name: fileDisplayName }) %>">
                       <span></span>
                     </label>
 
                     <a class="explorer-file-primary" href="<%= downloadUrl || '#' %>" data-file-primary data-download-link title="<%= repositoryPermissions.download ? t('Click once to select; double-click to download') : t('Click to select') %>">
                       <span class="file-icon explorer-file-icon file-<%= kind %>" aria-hidden="true"><%= kindCodes[kind] || 'FILE' %></span>
                       <span class="explorer-file-copy">
-                        <strong><%= file.original_name %></strong>
+                        <strong><%= fileDisplayName %></strong>
                         <small><%= kindLabels[kind] || t('File') %> · <%= formatBytes(file.size) %></small>
                       </span>
                     </a>
@@ -426,13 +428,13 @@
 
                     <div class="explorer-file-actions">
                       <% if (repositoryPermissions.download) { %>
-                        <a href="<%= downloadUrl %>" data-download-link title="<%= t('Download') %>" aria-label="<%= t('Download {{name}}', { name: file.original_name }) %>">
+                        <a href="<%= downloadUrl %>" data-download-link title="<%= t('Download') %>" aria-label="<%= t('Download {{name}}', { name: fileDisplayName }) %>">
                           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
                         </a>
                       <% } %>
                       <% if (repositoryPermissions.download || repositoryPermissions.delete) { %>
                         <details class="explorer-file-menu">
-                          <summary title="<%= t('More options') %>" aria-label="<%= t('More actions for {{name}}', { name: file.original_name }) %>">
+                          <summary title="<%= t('More options') %>" aria-label="<%= t('More actions for {{name}}', { name: fileDisplayName }) %>">
                             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
                           </summary>
                           <div>
@@ -443,7 +445,7 @@
                               </a>
                             <% } %>
                             <% if (repositoryPermissions.delete) { %>
-                              <form action="<%= deleteUrl %>" method="post" data-confirm="<%= t("Permanently delete '{{name}}'?", { name: file.original_name }) %>">
+                              <form action="<%= deleteUrl %>" method="post" data-confirm="<%= t("Permanently delete '{{name}}'?", { name: fileDisplayName }) %>">
                                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                                 <button type="submit">
                                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>

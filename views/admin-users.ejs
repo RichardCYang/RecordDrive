@@ -30,7 +30,7 @@
               <tbody>
                 <% users.forEach((user) => { %>
                   <tr>
-                    <td><div class="user-cell"><span class="avatar"><%= user.display_name.slice(0, 1).toUpperCase() %></span><div><strong><%= user.display_name %></strong><small>@<%= user.username %></small><% if (user.must_change_password) { %><small><%= t('Password change required') %></small><% } %></div></div></td>
+                    <td><div class="user-cell"><span class="avatar"><%= safeDisplayText(user.display_name, '?').slice(0, 1).toUpperCase() %></span><div><strong><%= safeDisplayText(user.display_name) %></strong><small>@<%= user.username %></small><% if (user.must_change_password) { %><small><%= t('Password change required') %></small><% } %></div></div></td>
                     <td><span class="role-badge <%= user.role === 'ADMIN' ? 'role-admin' : '' %>"><%= user.role === 'ADMIN' ? t('Administrator') : t('User') %></span></td>
                     <td><%= user.repository_count %></td>
                     <td><%= user.uploaded_file_count %></td>

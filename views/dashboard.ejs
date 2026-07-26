@@ -10,7 +10,7 @@
       <section class="page-hero">
         <div>
           <span class="eyebrow"><%= t('MY RECORDDRIVE') %></span>
-          <h1><%= t("{{name}}'s Drive", { name: currentUser.display_name }) %></h1>
+          <h1><%= t("{{name}}'s Drive", { name: safeDisplayText(currentUser.display_name) }) %></h1>
           <p><%= isAdmin ? t('Administrator access includes every repository and every repository action.') : t('Create personal repositories and open only repositories shared with your account.') %></p>
         </div>
         <% if (isAdmin) { %>
@@ -51,8 +51,8 @@
                 </span>
                 <span class="repository-access-label"><%= isAdmin ? t('Administrator') : repository.is_owner ? t('Owner') : t('Shared') %></span>
               </div>
-              <h2><%= repository.name %></h2>
-              <p><%= repository.description || t('No description has been provided.') %></p>
+              <h2><%= safeDisplayText(repository.name) %></h2>
+              <p><%= safeDisplayText(repository.description) || t('No description has been provided.') %></p>
               <div class="repo-card-meta">
                 <span><strong><%= repository.file_count %></strong> <%= repository.file_count === 1 ? t('file') : t('files') %></span>
                 <span><strong><%= repository.participant_count %></strong> <%= repository.participant_count === 1 ? t('shared user') : t('shared users') %></span>
@@ -64,7 +64,7 @@
                 <% if (repository.can_delete) { %><span><%= t('Delete') %></span><% } %>
               </div>
               <div class="repo-card-footer">
-                <span><%= t('Owner: {{name}}', { name: repository.owner_display_name || t('Deleted account') }) %></span>
+                <span><%= t('Owner: {{name}}', { name: safeDisplayText(repository.owner_display_name, t('Deleted account')) }) %></span>
                 <span><%= repository.last_file_at ? t('Updated {{date}}', { date: formatDate(repository.last_file_at) }) : t('No files yet') %></span>
               </div>
             </a>

@@ -1,0 +1,3 @@
+Node runtime: v22.16.0
+npm runtime: 10.9.2
+JavaScript syntax files checked: 164
