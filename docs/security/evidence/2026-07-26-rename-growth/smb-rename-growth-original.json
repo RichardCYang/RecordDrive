@@ -1,0 +1,11 @@
+{
+  "configuredMaxBytes": 104.8576,
+  "originalBytes": 64,
+  "projectedBytesBeforeReconcile": 2112,
+  "projectedBytesAfterReconcile": 2112,
+  "canonicalBytesAfterReconcile": 2112,
+  "databaseBytesAfterReconcile": 2112,
+  "databaseNameAfterReconcile": "renamed-growth.bin",
+  "quotaRejectLogCount": 0,
+  "vulnerable": true
+}

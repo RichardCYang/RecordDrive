@@ -1,0 +1,8 @@
+Node: v22.16.0
+Checking JavaScript syntax...
+All JavaScript syntax checks passed.
+
+> recorddrive@2.1.0 check
+> node --check src/server.js && node --check src/app.js
+
+npm run check and shell syntax passed.

@@ -1,0 +1,80 @@
+TAP version 13
+# (node:2960) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: enables and disables a repository SMB share with one-time credential commands
+ok 1 - enables and disables a repository SMB share with one-time credential commands
+  ---
+  duration_ms: 79.24043
+  type: 'test'
+  ...
+# Subtest: requires a ready sidecar and extended-attribute support before enabling SMB
+ok 2 - requires a ready sidecar and extended-attribute support before enabling SMB
+  ---
+  duration_ms: 77.741121
+  type: 'test'
+  ...
+# Subtest: rejects SMB roots that overlap protected or canonical storage paths
+ok 3 - rejects SMB roots that overlap protected or canonical storage paths
+  ---
+  duration_ms: 1.20302
+  type: 'test'
+  ...
+# Subtest: bundled SMB entrypoint uses executable Unix line endings
+ok 4 - bundled SMB entrypoint uses executable Unix line endings
+  ---
+  duration_ms: 0.742218
+  type: 'test'
+  ...
+# Subtest: bundled SMB sidecar requires SMB3 transport encryption
+ok 5 - bundled SMB sidecar requires SMB3 transport encryption
+  ---
+  duration_ms: 0.319713
+  type: 'test'
+  ...
+# Subtest: bundled SMB port is loopback-only unless explicitly configured
+ok 6 - bundled SMB port is loopback-only unless explicitly configured
+  ---
+  duration_ms: 0.826503
+  type: 'test'
+  ...
+# (node:2967) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: reconciles web and SMB files through hard links without changing supplied times
+ok 7 - reconciles web and SMB files through hard links without changing supplied times
+  ---
+  duration_ms: 196.638365
+  type: 'test'
+  ...
+# Subtest: rejects over-quota SMB files and removes symbolic links from the projection
+ok 8 - rejects over-quota SMB files and removes symbolic links from the projection
+  ---
+  duration_ms: 45.730273
+  type: 'test'
+  ...
+# Subtest: rolls back quota-exceeding in-place growth of an existing SMB hard link
+ok 9 - rolls back quota-exceeding in-place growth of an existing SMB hard link
+  ---
+  duration_ms: 51.612589
+  type: 'test'
+  ...
+# Subtest: rolls back quota-exceeding in-place growth when the SMB file is renamed before reconciliation
+ok 10 - rolls back quota-exceeding in-place growth when the SMB file is renamed before reconciliation
+  ---
+  duration_ms: 53.028965
+  type: 'test'
+  ...
+# Subtest: stops SMB projection scanning at the configured hard safety cap
+ok 11 - stops SMB projection scanning at the configured hard safety cap
+  ---
+  duration_ms: 50.627121
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 11
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 459.700427

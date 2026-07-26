@@ -6,6 +6,12 @@ import { fileURLToPath } from 'node:url';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+test('bundled SMB entrypoint uses executable Unix line endings', () => {
+  const entrypoint = fs.readFileSync(path.join(projectRoot, 'smb', 'entrypoint.sh'));
+  assert.equal(entrypoint.subarray(0, 10).toString('utf8'), '#!/bin/sh\n');
+  assert.equal(entrypoint.includes(Buffer.from('\r\n')), false);
+});
+
 test('bundled SMB sidecar requires SMB3 transport encryption', () => {
   const entrypoint = fs.readFileSync(path.join(projectRoot, 'smb', 'entrypoint.sh'), 'utf8');
   assert.match(entrypoint, /^\s*server min protocol = SMB3_00\s*$/m);

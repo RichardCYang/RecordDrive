@@ -750,9 +750,35 @@ function moveFolderFromSmb(db, repository, mapping, entry) {
   return true;
 }
 
-function moveFileFromSmb(db, repository, mapping, entry) {
+function moveFileFromSmb(db, config, repository, mapping, entry) {
   const parentId = folderIdForParentPath(db, repository.id, entry.relativePath);
   if (path.posix.dirname(entry.relativePath) !== '.' && !parentId) return false;
+
+  const file = db.prepare(`
+    SELECT * FROM files WHERE id = ? AND repository_id = ?
+  `).get(mapping.object_id, repository.id);
+  if (!file) return false;
+
+  const previousSize = Number(file.size || 0);
+  const nextSize = Number(entry.stats.size);
+  let effectiveStats = entry.stats;
+  let quotaError = null;
+  if (nextSize > previousSize) {
+    try {
+      enforceSmbFileQuota(db, config, repository, nextSize, {
+        replacedSize: previousSize,
+        addsFile: false
+      });
+    } catch (error) {
+      if (!(error instanceof SmbQuotaError)) throw error;
+      fs.truncateSync(entry.absolutePath, previousSize);
+      fs.chmodSync(entry.absolutePath, 0o600);
+      effectiveStats = fs.lstatSync(entry.absolutePath, { bigint: true });
+      entry.stats = effectiveStats;
+      quotaError = error;
+    }
+  }
+
   db.exec('BEGIN IMMEDIATE');
   try {
     db.prepare(`
@@ -762,16 +788,31 @@ function moveFileFromSmb(db, repository, mapping, entry) {
     `).run(
       parentId,
       safeOriginalName(path.posix.basename(entry.relativePath)),
-      Number(entry.stats.size),
-      Number(entry.stats.atimeMs),
+      Number(effectiveStats.size),
+      Number(effectiveStats.atimeMs),
       mapping.object_id,
       repository.id
     );
-    updateMappingPath(db, repository.id, 'FILE', mapping.object_id, entry.relativePath, entry.stats);
+    updateMappingPath(
+      db,
+      repository.id,
+      'FILE',
+      mapping.object_id,
+      entry.relativePath,
+      effectiveStats
+    );
     db.exec('COMMIT');
   } catch (error) {
     if (db.isTransaction) db.exec('ROLLBACK');
     throw error;
+  }
+  if (quotaError) {
+    logActivity(db, {
+      action: 'SMB_REJECT_FILE_QUOTA',
+      targetType: 'FILE',
+      targetLabel: `${file.original_name} [${quotaError.quota}]`,
+      repositoryId: repository.id
+    });
   }
   return true;
 }
@@ -880,7 +921,7 @@ function syncProjectionToDatabase(db, config, repository, root) {
     const moved = fileByIdentity.get(identityKey(entry.stats));
     if (!moved || stableFileMappings.has(moved.object_id)
       || moved.relative_path.toLowerCase() === entry.relativePath.toLowerCase()) continue;
-    if (moveFileFromSmb(db, repository, moved, entry)) {
+    if (moveFileFromSmb(db, config, repository, moved, entry)) {
       mappings = mappingRows(db, repository.id);
       mappingByPath = new Map(mappings.map((row) => [row.relative_path.toLowerCase(), row]));
       fileByIdentity = new Map(

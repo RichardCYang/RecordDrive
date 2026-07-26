@@ -1,0 +1,5 @@
+Command: npm audit --package-lock-only --json
+Date: 2026-07-26
+Result: Not completed. The configured package registry gateway returned HTTP 503.
+
+The audit therefore used package-lock.json version inspection and current public GitHub Advisory Database records as a supplementary check. Re-run npm ci, npm test, and npm audit on the required Node.js version with a healthy registry before production deployment.

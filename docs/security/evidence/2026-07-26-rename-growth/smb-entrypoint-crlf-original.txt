@@ -1,0 +1,1 @@
+smb/entrypoint.sh: 74: Syntax error: "&&" unexpected

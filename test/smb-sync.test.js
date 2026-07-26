@@ -263,6 +263,64 @@ test('rolls back quota-exceeding in-place growth of an existing SMB hard link', 
   `).get(repository.id));
 });
 
+test('rolls back quota-exceeding in-place growth when the SMB file is renamed before reconciliation', (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-smb-growth-rename-quota-'));
+  const config = {
+    ...testConfig(tempRoot),
+    maxFileSizeMb: 0.0001
+  };
+  const db = createDatabase(config);
+  t.after(() => {
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  const repository = createRepository(db);
+  const repositoryRoot = ensureSecureRepositoryDirectory(config, repository.id);
+  const storedName = crypto.randomUUID();
+  const storedPath = path.join(repositoryRoot, storedName);
+  const original = Buffer.alloc(64, 0x41);
+  fs.writeFileSync(storedPath, original, { mode: 0o600 });
+  db.prepare(`
+    INSERT INTO files (
+      id, repository_id, original_name, stored_name, mime_type, size, uploaded_by,
+      initial_access_time_ms
+    ) VALUES ('quota-growth-rename-file', ?, 'quota-growth-rename.bin', ?,
+      'application/octet-stream', ?, ?, ?)
+  `).run(
+    repository.id,
+    storedName,
+    original.length,
+    repository.created_by,
+    readInitialAccessTimeMs(storedPath)
+  );
+
+  reconcileSmbRepository(db, config, repository);
+  const shareRoot = path.join(config.smbShareRoot, String(repository.id));
+  const projectedPath = path.join(shareRoot, 'quota-growth-rename.bin');
+  const renamedPath = path.join(shareRoot, 'renamed-growth.bin');
+  assert.equal(sameInode(storedPath, projectedPath), true);
+
+  fs.appendFileSync(projectedPath, Buffer.alloc(2048, 0x42));
+  fs.renameSync(projectedPath, renamedPath);
+  assert.equal(fs.statSync(storedPath).size, 2112);
+  reconcileSmbRepository(db, config, db.prepare('SELECT * FROM repositories WHERE id = ?').get(repository.id));
+
+  assert.equal(fs.existsSync(projectedPath), false);
+  assert.equal(fs.statSync(storedPath).size, original.length);
+  assert.equal(fs.statSync(renamedPath).size, original.length);
+  assert.deepEqual(fs.readFileSync(storedPath), original);
+  const file = db.prepare(
+    "SELECT original_name, size FROM files WHERE id = 'quota-growth-rename-file'"
+  ).get();
+  assert.equal(file.original_name, 'renamed-growth.bin');
+  assert.equal(file.size, original.length);
+  assert.ok(db.prepare(`
+    SELECT 1 FROM activity_logs
+    WHERE repository_id = ? AND action = 'SMB_REJECT_FILE_QUOTA'
+  `).get(repository.id));
+});
+
 test('stops SMB projection scanning at the configured hard safety cap', (t) => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-smb-scan-limit-'));
   const config = {

@@ -11,6 +11,11 @@ This directory is the canonical index for RecordDrive security reports, validati
 | [`sbom/`](sbom/) | CycloneDX software bill of materials |
 | [`notices/`](notices/) | Third-party license and security notices |
 
+## Latest follow-up
+
+- [2026-07-26 SMB rename+growth quota-bypass follow-up (Korean)](reports/2026-07-26-smb-rename-growth-quota-bypass-ko.md)
+- [Exact follow-up evidence](evidence/2026-07-26-rename-growth/)
+
 ## Recommended reading order
 
 1. Start with the [2026-07-12 security review summary](reports/2026-07-12-security-review-summary.md).
