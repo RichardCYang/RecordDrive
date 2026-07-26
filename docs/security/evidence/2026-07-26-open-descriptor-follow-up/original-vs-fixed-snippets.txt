@@ -1,0 +1,31 @@
+===== src/routes/repositories.js: ORIGINAL RELEVANT LINES =====
+882:         return createSevenZipPreview(opened.filePath, opened.stats, {
+===== src/routes/repositories.js: FIXED RELEVANT LINES =====
+882:         return createSevenZipPreview({ fd: opened.fd, filePath: opened.filePath }, opened.stats, {
+
+===== src/file-preview.js: ORIGINAL RELEVANT LINES =====
+575:       workerData: {
+576:         filePath: source,
+667: export function createSevenZipPreview(source, stats, options = {}) {
+===== src/file-preview.js: FIXED RELEVANT LINES =====
+580:         fileDescriptor: sourceDescriptor,
+677: export function createSevenZipPreview(source, stats, options = {}) {
+
+===== src/seven-zip-parser-worker.js: ORIGINAL RELEVANT LINES =====
+183:     this.fd = fs.openSync(filePath, 'r');
+===== src/seven-zip-parser-worker.js: FIXED RELEVANT LINES =====
+183:     this.ownsDescriptor = !Number.isInteger(source?.fileDescriptor);
+184:     if (this.ownsDescriptor) {
+185:       const noFollow = Number.isInteger(fs.constants.O_NOFOLLOW) ? fs.constants.O_NOFOLLOW : 0;
+188:       this.fd = source.fileDescriptor;
+192:       this.ownsDescriptor
+253:     if (this.ownsDescriptor && this.fd !== undefined) fs.closeSync(this.fd);
+546:     fileDescriptor: workerData.fileDescriptor,
+
+===== smb/entrypoint.sh: ORIGINAL RELEVANT LINES =====
+1: #!/bin/sh
+2: set -eu
+===== smb/entrypoint.sh: FIXED RELEVANT LINES =====
+1: #!/bin/sh
+2: set -eu
+

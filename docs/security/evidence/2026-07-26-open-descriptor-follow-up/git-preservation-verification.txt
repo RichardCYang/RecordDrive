@@ -1,0 +1,6 @@
+worktree_git_restore=PASS
+git_entries=44
+git_files=28
+git_directories=16
+original_git_manifest_sha256=3537a7bec9f2d20f158def118f17e1e6b7ad2741f071fccf32511336a4509290
+verification=path list, file bytes, SHA-256, size, and Unix mode compared against uploaded ZIP

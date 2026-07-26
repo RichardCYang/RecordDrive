@@ -1,0 +1,31 @@
+{
+  "message": "503 Service Temporarily Unavailable - POST https://packages.applied-caas-gateway1.internal.api.openai.org/artifactory/api/npm/npm-public/-/npm/v1/security/audits/quick",
+  "method": "POST",
+  "uri": "https://packages.applied-caas-gateway1.internal.api.openai.org/artifactory/api/npm/npm-public/-/npm/v1/security/audits/quick",
+  "headers": {
+    "date": [
+      "Sun, 26 Jul 2026 12:07:24 GMT"
+    ],
+    "content-type": [
+      "text/html"
+    ],
+    "content-length": [
+      "190"
+    ],
+    "connection": [
+      "keep-alive"
+    ],
+    "strict-transport-security": [
+      "max-age=31536000; includeSubDomains"
+    ],
+    "x-fetch-attempts": [
+      "1"
+    ]
+  },
+  "statusCode": 503,
+  "body": "<html>\r\n<head><title>503 Service Temporarily Unavailable</title></head>\r\n<body>\r\n<center><h1>503 Service Temporarily Unavailable</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n",
+  "error": {
+    "summary": "",
+    "detail": ""
+  }
+}

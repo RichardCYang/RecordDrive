@@ -1,0 +1,17 @@
+Static/source review scope
+- Authentication, session encryption/revocation, CSRF including multipart pre-write validation
+- Repository authorization/IDOR and SQL parameterization
+- File path canonicalization, symlink handling, stable file descriptors, upload quotas
+- PDF/XLSX/ZIP/7z preview boundaries and resource limits
+- SMB manifest/control files, Samba shell configuration, projection reconciliation and quotas
+- Storage relocation validation
+- EJS/client-side injection sinks, command execution, outbound network calls, embedded secrets
+
+Pattern review results
+- No application eval/new Function/vm or child_process execution path found.
+- No application outbound HTTP client/SSRF sink found.
+- No innerHTML/outerHTML/insertAdjacentHTML/document.write sink found.
+- EJS unescaped tags are partial includes only.
+- Dynamic SQL sort/identifier sites were allowlisted/quoted; user values use prepared statement parameters.
+- Secret scan hits were test-only fixture passwords/TOTP values; no production private key or cloud token pattern found.
+- Uploaded ZIP contained no path traversal or symbolic-link entries during safe extraction.

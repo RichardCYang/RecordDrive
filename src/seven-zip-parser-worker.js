@@ -179,9 +179,24 @@ class Cursor {
 }
 
 class BoundedFileSource {
-  constructor(filePath, limits) {
-    this.fd = fs.openSync(filePath, 'r');
+  constructor(source, limits) {
+    this.ownsDescriptor = !Number.isInteger(source?.fileDescriptor);
+    if (this.ownsDescriptor) {
+      const noFollow = Number.isInteger(fs.constants.O_NOFOLLOW) ? fs.constants.O_NOFOLLOW : 0;
+      this.fd = fs.openSync(source?.filePath, fs.constants.O_RDONLY | noFollow);
+    } else {
+      this.fd = source.fileDescriptor;
+    }
     const stat = fs.fstatSync(this.fd);
+    if (
+      this.ownsDescriptor
+      && Number.isSafeInteger(source?.expectedDevice)
+      && Number.isSafeInteger(source?.expectedInode)
+      && (stat.dev !== source.expectedDevice || stat.ino !== source.expectedInode)
+    ) {
+      this.close();
+      throw new InvalidArchiveError('The 7z source path changed before metadata parsing began.');
+    }
     if (!stat.isFile()) {
       this.close();
       throw new InvalidArchiveError('The 7z source is not a regular file.');
@@ -235,7 +250,7 @@ class BoundedFileSource {
   close() {
     if (this.closed) return;
     this.closed = true;
-    if (this.fd !== undefined) fs.closeSync(this.fd);
+    if (this.ownsDescriptor && this.fd !== undefined) fs.closeSync(this.fd);
   }
 }
 
@@ -527,7 +542,12 @@ async function parseArchive() {
   const maxEntryNameBytes = safeInteger(options.maxEntryNameBytes, 1024, 64, 8192);
   const maxVisibleNameBytes = safeInteger(options.maxVisibleNameBytes, 1024 * 1024, 4096, 8 * 1024 * 1024);
 
-  const source = new BoundedFileSource(workerData.filePath, limits);
+  const source = new BoundedFileSource({
+    fileDescriptor: workerData.fileDescriptor,
+    filePath: workerData.filePath,
+    expectedDevice: workerData.expectedDevice,
+    expectedInode: workerData.expectedInode
+  }, limits);
   let parser;
   try {
     if (Number.isSafeInteger(workerData.expectedSize) && workerData.expectedSize !== source.getSize()) {

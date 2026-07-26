@@ -1,0 +1,154 @@
+TAP version 13
+# Subtest: normalizes safe archive names without treating metadata as filesystem paths
+ok 1 - normalizes safe archive names without treating metadata as filesystem paths
+  ---
+  duration_ms: 1.442863
+  type: 'test'
+  ...
+# Subtest: rejects archive metadata that can spoof paths or amplify tree depth
+ok 2 - rejects archive metadata that can spoof paths or amplify tree depth
+  ---
+  duration_ms: 0.230493
+  type: 'test'
+  ...
+# Subtest: caps unique archive preview tree nodes independently of entry count and name bytes
+ok 3 - caps unique archive preview tree nodes independently of entry count and name bytes
+  ---
+  duration_ms: 6.529368
+  type: 'test'
+  ...
+# Subtest: counts concurrent password checks before asynchronous verification completes
+ok 4 - counts concurrent password checks before asynchronous verification completes
+  ---
+  duration_ms: 3.266752
+  type: 'test'
+  ...
+# Subtest: preserves other in-flight password checks when one concurrent request succeeds
+ok 5 - preserves other in-flight password checks when one concurrent request succeeds
+  ---
+  duration_ms: 0.378382
+  type: 'test'
+  ...
+# Subtest: counts concurrent MFA checks before TOTP or passkey verification completes
+ok 6 - counts concurrent MFA checks before TOTP or passkey verification completes
+  ---
+  duration_ms: 0.611007
+  type: 'test'
+  ...
+# Subtest: counts concurrent security reauthentication checks independently of session writes
+ok 7 - counts concurrent security reauthentication checks independently of session writes
+  ---
+  duration_ms: 0.680441
+  type: 'test'
+  ...
+# Subtest: removes bidirectional and C0/C1 controls from displayed names
+ok 8 - removes bidirectional and C0/C1 controls from displayed names
+  ---
+  duration_ms: 0.688933
+  type: 'test'
+  ...
+# Subtest: normalizes browser and SMB supplied filenames without preserving platform paths
+ok 9 - normalizes browser and SMB supplied filenames without preserving platform paths
+  ---
+  duration_ms: 0.906517
+  type: 'test'
+  ...
+# Subtest: rejects hidden direction controls and encoded separators in internal redirects
+ok 10 - rejects hidden direction controls and encoded separators in internal redirects
+  ---
+  duration_ms: 0.215931
+  type: 'test'
+  ...
+# Subtest: baseline broad copy exposes deployment-secret canaries
+ok 11 - baseline broad copy exposes deployment-secret canaries
+  ---
+  duration_ms: 2.197554
+  type: 'test'
+  ...
+# Subtest: patched image copies only the runtime allowlist and blocks all canaries
+ok 12 - patched image copies only the runtime allowlist and blocks all canaries
+  ---
+  duration_ms: 0.334506
+  type: 'test'
+  ...
+# Subtest: Docker policy does not copy Git metadata into the image
+ok 13 - Docker policy does not copy Git metadata into the image
+  ---
+  duration_ms: 0.293706
+  type: 'test'
+  ...
+# Subtest: preserves the primary file-operation error when access-time completion also fails
+ok 14 - preserves the primary file-operation error when access-time completion also fails
+  ---
+  duration_ms: 0.839167
+  type: 'test'
+  ...
+# Subtest: falls back to path-based timestamp updates after Windows-style futime EPERM
+ok 15 - falls back to path-based timestamp updates after Windows-style futime EPERM
+  ---
+  duration_ms: 1.947543
+  type: 'test'
+  ...
+# Subtest: does not update a replacement path when the opened file identity changed
+ok 16 - does not update a replacement path when the opened file identity changed
+  ---
+  duration_ms: 2.532642
+  type: 'test'
+  ...
+# Subtest: a fast file stream reauthorizes every chunk before disclosure
+ok 17 - a fast file stream reauthorizes every chunk before disclosure
+  ---
+  duration_ms: 5.446029
+  type: 'test'
+  ...
+# Subtest: generated preview JSON stops after permission or session revocation
+ok 18 - generated preview JSON stops after permission or session revocation
+  ---
+  duration_ms: 29.817298
+  type: 'test'
+  ...
+# Subtest: structured preview routes use revocation-aware JSON streaming
+ok 19 - structured preview routes use revocation-aware JSON streaming
+  ---
+  duration_ms: 0.878595
+  type: 'test'
+  ...
+# Subtest: generated preview streaming denies before the first byte when authorization is absent
+ok 20 - generated preview streaming denies before the first byte when authorization is absent
+  ---
+  duration_ms: 0.287317
+  type: 'test'
+  ...
+# Subtest: generated preview streaming fails closed when a re-check throws
+ok 21 - generated preview streaming fails closed when a re-check throws
+  ---
+  duration_ms: 0.258314
+  type: 'test'
+  ...
+# Subtest: password policy enforces Unicode character and bcrypt byte boundaries
+ok 22 - password policy enforces Unicode character and bcrypt byte boundaries
+  ---
+  duration_ms: 0.599881
+  type: 'test'
+  ...
+# Subtest: 7z preview workers keep reading the already-authorized descriptor after a pathname swap
+ok 23 - 7z preview workers keep reading the already-authorized descriptor after a pathname swap
+  ---
+  duration_ms: 50.812502
+  type: 'test'
+  ...
+# Subtest: the repository preview route passes the open descriptor into 7z preview generation
+ok 24 - the repository preview route passes the open descriptor into 7z preview generation
+  ---
+  duration_ms: 0.694872
+  type: 'test'
+  ...
+1..24
+# tests 24
+# suites 0
+# pass 24
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 220.159645

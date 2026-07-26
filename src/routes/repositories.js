@@ -879,7 +879,7 @@ export function createRepositoriesRouter(db, config) {
         if (previewKind === 'zip') {
           return createZipPreview(() => readOpenedFile(opened), opened.stats);
         }
-        return createSevenZipPreview(opened.filePath, opened.stats, {
+        return createSevenZipPreview({ fd: opened.fd, filePath: opened.filePath }, opened.stats, {
           enabled: config.sevenZipPreviewEnabled === true,
           timeoutMs: config.sevenZipPreviewTimeoutMs,
           maxHeaderBytes: config.sevenZipPreviewMaxHeaderMb * 1024 * 1024,

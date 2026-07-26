@@ -1,0 +1,8 @@
+{
+  "expectedSize": 64,
+  "vulnerableRead": "UNAUTHORIZED-LOCAL-CONTENTZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
+  "fixedRead": "AUTHORIZED-ARCHIVE-METADATAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "vulnerableAcceptedReplacement": true,
+  "fixedStayedOnAuthorizedInode": true,
+  "descriptorStillOpen": true
+}

@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: bundled SMB entrypoint uses executable Unix line endings
+ok 1 - bundled SMB entrypoint uses executable Unix line endings
+  ---
+  duration_ms: 0.639269
+  type: 'test'
+  ...
+# Subtest: bundled SMB sidecar requires SMB3 transport encryption
+ok 2 - bundled SMB sidecar requires SMB3 transport encryption
+  ---
+  duration_ms: 1.108918
+  type: 'test'
+  ...
+# Subtest: bundled SMB port is loopback-only unless explicitly configured
+ok 3 - bundled SMB port is loopback-only unless explicitly configured
+  ---
+  duration_ms: 0.284683
+  type: 'test'
+  ...
+# Subtest: bundled SMB sidecar forces read-only shares unless writes are explicitly enabled
+ok 4 - bundled SMB sidecar forces read-only shares unless writes are explicitly enabled
+  ---
+  duration_ms: 0.263682
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 44.63678

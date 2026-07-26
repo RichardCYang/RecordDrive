@@ -13,6 +13,8 @@ This directory is the canonical index for RecordDrive security reports, validati
 
 ## Latest follow-up
 
+- [2026-07-26 7z open-file-descriptor follow-up (Korean)](reports/2026-07-26-seven-zip-open-descriptor-follow-up-ko.md)
+- [Exact open-descriptor follow-up evidence](evidence/2026-07-26-open-descriptor-follow-up/)
 - [2026-07-26 deep security revalidation and remediation (Korean)](reports/2026-07-26-deep-security-review-ko.md)
 - [Exact deep-review evidence](evidence/2026-07-26-deep-review/)
 - [2026-07-26 SMB rename+growth quota-bypass follow-up (Korean)](reports/2026-07-26-smb-rename-growth-quota-bypass-ko.md)
@@ -50,6 +52,7 @@ This directory is the canonical index for RecordDrive security reports, validati
 
 | Date | Document | Primary purpose |
 | --- | --- | --- |
+| 2026-07-26 | [7z open-file-descriptor follow-up (Korean)](reports/2026-07-26-seven-zip-open-descriptor-follow-up-ko.md) | Conditional 7z pathname TOCTOU, worker descriptor handoff, deterministic boundary PoC, CRLF sidecar repair, and `.git`-preserving packaging |
 | 2026-07-26 | [Deep security revalidation and remediation (Korean)](reports/2026-07-26-deep-security-review-ko.md) | Writable-SMB pre-reconciliation disk exhaustion, archive-preview tree amplification, local PoCs, fail-closed remediation, and `.git`-preserving packaging |
 | 2026-07-24 | [Cookie-tossing session-substitution hardening](reports/2026-07-24-cookie-tossing-session-substitution-hardening.md) | Sibling-domain/path session substitution, Chromium-backed PoC, `__Host-` session and login-CSRF cookies, and forced safe reauthentication |
 | 2026-07-24 | [Docker build-context confidentiality hardening](reports/2026-07-24-docker-build-context-confidentiality-hardening.md) | Broad `COPY . .` secret/backup inclusion, deterministic canary PoC, deny-by-default `.dockerignore`, and explicit runtime-only image copies |

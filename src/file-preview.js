@@ -526,6 +526,10 @@ function validateSevenZipWorkerPreview(value, options = {}) {
 }
 
 function inspectSevenZipWithJavaScriptParser(source, stats, options) {
+  const sourceDescriptor = Number.isInteger(source?.fd) && source.fd >= 0 ? source.fd : null;
+  const sourcePath = typeof source === 'string' ? source : null;
+  const expectedDevice = Number.isSafeInteger(stats?.dev) ? stats.dev : null;
+  const expectedInode = Number.isSafeInteger(stats?.ino) ? stats.ino : null;
   const timeoutMs = normalizedPositiveInteger(
     options.timeoutMs,
     SEVEN_ZIP_DEFAULT_TIMEOUT_MS,
@@ -573,7 +577,10 @@ function inspectSevenZipWithJavaScriptParser(source, stats, options) {
     let receivedMessage = false;
     const worker = new Worker(new URL('./seven-zip-parser-worker.js', import.meta.url), {
       workerData: {
-        filePath: source,
+        fileDescriptor: sourceDescriptor,
+        filePath: sourcePath,
+        expectedDevice,
+        expectedInode,
         expectedSize,
         options: {
           maxVisibleEntries: options.maxVisibleEntries,
@@ -658,8 +665,11 @@ async function buildSevenZipPreview(source, stats, options = {}) {
       '7z preview is disabled by the server security policy.'
     );
   }
-  if (typeof source !== 'string' || !source) {
-    throw new FilePreviewError('INVALID_7Z', '7z previews require a server-side archive path.');
+  const hasPath = typeof source === 'string' && source.length > 0;
+  const hasDescriptor = source && typeof source === 'object'
+    && Number.isInteger(source.fd) && source.fd >= 0;
+  if (!hasPath && !hasDescriptor) {
+    throw new FilePreviewError('INVALID_7Z', '7z previews require a server-side archive path or open file descriptor.');
   }
   return inspectSevenZipWithJavaScriptParser(source, stats, options);
 }

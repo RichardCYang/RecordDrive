@@ -1,0 +1,26 @@
+project=recorddrive@2.1.0
+node_engine=^22.23.0 || ^24.17.0 || ^26.3.1
+direct_dependencies:
+7z-iterator	declared=2.2.9	locked=2.2.9
+@simplewebauthn/server	declared=^13.3.2	locked=13.3.2
+bcryptjs	declared=3.0.3	locked=3.0.3
+dotenv	declared=17.4.2	locked=17.4.2
+ejs	declared=6.0.1	locked=6.0.1
+exceljs	declared=^4.4.0	locked=4.4.0
+express	declared=5.2.1	locked=5.2.1
+express-session	declared=1.19.0	locked=1.19.0
+helmet	declared=8.3.0	locked=8.3.0
+multer	declared=2.2.0	locked=2.2.0
+otplib	declared=^13.4.1	locked=13.4.1
+qrcode	declared=^1.5.4	locked=1.5.4
+xz-compat	declared=file:vendor/xz-compat-purejs	locked=local/file
+yauzl	declared=^3.4.0	locked=3.4.0
+selected_transitive_dependencies:
+append-field	1.0.0
+body-parser	2.3.0
+busboy	1.6.0
+on-headers	1.1.0
+path-to-regexp	8.4.2
+qs	6.15.3
+send	1.2.1
+serve-static	2.2.1
