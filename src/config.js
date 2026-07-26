@@ -233,6 +233,7 @@ export function loadConfig(overrides = {}) {
     dbPath: resolveFromCwd(env.DB_PATH || './data/recorddrive.db'),
     uploadRoot: resolveFromCwd(env.UPLOAD_ROOT || './data/uploads'),
     smbEnabled: booleanFromEnv(env.SMB_ENABLED, false),
+    smbAllowWrites: booleanFromEnv(env.SMB_ALLOW_WRITES, false),
     smbShareRoot: resolveFromCwd(env.SMB_SHARE_ROOT || './data/smb-shares'),
     smbControlRoot: resolveFromCwd(env.SMB_CONTROL_ROOT || './data/smb-control'),
     smbContainerShareRoot: String(env.SMB_CONTAINER_SHARE_ROOT || '/data/smb-shares').trim(),

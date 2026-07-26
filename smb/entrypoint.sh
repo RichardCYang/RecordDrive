@@ -7,6 +7,12 @@ STATE_ROOT="${SMB_STATE_ROOT:-/var/lib/samba}"
 DATA_ROOT="${RECORDDRIVE_DATA_ROOT:-/data}"
 RECORDDRIVE_UID="${RECORDDRIVE_UID:-1000}"
 RECORDDRIVE_GID="${RECORDDRIVE_GID:-1000}"
+SMB_ALLOW_WRITES="${SMB_ALLOW_WRITES:-false}"
+case "$(printf '%s' "$SMB_ALLOW_WRITES" | tr '[:upper:]' '[:lower:]')" in
+  1|true|yes|on) SMB_ALLOW_WRITES=true ;;
+  *) SMB_ALLOW_WRITES=false ;;
+esac
+
 CONFIG_PATH=/etc/samba/smb.conf
 SHARES_PATH=/etc/samba/shares.conf
 
@@ -168,6 +174,9 @@ generate_shares() {
       [ -d "$share_path" ] || mkdir -p "$share_path"
       chown recorddrive:recorddrive "$share_path"
       chmod 0700 "$share_path"
+      if [ "$SMB_ALLOW_WRITES" != "true" ]; then
+        read_only=true
+      fi
       writable=yes
       [ "$read_only" = "true" ] && writable=no
       cat >> "$tmp" <<EOF_SHARE

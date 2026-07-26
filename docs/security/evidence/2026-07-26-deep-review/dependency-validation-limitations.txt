@@ -1,0 +1,8 @@
+Dependency validation notes
+===========================
+
+- `npm ci`/`npm audit` could not complete because the sandbox could not resolve or reach its configured npm registry.
+- The complete test attempt therefore had 20 module-resolution failures. It still executed 73 tests successfully; no application assertion failed in that run.
+- Focused tests used minimal temporary import stubs for `bcryptjs`, `dotenv`, and `express-session`. Those stubs are removed before packaging and are not included in the deliverable.
+- The lockfile was reviewed statically and current upstream advisories were checked on the web. Notable results: Multer 2.2.0 is the patched release for the June 2026 malformed/aborted upload and nested-field DoS advisories, and the application sets `limits.fieldNestingDepth` to 0; yauzl 3.4.0 is newer than the 3.2.1 fix for CVE-2026-31988; ExcelJS 4.4.0 is newer than the 1.6.0 fix for CVE-2018-16459.
+- No live Docker daemon, Samba daemon, Windows client, reverse proxy, or browser was available. SMB behavior was reproduced against the actual RecordDrive hard-link/reconciliation modules on a temporary local filesystem; browser tree amplification was reproduced with the same path/node model now shared by server validation and mirrored client limits.

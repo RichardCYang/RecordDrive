@@ -1,0 +1,18 @@
+RecordDrive final ZIP integrity criteria
+========================================
+
+The package is built in two stages. A candidate archive was verified before this record was added, then the final archive was rebuilt and checked externally against the same criteria.
+
+Required and observed in the candidate:
+- ZIP CRC test: PASS
+- Duplicate entry names: 0
+- Absolute or `..` traversal names: 0
+- `node_modules` entries: 0
+- Work-tree files omitted: 0
+- Unexpected non-`.git` files: 0
+- `.git` entries: 44
+- `.git` ZipInfo metadata versus the uploaded source ZIP: IDENTICAL
+- `.git` byte payloads versus the uploaded source ZIP: IDENTICAL
+- `smb/entrypoint.sh` archive mode: 0755
+
+The final archive is post-verified after packaging; its SHA-256 and exact final results are provided in the companion integrity report delivered next to the ZIP.

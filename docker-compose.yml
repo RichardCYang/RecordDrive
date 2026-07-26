@@ -10,6 +10,7 @@ services:
       RECORDDRIVE_DATA_ROOT: /data
       RECORDDRIVE_UID: "1000"
       RECORDDRIVE_GID: "1000"
+      SMB_ALLOW_WRITES: "${SMB_ALLOW_WRITES:-false}"
     volumes:
       - recorddrive_data:/data
       - recorddrive_smb_state:/var/lib/samba
@@ -37,6 +38,7 @@ services:
       HTTPS_HOST: 0.0.0.0
       ALLOWED_HOSTS: "${ALLOWED_HOSTS:-localhost,127.0.0.1,::1}"
       SMB_ENABLED: "true"
+      SMB_ALLOW_WRITES: "${SMB_ALLOW_WRITES:-false}"
       SMB_SHARE_ROOT: /app/data/smb-shares
       SMB_CONTROL_ROOT: /app/data/smb-control
       SMB_CONTAINER_SHARE_ROOT: /data/smb-shares

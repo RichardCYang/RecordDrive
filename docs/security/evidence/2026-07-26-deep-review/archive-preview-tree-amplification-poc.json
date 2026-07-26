@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "vulnerableTreeNodes": 128000,
+  "patchedTreeNodes": 9984,
+  "patchedLimit": 10000,
+  "acceptedEntries": 156,
+  "totalEntries": 2000
+}

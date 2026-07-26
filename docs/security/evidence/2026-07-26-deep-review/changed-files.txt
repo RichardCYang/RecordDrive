@@ -1,0 +1,20 @@
+Files /mnt/data/RecordDrive_analysis/original/.env.example and /mnt/data/RecordDrive_analysis/work/.env.example differ
+Files /mnt/data/RecordDrive_analysis/original/README.md and /mnt/data/RecordDrive_analysis/work/README.md differ
+Files /mnt/data/RecordDrive_analysis/original/docker-compose.yml and /mnt/data/RecordDrive_analysis/work/docker-compose.yml differ
+Files /mnt/data/RecordDrive_analysis/original/docs/SMB.md and /mnt/data/RecordDrive_analysis/work/docs/SMB.md differ
+Files /mnt/data/RecordDrive_analysis/original/docs/security/README.md and /mnt/data/RecordDrive_analysis/work/docs/security/README.md differ
+Only in /mnt/data/RecordDrive_analysis/work/docs/security/evidence: 2026-07-26-deep-review
+Only in /mnt/data/RecordDrive_analysis/work/docs/security/reports: 2026-07-26-deep-security-review-ko.md
+Files /mnt/data/RecordDrive_analysis/original/package.json and /mnt/data/RecordDrive_analysis/work/package.json differ
+Files /mnt/data/RecordDrive_analysis/original/public/js/app.js and /mnt/data/RecordDrive_analysis/work/public/js/app.js differ
+Only in /mnt/data/RecordDrive_analysis/work/security-poc: archive-preview-tree-amplification.mjs
+Only in /mnt/data/RecordDrive_analysis/work/security-poc: smb-pre-reconcile-quota-window.mjs
+Files /mnt/data/RecordDrive_analysis/original/smb/entrypoint.sh and /mnt/data/RecordDrive_analysis/work/smb/entrypoint.sh differ
+Only in /mnt/data/RecordDrive_analysis/work/src: archive-preview-security.js
+Files /mnt/data/RecordDrive_analysis/original/src/config.js and /mnt/data/RecordDrive_analysis/work/src/config.js differ
+Files /mnt/data/RecordDrive_analysis/original/src/file-preview.js and /mnt/data/RecordDrive_analysis/work/src/file-preview.js differ
+Files /mnt/data/RecordDrive_analysis/original/src/smb-settings.js and /mnt/data/RecordDrive_analysis/work/src/smb-settings.js differ
+Only in /mnt/data/RecordDrive_analysis/work/test: archive-preview-security.test.js
+Files /mnt/data/RecordDrive_analysis/original/test/smb-settings.test.js and /mnt/data/RecordDrive_analysis/work/test/smb-settings.test.js differ
+Files /mnt/data/RecordDrive_analysis/original/test/smb-sidecar-security.test.js and /mnt/data/RecordDrive_analysis/work/test/smb-sidecar-security.test.js differ
+Files /mnt/data/RecordDrive_analysis/original/views/repository-settings.ejs and /mnt/data/RecordDrive_analysis/work/views/repository-settings.ejs differ

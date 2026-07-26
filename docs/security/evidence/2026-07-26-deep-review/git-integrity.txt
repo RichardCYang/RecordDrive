@@ -1,0 +1,15 @@
+RecordDrive .git preservation verification
+========================================
+
+Source archive: RecordDrive.zip
+Verification time: 2026-07-26 (Asia/Seoul)
+
+- No Git command was executed against the project.
+- Original extracted `.git` versus modified work-tree `.git` manifest (path, type, mode, size, mtime_ns, SHA-256): IDENTICAL
+- Source ZIP `.git` entry-name set versus work-tree `.git`: IDENTICAL
+- Source ZIP `.git` file bytes versus work-tree `.git`: IDENTICAL
+- `.git` entries including root: 44
+- Regular `.git` files: 28
+- Aggregate SHA-256 over sorted `path<TAB>sha256<TAB>size` rows: 8a736ab6478f1db9c6acf029e39e8f09462a0270ed82fdd48f1339d4061fa5cc
+
+The final ZIP builder copies every `.git` ZipInfo record and byte payload directly from the original uploaded ZIP rather than recreating those entries. A second post-package check is recorded outside the archive.

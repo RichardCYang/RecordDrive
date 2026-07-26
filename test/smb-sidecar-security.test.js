@@ -29,3 +29,12 @@ test('bundled SMB port is loopback-only unless explicitly configured', () => {
   assert.match(exampleEnv, /^SMB_BIND_ADDRESS=127\.0\.0\.1$/m);
   assert.doesNotMatch(exampleEnv, /^SMB_BIND_ADDRESS=0\.0\.0\.0$/m);
 });
+
+
+test('bundled SMB sidecar forces read-only shares unless writes are explicitly enabled', () => {
+  const entrypoint = fs.readFileSync(path.join(projectRoot, 'smb', 'entrypoint.sh'), 'utf8');
+  assert.match(entrypoint, /SMB_ALLOW_WRITES="\$\{SMB_ALLOW_WRITES:-false\}"/);
+  assert.match(entrypoint, /if \[ "\$SMB_ALLOW_WRITES" != "true" \]; then\s+read_only=true/m);
+  const compose = fs.readFileSync(path.join(projectRoot, 'docker-compose.yml'), 'utf8');
+  assert.match(compose, /SMB_ALLOW_WRITES: "\$\{SMB_ALLOW_WRITES:-false\}"/);
+});

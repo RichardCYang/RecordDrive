@@ -13,8 +13,10 @@ This directory is the canonical index for RecordDrive security reports, validati
 
 ## Latest follow-up
 
+- [2026-07-26 deep security revalidation and remediation (Korean)](reports/2026-07-26-deep-security-review-ko.md)
+- [Exact deep-review evidence](evidence/2026-07-26-deep-review/)
 - [2026-07-26 SMB rename+growth quota-bypass follow-up (Korean)](reports/2026-07-26-smb-rename-growth-quota-bypass-ko.md)
-- [Exact follow-up evidence](evidence/2026-07-26-rename-growth/)
+- [Earlier SMB follow-up evidence](evidence/2026-07-26-rename-growth/)
 
 ## Recommended reading order
 
@@ -48,6 +50,7 @@ This directory is the canonical index for RecordDrive security reports, validati
 
 | Date | Document | Primary purpose |
 | --- | --- | --- |
+| 2026-07-26 | [Deep security revalidation and remediation (Korean)](reports/2026-07-26-deep-security-review-ko.md) | Writable-SMB pre-reconciliation disk exhaustion, archive-preview tree amplification, local PoCs, fail-closed remediation, and `.git`-preserving packaging |
 | 2026-07-24 | [Cookie-tossing session-substitution hardening](reports/2026-07-24-cookie-tossing-session-substitution-hardening.md) | Sibling-domain/path session substitution, Chromium-backed PoC, `__Host-` session and login-CSRF cookies, and forced safe reauthentication |
 | 2026-07-24 | [Docker build-context confidentiality hardening](reports/2026-07-24-docker-build-context-confidentiality-hardening.md) | Broad `COPY . .` secret/backup inclusion, deterministic canary PoC, deny-by-default `.dockerignore`, and explicit runtime-only image copies |
 | 2026-07-24 | [Recovery-code session revocation hardening](reports/2026-07-24-recovery-code-session-revocation-hardening.md) | Recovery-key changes that left stolen authenticated sessions active, deterministic PoC, other-session invalidation, and atomic key replacement |
@@ -77,6 +80,7 @@ This directory is the canonical index for RecordDrive security reports, validati
 
 | Artifact | Purpose |
 | --- | --- |
+| [2026-07-26 deep security review evidence](evidence/2026-07-26-deep-review/) | SMB quota-window and archive tree-amplification PoCs, targeted/full test output, dependency limitations, and final `.git`/archive integrity |
 | [2026-07-24 cookie-tossing session-substitution results](evidence/2026-07-24-cookie-tossing-session-substitution-results.txt) | Browser and parser-model PoC summary, focused regressions, syntax results, dependency limitation, and final `.git`/archive integrity |
 | [2026-07-24 cookie-tossing browser results](evidence/2026-07-24-cookie-tossing-browser-results.json) | Exact Chromium cookie ordering and `__Host-` rejection output |
 | [2026-07-24 cookie-tossing model results](evidence/2026-07-24-cookie-tossing-model-results.json) | Exact first-cookie parser model and patched configuration output |

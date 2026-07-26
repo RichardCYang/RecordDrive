@@ -169,10 +169,21 @@
                 <span><%= t('Enable SMB access for this repository') %></span>
                 <small><%= t('Only the repository owner or a server administrator can change this setting.') %></small>
               </label>
+              <% if (!smbSettings.writesAllowed) { %>
+                <input type="hidden" name="smbReadOnly" value="1">
+              <% } %>
               <label class="field checkbox-field">
-                <input type="checkbox" name="smbReadOnly" value="1" <%= smbSettings.readOnly ? 'checked' : '' %>>
+                <input
+                  type="checkbox"
+                  name="smbReadOnly"
+                  value="1"
+                  <%= (smbSettings.readOnly || !smbSettings.writesAllowed) ? 'checked' : '' %>
+                  <%= !smbSettings.writesAllowed ? 'disabled' : '' %>
+                >
                 <span><%= t('Publish as read-only') %></span>
-                <small><%= t('Leave this off to allow copying, moving, renaming, editing, and deleting files from Windows.') %></small>
+                <small><%= smbSettings.writesAllowed
+                  ? t('Leave this off to allow copying, moving, renaming, editing, and deleting files from Windows.')
+                  : t('Writable SMB is disabled by the server. Enable it only when the SMB storage has an independent operating-system or volume quota.') %></small>
               </label>
               <label class="field">
                 <span><%= smbSettings.credentialConfigured ? t('Reset SMB password') : t('Set SMB password') %></span>

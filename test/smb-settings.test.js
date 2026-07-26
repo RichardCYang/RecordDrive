@@ -21,6 +21,7 @@ function testConfig(tempRoot) {
     dbPath: path.join(tempRoot, 'recorddrive.db'),
     uploadRoot: path.join(tempRoot, 'uploads'),
     smbEnabled: true,
+    smbAllowWrites: true,
     smbShareRoot: path.join(tempRoot, 'smb-shares'),
     smbControlRoot: path.join(tempRoot, 'smb-control'),
     smbContainerShareRoot: '/data/smb-shares',
@@ -114,6 +115,35 @@ test('enables and disables a repository SMB share with one-time credential comma
     .map((name) => JSON.parse(fs.readFileSync(path.join(commandDirectory, name), 'utf8')).action)
     .sort();
   assert.deepEqual(actions, ['delete', 'set']);
+});
+
+
+test('fails closed for writable SMB unless an independent storage quota is explicitly acknowledged', (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-smb-write-policy-'));
+  const config = { ...testConfig(tempRoot), smbAllowWrites: false };
+  const db = createDatabase(config);
+  t.after(() => {
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+  const repository = createRepository(db);
+  writeReadyStatus(config);
+
+  assert.throws(() => updateRepositorySmbSettings(db, config, repository, {
+    enabled: true,
+    readOnly: false,
+    password: 'RepositorySmbPassword123!'
+  }, repository.created_by), /Writable SMB shares are disabled by default/);
+
+  const enabled = updateRepositorySmbSettings(db, config, repository, {
+    enabled: true,
+    readOnly: true,
+    password: 'RepositorySmbPassword123!'
+  }, repository.created_by);
+  assert.equal(enabled.enabled, true);
+  assert.equal(enabled.readOnly, true);
+  const manifest = JSON.parse(fs.readFileSync(path.join(config.smbControlRoot, 'shares.json'), 'utf8'));
+  assert.equal(manifest.shares[0].readOnly, true);
 });
 
 test('requires a ready sidecar and extended-attribute support before enabling SMB', (t) => {

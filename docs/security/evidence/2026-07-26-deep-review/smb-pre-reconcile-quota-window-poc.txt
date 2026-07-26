@@ -1,0 +1,10 @@
+(node:3005) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{
+  "status": "PASS",
+  "committedQuotaBytes": 1024,
+  "physicalBytesBeforeReconcile": 8388608,
+  "physicalBytesAfterReconcile": 1024,
+  "patchedDefaultGate": "SMB_WRITES_DISABLED",
+  "finding": "Writable SMB can consume filesystem capacity before periodic quota reconciliation."
+}

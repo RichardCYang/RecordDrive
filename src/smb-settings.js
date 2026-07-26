@@ -156,8 +156,9 @@ export function repositorySmbView(repository, config, requestHostname = '') {
   const runtimeStatus = readSmbRuntimeStatus(config);
   return {
     available: Boolean(config.smbEnabled),
+    writesAllowed: Boolean(config.smbAllowWrites),
     enabled,
-    readOnly: Boolean(Number(repository.smb_read_only)),
+    readOnly: !config.smbAllowWrites || Boolean(Number(repository.smb_read_only)),
     shareName,
     username,
     serverName,
@@ -194,7 +195,7 @@ export function writeSmbManifest(db, config) {
         String(config.smbContainerShareRoot || '/data/smb-shares').replace(/\/+$/, ''),
         String(repository.id)
       ),
-      readOnly: Boolean(Number(repository.smb_read_only))
+      readOnly: !config.smbAllowWrites || Boolean(Number(repository.smb_read_only))
     };
   });
 
@@ -238,6 +239,12 @@ export function updateRepositorySmbSettings(db, config, repository, form, actorI
   const hasCredential = Boolean(repository.smb_credential_updated_at);
 
   if (enabled) {
+    if (!readOnly && !config.smbAllowWrites) {
+      throw new SmbSettingsError(
+        'SMB_WRITES_DISABLED',
+        'Writable SMB shares are disabled by default because periodic reconciliation cannot enforce storage quotas before data reaches the filesystem. Set SMB_ALLOW_WRITES=true only after applying an operating-system or volume quota to the SMB storage.'
+      );
+    }
     const runtimeStatus = readSmbRuntimeStatus(config);
     if (!runtimeStatus) {
       throw new SmbSettingsError(

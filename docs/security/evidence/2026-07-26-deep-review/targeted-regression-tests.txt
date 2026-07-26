@@ -1,0 +1,152 @@
+TAP version 13
+# Subtest: normalizes safe archive names without treating metadata as filesystem paths
+ok 1 - normalizes safe archive names without treating metadata as filesystem paths
+  ---
+  duration_ms: 1.471968
+  type: 'test'
+  ...
+# Subtest: rejects archive metadata that can spoof paths or amplify tree depth
+ok 2 - rejects archive metadata that can spoof paths or amplify tree depth
+  ---
+  duration_ms: 0.308048
+  type: 'test'
+  ...
+# Subtest: caps unique archive preview tree nodes independently of entry count and name bytes
+ok 3 - caps unique archive preview tree nodes independently of entry count and name bytes
+  ---
+  duration_ms: 9.786792
+  type: 'test'
+  ...
+# Subtest: counts concurrent password checks before asynchronous verification completes
+ok 4 - counts concurrent password checks before asynchronous verification completes
+  ---
+  duration_ms: 3.4571
+  type: 'test'
+  ...
+# Subtest: preserves other in-flight password checks when one concurrent request succeeds
+ok 5 - preserves other in-flight password checks when one concurrent request succeeds
+  ---
+  duration_ms: 1.295676
+  type: 'test'
+  ...
+# Subtest: counts concurrent MFA checks before TOTP or passkey verification completes
+ok 6 - counts concurrent MFA checks before TOTP or passkey verification completes
+  ---
+  duration_ms: 0.829313
+  type: 'test'
+  ...
+# Subtest: counts concurrent security reauthentication checks independently of session writes
+ok 7 - counts concurrent security reauthentication checks independently of session writes
+  ---
+  duration_ms: 1.006677
+  type: 'test'
+  ...
+# Subtest: preserves the primary file-operation error when access-time completion also fails
+ok 8 - preserves the primary file-operation error when access-time completion also fails
+  ---
+  duration_ms: 0.850244
+  type: 'test'
+  ...
+# Subtest: falls back to path-based timestamp updates after Windows-style futime EPERM
+ok 9 - falls back to path-based timestamp updates after Windows-style futime EPERM
+  ---
+  duration_ms: 1.938002
+  type: 'test'
+  ...
+# Subtest: does not update a replacement path when the opened file identity changed
+ok 10 - does not update a replacement path when the opened file identity changed
+  ---
+  duration_ms: 1.275857
+  type: 'test'
+  ...
+# (node:2961) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: enables and disables a repository SMB share with one-time credential commands
+ok 11 - enables and disables a repository SMB share with one-time credential commands
+  ---
+  duration_ms: 74.393983
+  type: 'test'
+  ...
+# Subtest: fails closed for writable SMB unless an independent storage quota is explicitly acknowledged
+ok 12 - fails closed for writable SMB unless an independent storage quota is explicitly acknowledged
+  ---
+  duration_ms: 65.91063
+  type: 'test'
+  ...
+# Subtest: requires a ready sidecar and extended-attribute support before enabling SMB
+ok 13 - requires a ready sidecar and extended-attribute support before enabling SMB
+  ---
+  duration_ms: 49.168136
+  type: 'test'
+  ...
+# Subtest: rejects SMB roots that overlap protected or canonical storage paths
+ok 14 - rejects SMB roots that overlap protected or canonical storage paths
+  ---
+  duration_ms: 2.234452
+  type: 'test'
+  ...
+# Subtest: bundled SMB entrypoint uses executable Unix line endings
+ok 15 - bundled SMB entrypoint uses executable Unix line endings
+  ---
+  duration_ms: 0.698939
+  type: 'test'
+  ...
+# Subtest: bundled SMB sidecar requires SMB3 transport encryption
+ok 16 - bundled SMB sidecar requires SMB3 transport encryption
+  ---
+  duration_ms: 0.832979
+  type: 'test'
+  ...
+# Subtest: bundled SMB port is loopback-only unless explicitly configured
+ok 17 - bundled SMB port is loopback-only unless explicitly configured
+  ---
+  duration_ms: 0.266967
+  type: 'test'
+  ...
+# Subtest: bundled SMB sidecar forces read-only shares unless writes are explicitly enabled
+ok 18 - bundled SMB sidecar forces read-only shares unless writes are explicitly enabled
+  ---
+  duration_ms: 0.257994
+  type: 'test'
+  ...
+# (node:2969) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: reconciles web and SMB files through hard links without changing supplied times
+ok 19 - reconciles web and SMB files through hard links without changing supplied times
+  ---
+  duration_ms: 164.296995
+  type: 'test'
+  ...
+# Subtest: rejects over-quota SMB files and removes symbolic links from the projection
+ok 20 - rejects over-quota SMB files and removes symbolic links from the projection
+  ---
+  duration_ms: 46.147459
+  type: 'test'
+  ...
+# Subtest: rolls back quota-exceeding in-place growth of an existing SMB hard link
+ok 21 - rolls back quota-exceeding in-place growth of an existing SMB hard link
+  ---
+  duration_ms: 37.984352
+  type: 'test'
+  ...
+# Subtest: rolls back quota-exceeding in-place growth when the SMB file is renamed before reconciliation
+ok 22 - rolls back quota-exceeding in-place growth when the SMB file is renamed before reconciliation
+  ---
+  duration_ms: 43.712083
+  type: 'test'
+  ...
+# Subtest: stops SMB projection scanning at the configured hard safety cap
+ok 23 - stops SMB projection scanning at the configured hard safety cap
+  ---
+  duration_ms: 40.005372
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 23
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 456.216066

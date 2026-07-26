@@ -9,18 +9,19 @@ Docker Compose enables the integration by default:
 - RecordDrive writes repository projections to `/app/data/smb-shares` and control messages to `/app/data/smb-control`.
 - The Samba sidecar mounts the same named volume at `/data`, persists its passdb in `recorddrive_smb_state`, and listens on TCP 445.
 - The Compose default binds TCP 445 to `127.0.0.1`. Set `SMB_BIND_ADDRESS` to the exact trusted LAN interface address only when remote clients need access.
+- The Compose default also sets `SMB_ALLOW_WRITES=false`, so both RecordDrive and the Samba sidecar force every generated share to read-only.
 - Set `SMB_SERVER_NAME` to the DNS name or LAN IP users should enter in File Explorer.
 
 Do not publish TCP 445 to the public internet. Restrict it to a trusted local network with the host firewall. The Compose default is loopback-only, and the bundled Samba sidecar permits SMB 3.x only while requiring transport encryption and signing. Clients that cannot negotiate SMB encryption are denied access.
 
-For non-Docker deployments, install Samba separately and consume the generated manifest and credential commands in `SMB_CONTROL_ROOT`, or run the included sidecar with the same storage volume. `SMB_SHARE_ROOT` and `UPLOAD_ROOT` must reside on the same filesystem because RecordDrive uses hard links. Both paths must support regular hard links, and the SMB projection filesystem must support `user.*` extended attributes for Windows creation-time storage. Because an SMB projection and its canonical stored file share an inode, RecordDrive revalidates every detected file growth against the current file, repository, and service quotas. Growth that exceeds a quota is truncated back to the last committed database size and recorded as `SMB_REJECT_FILE_QUOTA`.
+For non-Docker deployments, install Samba separately and consume the generated manifest and credential commands in `SMB_CONTROL_ROOT`, or run the included sidecar with the same storage volume. `SMB_SHARE_ROOT` and `UPLOAD_ROOT` must reside on the same filesystem because RecordDrive uses hard links. Both paths must support regular hard links, and the SMB projection filesystem must support `user.*` extended attributes for Windows creation-time storage. Because an SMB projection and its canonical stored file share an inode, RecordDrive revalidates every detected file growth against the current file, repository, and service quotas. Growth that exceeds a quota is truncated back to the last committed database size and recorded as `SMB_REJECT_FILE_QUOTA`; however, the blocks are allocated before the reconciliation pass can run. Writable SMB is therefore disabled by default and must not be enabled without an independent filesystem or volume hard quota.
 
 ## Enabling a repository
 
 1. Open **Repository settings** as the repository owner or a server administrator.
 2. Confirm that the Samba sidecar reports ready and that its extended-attribute probe succeeds.
 3. Enable **Windows SMB access**.
-4. Choose writable or read-only access and set a repository-specific SMB password.
+4. Set a repository-specific SMB password. The share is read-only unless the server administrator has explicitly enabled writable SMB after provisioning an independent storage hard quota.
 5. Enter the displayed UNC path in Windows File Explorer, for example `\\recorddrive-server\recorddrive-12`.
 6. Sign in with the displayed repository account, for example `rd_repo_12`.
 
@@ -71,7 +72,7 @@ Robocopy exit codes below 8 are treated as success; 8 or higher is a failure. Re
 - SMB rename, move, overwrite, edit, and delete operations are reconciled back into RecordDrive.
 - A projection marker distinguishes a lost/recreated projection volume from a user SMB delete, preventing canonical files from being deleted after projection storage loss.
 - Symlinks, reparse-style links represented as Unix symlinks, non-regular filesystem objects, and folders deeper than the repository limit are removed from the projection.
-- New SMB files and inode-replacement overwrites are checked against the configured per-file, repository-storage, service-storage, repository-file-count, service-file-count, folder-count, and depth limits. A rejected destination file is removed and an activity-log entry is written. Because an already-open hard-linked file can grow before RecordDrive observes the write, enforce hard capacity limits at the filesystem or volume layer when strict storage ceilings are required.
+- New SMB files and inode-replacement overwrites are checked against the configured per-file, repository-storage, service-storage, repository-file-count, service-file-count, folder-count, and depth limits. A rejected destination file is removed and an activity-log entry is written. An already-open hard-linked file can allocate blocks before RecordDrive observes and rolls back the growth, so writable SMB is fail-closed by default. `SMB_ALLOW_WRITES=true` is an explicit acknowledgement that an independent filesystem or volume hard quota is enforcing the instantaneous storage ceiling.
 - Disabling SMB removes the share projection and passdb credential but leaves canonical stored files untouched.
 - SMB-enabled repositories force the RecordDrive web access-time policy to preserve the stored access time.
 - Repository storage relocation is blocked while any SMB share is enabled; disable all shares, move storage, then re-enable them so hard-link compatibility is revalidated.
@@ -83,6 +84,7 @@ The default reconciliation interval is one second and can be changed with `SMB_S
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SMB_ENABLED` | `false` | Enables repository SMB settings and reconciliation |
+| `SMB_ALLOW_WRITES` | `false` | Forces all generated shares read-only unless explicitly set to `true`; enable only with an independent filesystem or volume hard quota |
 | `SMB_SHARE_ROOT` | `./data/smb-shares` | Host/application projection root |
 | `SMB_CONTROL_ROOT` | `./data/smb-control` | Manifest, status, and one-time credential commands |
 | `SMB_CONTAINER_SHARE_ROOT` | `/data/smb-shares` | Projection root as seen by Samba |

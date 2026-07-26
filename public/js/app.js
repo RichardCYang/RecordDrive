@@ -792,18 +792,36 @@
     };
 
     const buildArchiveTree = (entries) => {
+      const maximumDepth = 64;
+      const maximumNodes = 10_000;
+      const unsafeMetadata = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/u;
       const root = { name: '', directory: true, children: new Map() };
+      let nodeCount = 0;
       for (const entry of entries || []) {
-        const parts = String(entry.name || '').split('/').filter(Boolean);
-        if (!parts.length) continue;
+        const rawName = String(entry.name || '').normalize('NFC').replaceAll('\\', '/').replace(/^\/+/, '');
+        if (!rawName || unsafeMetadata.test(rawName)) continue;
+        const parts = rawName.split('/').filter(Boolean);
+        if (
+          !parts.length
+          || parts.length > maximumDepth
+          || parts.some((part) => part === '.' || part === '..')
+        ) continue;
+
         let parent = root;
+        let accepted = true;
         parts.forEach((part, index) => {
+          if (!accepted) return;
           const last = index === parts.length - 1;
           const directory = !last || Boolean(entry.directory);
           let node = parent.children.get(part);
           if (!node) {
+            if (nodeCount >= maximumNodes) {
+              accepted = false;
+              return;
+            }
             node = { name: part, directory, children: new Map() };
             parent.children.set(part, node);
+            nodeCount += 1;
           }
           if (directory) node.directory = true;
           if (last) Object.assign(node, entry, { name: part, directory, children: node.children || new Map() });

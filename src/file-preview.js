@@ -2,6 +2,10 @@ import fs from 'node:fs';
 import { Worker } from 'node:worker_threads';
 import ExcelJS from 'exceljs';
 import yauzl from 'yauzl';
+import {
+  createArchivePreviewTreeBudget,
+  normalizeArchivePreviewName
+} from './archive-preview-security.js';
 
 const XLSX_MAX_FILE_BYTES = 25 * 1024 * 1024;
 const XLSX_MAX_ARCHIVE_ENTRIES = 4096;
@@ -363,6 +367,7 @@ function buildZipPreview(source, stats) {
       let encrypted = false;
       let omittedEntries = false;
       const entries = [];
+      const treeBudget = createArchivePreviewTreeBudget();
       const finish = (callback) => {
         if (settled) return;
         settled = true;
@@ -391,22 +396,24 @@ function buildZipPreview(source, stats) {
         if ((entry.generalPurposeBitFlag & 0x1) !== 0 || (entry.generalPurposeBitFlag & 0x40) !== 0) encrypted = true;
 
         if (!encrypted) {
-          const normalizedName = rawName.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\u0000/g, '');
+          const normalized = normalizeArchivePreviewName(rawName);
+          const normalizedName = normalized?.name || '';
           const normalizedBytes = Buffer.byteLength(normalizedName, 'utf8');
           if (
-            normalizedName &&
-            entries.length < ZIP_MAX_VISIBLE_ENTRIES &&
-            visibleNameBytes + normalizedBytes <= ZIP_MAX_VISIBLE_NAME_BYTES
+            normalizedName
+            && treeBudget.reserve(normalized.components)
+            && entries.length < ZIP_MAX_VISIBLE_ENTRIES
+            && visibleNameBytes + normalizedBytes <= ZIP_MAX_VISIBLE_NAME_BYTES
           ) {
             visibleNameBytes += normalizedBytes;
             entries.push({
               name: normalizedName,
-              directory: normalizedName.endsWith('/'),
+              directory: normalized.directory,
               compressedSize: Number(entry.compressedSize || 0),
               uncompressedSize: Number(entry.uncompressedSize || 0),
               modifiedAt: zipEntryDate(entry)
             });
-          } else if (normalizedName) {
+          } else if (rawName) {
             omittedEntries = true;
           }
         }
@@ -466,21 +473,23 @@ function validateSevenZipWorkerPreview(value, options = {}) {
   }
 
   let visibleNameBytes = 0;
+  const treeBudget = createArchivePreviewTreeBudget();
   const entries = value.entries.map((entry) => {
-    const name = String(entry?.name || '');
+    const normalized = normalizeArchivePreviewName(entry?.name);
+    const name = normalized?.name || '';
     const nameBytes = Buffer.byteLength(name, 'utf8');
     visibleNameBytes += nameBytes;
     if (
-      !name
+      !normalized
       || nameBytes > SEVEN_ZIP_MAX_ENTRY_NAME_BYTES
       || visibleNameBytes > SEVEN_ZIP_MAX_VISIBLE_NAME_BYTES
-      || /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/u.test(name)
+      || !treeBudget.reserve(normalized.components)
     ) {
-      throw new FilePreviewError('SEVEN_ZIP_METADATA_LIMIT', 'The JavaScript 7z parser returned unsafe entry metadata.');
+      throw new FilePreviewError('SEVEN_ZIP_METADATA_LIMIT', 'The JavaScript 7z parser returned unsafe or structurally excessive entry metadata.');
     }
     return {
       name,
-      directory: entry?.directory === true,
+      directory: normalized.directory || entry?.directory === true,
       compressedSize: Number.isSafeInteger(entry?.compressedSize) && entry.compressedSize >= 0
         ? entry.compressedSize
         : 0,

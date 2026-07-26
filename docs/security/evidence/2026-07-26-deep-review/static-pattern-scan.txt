@@ -1,0 +1,155 @@
+== dynamic execution / subprocess ==
+src/webauthn-challenge-store.js:70:db.exec(`
+src/webauthn-challenge-store.js:107:db.exec('BEGIN IMMEDIATE;');
+src/webauthn-challenge-store.js:119:db.exec('COMMIT;');
+src/webauthn-challenge-store.js:121:if (db.isTransaction) db.exec('ROLLBACK;');
+src/smb-settings.js:276:db.exec('BEGIN IMMEDIATE');
+src/smb-settings.js:286:db.exec('COMMIT');
+src/smb-settings.js:288:if (db.isTransaction) db.exec('ROLLBACK');
+src/database.js:97:db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
+src/database.js:111:db.exec(`
+src/database.js:260:db.exec('DELETE FROM recovery_codes WHERE used_at IS NOT NULL;');
+src/database.js:266:db.exec("ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0 CHECK (totp_enabled IN (0, 1));");
+src/database.js:269:db.exec('ALTER TABLE users ADD COLUMN totp_secret_encrypted TEXT;');
+src/database.js:272:db.exec('ALTER TABLE users ADD COLUMN totp_last_used_step INTEGER;');
+src/database.js:275:db.exec(`
+src/database.js:289:db.exec(`
+src/database.js:296:db.exec('ALTER TABLE repositories ADD COLUMN max_file_size_mb REAL;');
+src/database.js:299:db.exec('ALTER TABLE repositories ADD COLUMN max_storage_mb REAL;');
+src/database.js:310:db.exec('ALTER TABLE files ADD COLUMN initial_access_time_ms REAL;');
+src/database.js:313:db.exec(`
+src/database.js:318:db.exec(`
+src/repository-creation.js:26:db.exec('BEGIN IMMEDIATE');
+src/repository-creation.js:51:db.exec('COMMIT');
+src/repository-creation.js:55:db.exec('ROLLBACK');
+src/session-store.js:112:db.exec(`
+src/session-store.js:232:db.exec('PRAGMA secure_delete = ON;');
+src/session-store.js:238:db.exec('BEGIN IMMEDIATE');
+src/session-store.js:249:db.exec('COMMIT');
+src/session-store.js:251:db.exec('ROLLBACK');
+src/session-store.js:256:db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+src/repository-name-security.js:25:db.exec(`
+src/repository-name-security.js:35:db.exec(`PRAGMA foreign_keys = ${enabled ? 'ON' : 'OFF'};`);
+src/repository-name-security.js:56:db.exec('PRAGMA foreign_keys = OFF;');
+src/repository-name-security.js:59:db.exec('BEGIN IMMEDIATE;');
+src/repository-name-security.js:61:db.exec(`
+src/repository-name-security.js:111:db.exec('COMMIT;');
+src/repository-name-security.js:116:db.exec('ROLLBACK;');
+src/quota-settings.js:62:db.exec(`
+src/quota-settings.js:157:db.exec('BEGIN IMMEDIATE');
+src/quota-settings.js:162:db.exec('COMMIT');
+src/quota-settings.js:164:if (db.isTransaction) db.exec('ROLLBACK');
+src/storage-settings.js:324:db.exec(`
+src/smb-schema.js:7:db.exec(`
+src/smb-schema.js:14:db.exec(`
+src/smb-schema.js:21:db.exec('ALTER TABLE repositories ADD COLUMN smb_credential_updated_at TEXT;');
+src/smb-schema.js:24:db.exec(`
+src/smb-sync-service.js:285:db.exec('BEGIN IMMEDIATE');
+src/smb-sync-service.js:296:db.exec('COMMIT');
+src/smb-sync-service.js:298:if (db.isTransaction) db.exec('ROLLBACK');
+src/smb-sync-service.js:471:db.exec('BEGIN IMMEDIATE');
+src/smb-sync-service.js:478:db.exec('COMMIT');
+src/smb-sync-service.js:480:if (db.isTransaction) db.exec('ROLLBACK');
+src/smb-sync-service.js:577:db.exec('BEGIN IMMEDIATE');
+src/smb-sync-service.js:593:db.exec('COMMIT');
+src/smb-sync-service.js:595:if (db.isTransaction) db.exec('ROLLBACK');
+src/smb-sync-service.js:621:db.exec('BEGIN IMMEDIATE');
+src/smb-sync-service.js:636:db.exec('COMMIT');
+src/smb-sync-service.js:638:if (db.isTransaction) db.exec('ROLLBACK');
+src/smb-sync-service.js:716:db.exec('BEGIN IMMEDIATE');
+src/smb-sync-service.js:745:db.exec('COMMIT');
+src/smb-sync-service.js:747:if (db.isTransaction) db.exec('ROLLBACK');
+src/smb-sync-service.js:782:db.exec('BEGIN IMMEDIATE');
+src/smb-sync-service.js:804:db.exec('COMMIT');
+src/smb-sync-service.js:806:if (db.isTransaction) db.exec('ROLLBACK');
+src/smb-sync-service.js:869:db.exec('BEGIN IMMEDIATE');
+src/smb-sync-service.js:883:db.exec('COMMIT');
+src/smb-sync-service.js:885:if (db.isTransaction) db.exec('ROLLBACK');
+src/security-service.js:151:if (ownsTransaction) db.exec('BEGIN IMMEDIATE');
+src/security-service.js:154:if (ownsTransaction) db.exec('COMMIT');
+src/security-service.js:159:db.exec('ROLLBACK');
+src/repository-folders.js:154:db.exec('BEGIN IMMEDIATE');
+src/repository-folders.js:189:db.exec('COMMIT');
+src/repository-folders.js:200:if (db.isTransaction) db.exec('ROLLBACK');
+src/routes/repositories.js:777:db.exec('BEGIN IMMEDIATE');
+src/routes/repositories.js:793:db.exec('COMMIT');
+src/routes/repositories.js:796:if (db.isTransaction) db.exec('ROLLBACK');
+== raw HTML sinks ==
+public/img/icon_origin.png:2429:fwc�c.:�sz����kO�*2����*�ľz9�ȣ�\�ibn%�Ŧ���n��Ǡ����x�-���g �Y�If<%-uh����t_Е 1�;�-XD|�B�4<{@��}Yq^�Bb ���φS�{�EoO
+public/img/icon_origin.png:19861:��'Ǆ� ��h��"��':1�ޑ:1�tfe�C��o߱�~���}��tH*�A"9�<%-O�C9�b~��`DSn#��꣕`{��jK�P�����
+views/repository.ejs:36:<head><%- include('partials/head') %></head>
+views/repository.ejs:38:<%- include('partials/nav') %>
+views/repository.ejs:42:<%- include('partials/flash') %>
+views/repository.ejs:581:<%- include('partials/footer') %>
+views/change-password.ejs:3:<head><%- include('partials/head') %></head>
+views/change-password.ejs:5:<%- include('partials/nav') %>
+views/change-password.ejs:8:<%- include('partials/flash') %>
+views/change-password.ejs:62:<%- include('partials/footer') %>
+views/login-mfa.ejs:3:<head><%- include('partials/head') %></head>
+views/login-mfa.ejs:10:<div class="mobile-brand"><%- include('partials/logo') %></div>
+views/login-mfa.ejs:86:<%- include('partials/client-i18n') %>
+views/settings.ejs:3:<head><%- include('partials/head') %></head>
+views/settings.ejs:5:<%- include('partials/nav') %>
+views/settings.ejs:8:<%- include('partials/flash') %>
+views/settings.ejs:260:<%- include('partials/footer') %>
+views/admin-users.ejs:3:<head><%- include('partials/head') %></head>
+views/admin-users.ejs:5:<%- include('partials/nav') %>
+views/admin-users.ejs:8:<%- include('partials/flash') %>
+views/admin-users.ejs:10:<%- include('partials/admin-tabs') %>
+views/admin-users.ejs:54:<%- include('partials/footer') %>
+views/admin-repositories.ejs:3:<head><%- include('partials/head') %></head>
+views/admin-repositories.ejs:5:<%- include('partials/nav') %>
+views/admin-repositories.ejs:8:<%- include('partials/flash') %>
+views/admin-repositories.ejs:16:<%- include('partials/admin-tabs') %>
+views/admin-repositories.ejs:52:<%- include('partials/footer') %>
+views/repository-permissions.ejs:3:<head><%- include('partials/head') %></head>
+views/repository-permissions.ejs:5:<%- include('partials/nav') %>
+views/repository-permissions.ejs:8:<%- include('partials/flash') %>
+views/repository-permissions.ejs:95:<%- include('partials/footer') %>
+views/admin-tls.ejs:3:<head><%- include('partials/head') %></head>
+views/admin-tls.ejs:5:<%- include('partials/nav') %>
+views/admin-tls.ejs:8:<%- include('partials/flash') %>
+views/admin-tls.ejs:16:<%- include('partials/admin-tabs') %>
+views/admin-tls.ejs:157:<%- include('partials/footer') %>
+views/dashboard.ejs:3:<head><%- include('partials/head') %></head>
+views/dashboard.ejs:5:<%- include('partials/nav') %>
+views/dashboard.ejs:8:<%- include('partials/flash') %>
+views/dashboard.ejs:83:<%- include('partials/footer') %>
+views/admin-storage.ejs:3:<head><%- include('partials/head') %></head>
+views/admin-storage.ejs:5:<%- include('partials/nav') %>
+views/admin-storage.ejs:8:<%- include('partials/flash') %>
+views/admin-storage.ejs:16:<%- include('partials/admin-tabs') %>
+views/admin-storage.ejs:173:<%- include('partials/footer') %>
+views/login.ejs:3:<head><%- include('partials/head') %></head>
+views/login.ejs:10:<%- include('partials/logo') %>
+views/login.ejs:32:<div class="mobile-brand"><%- include('partials/logo') %></div>
+views/login.ejs:68:<%- include('partials/client-i18n') %>
+views/repository-settings.ejs:3:<head><%- include('partials/head') %></head>
+views/repository-settings.ejs:5:<%- include('partials/nav') %>
+views/repository-settings.ejs:8:<%- include('partials/flash') %>
+views/repository-settings.ejs:246:<%- include('partials/footer') %>
+views/admin.ejs:3:<head><%- include('partials/head') %></head>
+views/admin.ejs:5:<%- include('partials/nav') %>
+views/admin.ejs:8:<%- include('partials/flash') %>
+views/admin.ejs:12:<%- include('partials/admin-tabs') %>
+views/admin.ejs:40:<%- include('partials/footer') %>
+views/error.ejs:3:<head><%- include('partials/head') %></head>
+views/error.ejs:5:<% if (currentUser) { %><%- include('partials/nav') %><% } %>
+views/error.ejs:15:<%- include('partials/client-i18n') %>
+views/partials/footer.ejs:7:<%- include('client-i18n') %>
+views/partials/nav.ejs:4:<%- include('logo') %>
+== SQL template interpolation ==
+src/repository-name-security.js:10:return db.prepare(`PRAGMA index_info(${quoteIdentifier(indexName)})`)
+src/repository-name-security.js:35:db.exec(`PRAGMA foreign_keys = ${enabled ? 'ON' : 'OFF'};`);
+src/routes/dashboard.js:44:? db.prepare(`${REPOSITORY_LIST_SQL} ORDER BY COALESCE(file_stats.last_file_at, r.created_at) DESC`)
+== path joins with request values ==
+== insecure random/hash ==
+src/security-service.js:33:const iv = crypto.randomBytes(12);
+src/security-service.js:119:const bytes = crypto.randomBytes(12);
+src/secret-protection.js:26:const iv = crypto.randomBytes(12);
+src/middleware/csrf.js:10:return crypto.randomBytes(32).toString('hex');
+src/middleware/csrf.js:41:const payload = `${Date.now()}.${crypto.randomBytes(32).toString('base64url')}`;
+== upload limits ==
+src/routes/repositories.js:350:files: quotaSettings.maxFilesPerUpload,
+src/routes/repositories.js:356:fieldNestingDepth: 0
+src/routes/repositories.js:359:uploadLimits.fileSize = quotaSettings.maxFileSizeMb * 1024 * 1024;
