@@ -19,6 +19,7 @@ const WINDOWS_RESERVED_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 const MAX_COMPONENT_LENGTH = 180;
 const PROJECTION_MARKER = '.recorddrive-projection';
 const DEFAULT_MAX_FOLDERS_PER_REPOSITORY = 1000;
+const DEFAULT_MAX_SCANNED_PROJECTION_ENTRIES = 20_000;
 const BYTES_PER_MEGABYTE = 1024 * 1024;
 
 class SmbQuotaError extends Error {
@@ -27,6 +28,15 @@ class SmbQuotaError extends Error {
     this.name = 'SmbQuotaError';
     this.code = 'SMB_QUOTA_EXCEEDED';
     this.quota = quota;
+  }
+}
+
+class SmbProjectionScanLimitError extends Error {
+  constructor(limit) {
+    super(`SMB projection scan exceeded the configured ${limit}-entry safety limit.`);
+    this.name = 'SmbProjectionScanLimitError';
+    this.code = 'SMB_PROJECTION_SCAN_LIMIT';
+    this.limit = limit;
   }
 }
 
@@ -188,35 +198,54 @@ function ensureProjectionState(db, config, repository) {
   return root;
 }
 
-function scanProjection(root) {
+function configuredProjectionScanLimit(config) {
+  const limit = Number(config.smbSyncMaxScannedEntries);
+  return Number.isSafeInteger(limit) && limit > 0
+    ? limit
+    : DEFAULT_MAX_SCANNED_PROJECTION_ENTRIES;
+}
+
+function scanProjection(root, config) {
   const entries = [];
+  const maximumEntries = configuredProjectionScanLimit(config);
+  let scannedEntries = 0;
+
   function visit(relativeDirectory, depth) {
     const absoluteDirectory = relativeToAbsolute(root, relativeDirectory);
-    const children = fs.readdirSync(absoluteDirectory, { withFileTypes: true });
-    for (const child of children) {
-      if (!relativeDirectory && child.name === PROJECTION_MARKER) continue;
-      const relativePath = relativeDirectory
-        ? path.posix.join(relativeDirectory, child.name)
-        : child.name;
-      const absolutePath = relativeToAbsolute(root, relativePath);
-      const stats = lstatIfPresent(absolutePath, { bigint: true });
-      if (!stats) continue;
-      if (stats.isSymbolicLink()) {
-        fs.rmSync(absolutePath, { recursive: true, force: true });
-        continue;
-      }
-      if (stats.isDirectory()) {
-        if (depth > MAX_FOLDER_DEPTH) {
+    const directory = fs.opendirSync(absoluteDirectory);
+    try {
+      let child;
+      while ((child = directory.readSync()) !== null) {
+        if (!relativeDirectory && child.name === PROJECTION_MARKER) continue;
+        scannedEntries += 1;
+        if (scannedEntries > maximumEntries) {
+          throw new SmbProjectionScanLimitError(maximumEntries);
+        }
+        const relativePath = relativeDirectory
+          ? path.posix.join(relativeDirectory, child.name)
+          : child.name;
+        const absolutePath = relativeToAbsolute(root, relativePath);
+        const stats = lstatIfPresent(absolutePath, { bigint: true });
+        if (!stats) continue;
+        if (stats.isSymbolicLink()) {
           fs.rmSync(absolutePath, { recursive: true, force: true });
           continue;
         }
-        entries.push({ type: 'FOLDER', relativePath, absolutePath, stats, depth });
-        visit(relativePath, depth + 1);
-      } else if (stats.isFile()) {
-        entries.push({ type: 'FILE', relativePath, absolutePath, stats, depth });
-      } else {
-        fs.rmSync(absolutePath, { recursive: true, force: true });
+        if (stats.isDirectory()) {
+          if (depth > MAX_FOLDER_DEPTH) {
+            fs.rmSync(absolutePath, { recursive: true, force: true });
+            continue;
+          }
+          entries.push({ type: 'FOLDER', relativePath, absolutePath, stats, depth });
+          visit(relativePath, depth + 1);
+        } else if (stats.isFile()) {
+          entries.push({ type: 'FILE', relativePath, absolutePath, stats, depth });
+        } else {
+          fs.rmSync(absolutePath, { recursive: true, force: true });
+        }
       }
+    } finally {
+      directory.closeSync();
     }
   }
   visit('', 1);
@@ -512,6 +541,27 @@ function rejectSmbFile(db, repository, entry, error) {
   });
 }
 
+function rejectMappedFileGrowth(db, repository, mapping, entry, file, error) {
+  const previousSize = Number(file.size || 0);
+  fs.truncateSync(entry.absolutePath, previousSize);
+  fs.chmodSync(entry.absolutePath, 0o600);
+  const restoredStats = fs.lstatSync(entry.absolutePath, { bigint: true });
+  updateMappingPath(
+    db,
+    repository.id,
+    'FILE',
+    mapping.object_id,
+    entry.relativePath,
+    restoredStats
+  );
+  logActivity(db, {
+    action: 'SMB_REJECT_FILE_QUOTA',
+    targetType: 'FILE',
+    targetLabel: `${file.original_name} [${error.quota}]`,
+    repositoryId: repository.id
+  });
+}
+
 function importSmbFile(db, config, repository, entry) {
   const parentId = folderIdForParentPath(db, repository.id, entry.relativePath);
   if (path.posix.dirname(entry.relativePath) !== '.' && !parentId) return null;
@@ -727,7 +777,7 @@ function moveFileFromSmb(db, repository, mapping, entry) {
 }
 
 function syncProjectionToDatabase(db, config, repository, root) {
-  const scan = scanProjection(root);
+  const scan = scanProjection(root, config);
   const scanFolders = scan.filter((entry) => entry.type === 'FOLDER').sort((a, b) => a.depth - b.depth);
   const scanFiles = scan.filter((entry) => entry.type === 'FILE');
 
@@ -875,6 +925,21 @@ function syncProjectionToDatabase(db, config, repository, root) {
           });
         }
       } else {
+        const nextSize = Number(entry.stats.size);
+        const previousSize = Number(file.size || 0);
+        if (nextSize > previousSize) {
+          try {
+            enforceSmbFileQuota(db, config, repository, nextSize, {
+              replacedSize: previousSize,
+              addsFile: false
+            });
+          } catch (error) {
+            if (!(error instanceof SmbQuotaError)) throw error;
+            rejectMappedFileGrowth(db, repository, pathMapping, entry, file, error);
+            seenFiles.add(pathMapping.object_id);
+            continue;
+          }
+        }
         const parentId = folderIdForParentPath(db, repository.id, entry.relativePath);
         db.prepare(`
           UPDATE files
@@ -883,7 +948,7 @@ function syncProjectionToDatabase(db, config, repository, root) {
         `).run(
           parentId,
           safeOriginalName(path.posix.basename(entry.relativePath)),
-          Number(entry.stats.size),
+          nextSize,
           Number(entry.stats.atimeMs),
           file.id,
           repository.id

@@ -1,0 +1,10 @@
+{
+  "configuredMaxBytes": 104.8576,
+  "originalSize": 64,
+  "sizeImmediatelyAfterWrite": 2112,
+  "sizeAfterReconcile": 64,
+  "databaseRecordedSizeAfterReconcile": 64,
+  "quotaRejectionLogCount": 1,
+  "vulnerable": false,
+  "remediated": true
+}

@@ -2,7 +2,7 @@ services:
   smb:
     build: ./smb
     ports:
-      - "${SMB_BIND_ADDRESS:-0.0.0.0}:445:445"
+      - "${SMB_BIND_ADDRESS:-127.0.0.1}:445:445"
     environment:
       SMB_CONTROL_ROOT: /data/smb-control
       SMB_SHARE_ROOT: /data/smb-shares

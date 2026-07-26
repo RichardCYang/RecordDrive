@@ -144,6 +144,10 @@ export function loadConfig(overrides = {}) {
     ? Math.min(configuredHttpHeadersTimeoutMs, httpRequestTimeoutMs)
     : configuredHttpHeadersTimeoutMs;
   const smbSyncIntervalMs = timeoutFromEnv(env.SMB_SYNC_INTERVAL_MS, 1000, { allowZero: false });
+  const smbSyncMaxScannedEntries = Number.parseInt(
+    env.SMB_SYNC_MAX_SCANNED_ENTRIES || '20000',
+    10
+  );
 
   return {
     port: Number.isFinite(httpPort) ? httpPort : 3000,
@@ -233,7 +237,10 @@ export function loadConfig(overrides = {}) {
     smbControlRoot: resolveFromCwd(env.SMB_CONTROL_ROOT || './data/smb-control'),
     smbContainerShareRoot: String(env.SMB_CONTAINER_SHARE_ROOT || '/data/smb-shares').trim(),
     smbServerName: String(env.SMB_SERVER_NAME || '').trim(),
-    smbSyncIntervalMs
+    smbSyncIntervalMs,
+    smbSyncMaxScannedEntries: Number.isFinite(smbSyncMaxScannedEntries)
+      ? Math.min(1_000_000, Math.max(1_000, smbSyncMaxScannedEntries))
+      : 20_000
   };
 }
 

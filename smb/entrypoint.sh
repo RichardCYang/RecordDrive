@@ -36,10 +36,10 @@ cat > "$CONFIG_PATH" <<EOF_CONFIG
   passdb backend = tdbsam
   smb ports = 445
   disable netbios = yes
-  server min protocol = SMB2_10
+  server min protocol = SMB3_00
   server max protocol = SMB3
   server signing = mandatory
-  smb encrypt = desired
+  server smb encrypt = required
   ea support = yes
   store dos attributes = yes
   dos filetimes = yes
@@ -79,7 +79,7 @@ write_status() {
   jq -n \
     --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --argjson xattr "$xattr_ok" \
-    '{version:1, generatedAt:$generatedAt, xattrSupported:$xattr, protocolMin:"SMB2_10", protocolMax:"SMB3"}' \
+    '{version:1, generatedAt:$generatedAt, xattrSupported:$xattr, protocolMin:"SMB3_00", protocolMax:"SMB3"}' \
     > "$tmp"
   chmod 0600 "$tmp"
   chown recorddrive:recorddrive "$tmp"

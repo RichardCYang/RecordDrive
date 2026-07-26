@@ -1,0 +1,68 @@
+TAP version 13
+# (node:2833) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: enables and disables a repository SMB share with one-time credential commands
+ok 1 - enables and disables a repository SMB share with one-time credential commands
+  ---
+  duration_ms: 62.622745
+  type: 'test'
+  ...
+# Subtest: requires a ready sidecar and extended-attribute support before enabling SMB
+ok 2 - requires a ready sidecar and extended-attribute support before enabling SMB
+  ---
+  duration_ms: 57.878268
+  type: 'test'
+  ...
+# Subtest: rejects SMB roots that overlap protected or canonical storage paths
+ok 3 - rejects SMB roots that overlap protected or canonical storage paths
+  ---
+  duration_ms: 1.270521
+  type: 'test'
+  ...
+# Subtest: bundled SMB sidecar requires SMB3 transport encryption
+ok 4 - bundled SMB sidecar requires SMB3 transport encryption
+  ---
+  duration_ms: 1.09458
+  type: 'test'
+  ...
+# Subtest: bundled SMB port is loopback-only unless explicitly configured
+ok 5 - bundled SMB port is loopback-only unless explicitly configured
+  ---
+  duration_ms: 0.414655
+  type: 'test'
+  ...
+# (node:2840) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: reconciles web and SMB files through hard links without changing supplied times
+ok 6 - reconciles web and SMB files through hard links without changing supplied times
+  ---
+  duration_ms: 151.744585
+  type: 'test'
+  ...
+# Subtest: rejects over-quota SMB files and removes symbolic links from the projection
+ok 7 - rejects over-quota SMB files and removes symbolic links from the projection
+  ---
+  duration_ms: 57.37157
+  type: 'test'
+  ...
+# Subtest: rolls back quota-exceeding in-place growth of an existing SMB hard link
+ok 8 - rolls back quota-exceeding in-place growth of an existing SMB hard link
+  ---
+  duration_ms: 60.201382
+  type: 'test'
+  ...
+# Subtest: stops SMB projection scanning at the configured hard safety cap
+ok 9 - stops SMB projection scanning at the configured hard safety cap
+  ---
+  duration_ms: 39.944557
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 397.936437

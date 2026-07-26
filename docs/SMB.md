@@ -8,12 +8,12 @@ Docker Compose enables the integration by default:
 
 - RecordDrive writes repository projections to `/app/data/smb-shares` and control messages to `/app/data/smb-control`.
 - The Samba sidecar mounts the same named volume at `/data`, persists its passdb in `recorddrive_smb_state`, and listens on TCP 445.
-- Set `SMB_BIND_ADDRESS` to a specific trusted LAN address when the host has multiple interfaces.
+- The Compose default binds TCP 445 to `127.0.0.1`. Set `SMB_BIND_ADDRESS` to the exact trusted LAN interface address only when remote clients need access.
 - Set `SMB_SERVER_NAME` to the DNS name or LAN IP users should enter in File Explorer.
 
-Do not publish TCP 445 to the public internet. Restrict it to a trusted local network with the host firewall. The Compose default publishes port 445 on all host interfaces so that LAN clients can connect; change `SMB_BIND_ADDRESS` when that is broader than intended.
+Do not publish TCP 445 to the public internet. Restrict it to a trusted local network with the host firewall. The Compose default is loopback-only, and the bundled Samba sidecar permits SMB 3.x only while requiring transport encryption and signing. Clients that cannot negotiate SMB encryption are denied access.
 
-For non-Docker deployments, install Samba separately and consume the generated manifest and credential commands in `SMB_CONTROL_ROOT`, or run the included sidecar with the same storage volume. `SMB_SHARE_ROOT` and `UPLOAD_ROOT` must reside on the same filesystem because RecordDrive uses hard links. Both paths must support regular hard links, and the SMB projection filesystem must support `user.*` extended attributes for Windows creation-time storage.
+For non-Docker deployments, install Samba separately and consume the generated manifest and credential commands in `SMB_CONTROL_ROOT`, or run the included sidecar with the same storage volume. `SMB_SHARE_ROOT` and `UPLOAD_ROOT` must reside on the same filesystem because RecordDrive uses hard links. Both paths must support regular hard links, and the SMB projection filesystem must support `user.*` extended attributes for Windows creation-time storage. Because an SMB projection and its canonical stored file share an inode, RecordDrive revalidates every detected file growth against the current file, repository, and service quotas. Growth that exceeds a quota is truncated back to the last committed database size and recorded as `SMB_REJECT_FILE_QUOTA`.
 
 ## Enabling a repository
 
@@ -76,7 +76,7 @@ Robocopy exit codes below 8 are treated as success; 8 or higher is a failure. Re
 - SMB-enabled repositories force the RecordDrive web access-time policy to preserve the stored access time.
 - Repository storage relocation is blocked while any SMB share is enabled; disable all shares, move storage, then re-enable them so hard-link compatibility is revalidated.
 
-The default reconciliation interval is one second and can be changed with `SMB_SYNC_INTERVAL_MS` (minimum 250 ms).
+The default reconciliation interval is one second and can be changed with `SMB_SYNC_INTERVAL_MS` (minimum 250 ms). Each pass inspects at most `SMB_SYNC_MAX_SCANNED_ENTRIES` filesystem entries (default 20,000; allowed range 1,000–1,000,000), which prevents an SMB user from forcing an unbounded in-memory directory enumeration. Increase the cap only when the repository file quota intentionally exceeds the default.
 
 ## Configuration reference
 
@@ -88,4 +88,5 @@ The default reconciliation interval is one second and can be changed with `SMB_S
 | `SMB_CONTAINER_SHARE_ROOT` | `/data/smb-shares` | Projection root as seen by Samba |
 | `SMB_SERVER_NAME` | `recorddrive` fallback | DNS name or LAN IP displayed in UNC paths |
 | `SMB_SYNC_INTERVAL_MS` | `1000` | Reconciliation interval |
-| `SMB_BIND_ADDRESS` | `0.0.0.0` in Compose | Host interface used for TCP 445 publication |
+| `SMB_SYNC_MAX_SCANNED_ENTRIES` | `20000` | Maximum filesystem entries inspected in one reconciliation pass |
+| `SMB_BIND_ADDRESS` | `127.0.0.1` in Compose | Host interface used for TCP 445 publication; set a trusted LAN address for remote access |

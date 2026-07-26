@@ -234,7 +234,8 @@ The included ecosystem file uses the dedicated `src/server.js` service entry poi
 | `SMB_CONTAINER_SHARE_ROOT` | `/data/smb-shares` | Share-root path written into the sidecar manifest |
 | `SMB_SERVER_NAME` | Empty (`recorddrive` fallback) | DNS name or LAN IP displayed in generated Windows UNC paths |
 | `SMB_SYNC_INTERVAL_MS` | `1000` | Repository projection reconciliation interval, clamped to at least 250 ms |
-| `SMB_BIND_ADDRESS` | `0.0.0.0` in Compose | Host address used to publish TCP 445; prefer a specific trusted LAN address |
+| `SMB_SYNC_MAX_SCANNED_ENTRIES` | `20000` | Hard cap on filesystem entries inspected during one SMB reconciliation pass; accepted values are clamped to 1,000–1,000,000 |
+| `SMB_BIND_ADDRESS` | `127.0.0.1` in Compose | Host address used to publish TCP 445; set an explicit trusted LAN address only when remote SMB access is required |
 
 Upload and storage limits are not runtime environment settings. They are persisted in SQLite and edited through **Admin → Storage**. Legacy `MAX_FILE_SIZE_MB`, `MAX_FILES_PER_UPLOAD`, `MAX_REPOSITORY_STORAGE_MB`, `MAX_TOTAL_STORAGE_MB`, `MAX_REPOSITORY_FILES`, and `MAX_TOTAL_FILES` values are used only to seed missing database keys during an upgrade or first initialization; after the keys exist, the database is authoritative.
 
@@ -310,7 +311,7 @@ The Compose file explicitly forces `NODE_ENV=production` and in-container listen
 
 The production image uses a deny-by-default build context and explicit `COPY` instructions for `package.json`, `package-lock.json`, `vendor/xz-compat-purejs`, `src`, `public`, and `views`. Do not replace these with `COPY . .`, and do not add `.env.*`, certificate/private-key directories, database backups, exports, logs, or Git metadata to the image allowlist. Mount runtime secrets and persistent data instead of placing them in the project build context.
 
-The Compose configuration stores the database, uploaded files, SMB projections, and sidecar control data in the `recorddrive_data` volume. Samba credentials and state persist in `recorddrive_smb_state`. TCP 445 is published for LAN access; set `SMB_BIND_ADDRESS` to a specific trusted LAN address and block TCP 445 from untrusted networks and the public internet. If the administrator selects different web ports, update the Compose port mappings to match. Do not publish the web ports beyond loopback unless HTTPS is already working and the network exposure is intentional.
+The Compose configuration stores the database, uploaded files, SMB projections, and sidecar control data in the `recorddrive_data` volume. Samba credentials and state persist in `recorddrive_smb_state`. TCP 445 is bound to `127.0.0.1` by default. For LAN access, set `SMB_BIND_ADDRESS` to the exact trusted LAN interface address and block TCP 445 from untrusted networks and the public internet. The bundled Samba sidecar permits only SMB 3.x and requires transport encryption and signing. If the administrator selects different web ports, update the Compose port mappings to match. Do not publish the web ports beyond loopback unless HTTPS is already working and the network exposure is intentional.
 
 A container can use an administrator-selected host storage path only when that path is mounted into the container. Add a writable bind mount or volume, then enter the container path in **Admin → Storage**, for example:
 

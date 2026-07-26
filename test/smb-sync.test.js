@@ -28,6 +28,7 @@ function testConfig(tempRoot) {
     smbContainerShareRoot: '/data/smb-shares',
     smbServerName: 'fileserver',
     smbSyncIntervalMs: 1000,
+    smbSyncMaxScannedEntries: 20_000,
     maxFoldersPerRepository: 1000,
     maxFileSizeMb: 0,
     maxRepositoryStorageMb: 0,
@@ -210,4 +211,84 @@ test('rejects over-quota SMB files and removes symbolic links from the projectio
     SELECT 1 FROM activity_logs
     WHERE repository_id = ? AND action = 'SMB_REJECT_FILE_QUOTA'
   `).get(repository.id));
+});
+
+
+test('rolls back quota-exceeding in-place growth of an existing SMB hard link', (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-smb-growth-quota-'));
+  const config = {
+    ...testConfig(tempRoot),
+    maxFileSizeMb: 0.0001
+  };
+  const db = createDatabase(config);
+  t.after(() => {
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  const repository = createRepository(db);
+  const repositoryRoot = ensureSecureRepositoryDirectory(config, repository.id);
+  const storedName = crypto.randomUUID();
+  const storedPath = path.join(repositoryRoot, storedName);
+  const original = Buffer.alloc(64, 0x41);
+  fs.writeFileSync(storedPath, original, { mode: 0o600 });
+  db.prepare(`
+    INSERT INTO files (
+      id, repository_id, original_name, stored_name, mime_type, size, uploaded_by,
+      initial_access_time_ms
+    ) VALUES ('quota-growth-file', ?, 'quota-growth.bin', ?, 'application/octet-stream', ?, ?, ?)
+  `).run(
+    repository.id,
+    storedName,
+    original.length,
+    repository.created_by,
+    readInitialAccessTimeMs(storedPath)
+  );
+
+  reconcileSmbRepository(db, config, repository);
+  const projectedPath = path.join(config.smbShareRoot, String(repository.id), 'quota-growth.bin');
+  assert.equal(sameInode(storedPath, projectedPath), true);
+
+  fs.appendFileSync(projectedPath, Buffer.alloc(2048, 0x42));
+  assert.equal(fs.statSync(storedPath).size, 2112);
+  reconcileSmbRepository(db, config, db.prepare('SELECT * FROM repositories WHERE id = ?').get(repository.id));
+
+  assert.equal(fs.statSync(storedPath).size, original.length);
+  assert.equal(fs.statSync(projectedPath).size, original.length);
+  assert.deepEqual(fs.readFileSync(storedPath), original);
+  assert.equal(db.prepare("SELECT size FROM files WHERE id = 'quota-growth-file'").get().size, original.length);
+  assert.ok(db.prepare(`
+    SELECT 1 FROM activity_logs
+    WHERE repository_id = ? AND action = 'SMB_REJECT_FILE_QUOTA'
+  `).get(repository.id));
+});
+
+test('stops SMB projection scanning at the configured hard safety cap', (t) => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'recorddrive-smb-scan-limit-'));
+  const config = {
+    ...testConfig(tempRoot),
+    smbSyncMaxScannedEntries: 5
+  };
+  const db = createDatabase(config);
+  t.after(() => {
+    db.close();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  const repository = createRepository(db);
+  reconcileSmbRepository(db, config, repository);
+  const shareRoot = path.join(config.smbShareRoot, String(repository.id));
+  for (let index = 0; index < 6; index += 1) {
+    fs.writeFileSync(path.join(shareRoot, `entry-${index}.txt`), 'x');
+  }
+
+  assert.throws(
+    () => reconcileSmbRepository(
+      db,
+      config,
+      db.prepare('SELECT * FROM repositories WHERE id = ?').get(repository.id)
+    ),
+    (error) => error?.code === 'SMB_PROJECTION_SCAN_LIMIT' && error.limit === 5
+  );
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM files WHERE repository_id = ?').get(repository.id).count, 0);
 });

@@ -1,0 +1,4 @@
+
+> recorddrive@2.1.0 check
+> node --check src/server.js && node --check src/app.js
+

@@ -1,0 +1,7 @@
+Dependency validation limitations on 2026-07-26
+
+- The package registry returned HTTP 503 while npm ci attempted to fetch a locked transitive package.
+- The package audit endpoint also returned HTTP 503, so a complete live npm audit report was unavailable.
+- The local runtime was Node.js v22.16.0, while package.json requires ^22.23.0, ^24.17.0, or ^26.3.1.
+- Lockfile versions and current public advisories for security-sensitive direct dependencies were reviewed separately.
+- Targeted SMB regression tests used minimal test-only import stubs for bcryptjs, dotenv, and express-session because the registry was unavailable. These stubs are not part of the deliverable.
